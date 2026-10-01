@@ -16,6 +16,8 @@ import { executeCommand } from '../src/bus/bus.ts';
 import { clearDrain, setDrain } from '../src/drain.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { dueForensics, sweepForensics } from '../src/forensics/auto.ts';
+
+const EPOCH = '1970-01-01T00:00:00Z';
 import { forensicTasks, runTaskForensic } from '../src/forensics/run.ts';
 import { vaultFix, vaultSeed } from '../src/forensics/vault-ops.ts';
 import { VALIDATION_CLEAN_FORENSICS, latestKnownError, validationsDue } from '../src/forensics/vault.ts';
@@ -288,8 +290,8 @@ describe('the automatic forensic when a build request ends', () => {
   it('does nothing for a request that has not ended', async () => {
     task = tasks[3] as (typeof tasks)[number];
     requestId = await build(task, past(10), {});
-    expect(await dueForensics(db())).toEqual([]);
-    const r = await sweepForensics(services());
+    expect(await dueForensics(db(), EPOCH)).toEqual([]);
+    const r = await sweepForensics(services(), { since: EPOCH });
     expect(r).toMatchObject({ due: 0, results: [], stopped: null });
   });
 
@@ -298,7 +300,7 @@ describe('the automatic forensic when a build request ends', () => {
     process.env.DEMIURGO_DRAIN_FILE = drainFile;
     setDrain('test', drainFile);
     try {
-      expect(await sweepForensics(services())).toMatchObject({ results: [], stopped: 'draining' });
+      expect(await sweepForensics(services(), { since: EPOCH })).toMatchObject({ results: [], stopped: 'draining' });
     } finally {
       clearDrain(drainFile);
       delete process.env.DEMIURGO_DRAIN_FILE;
@@ -311,7 +313,7 @@ describe('the automatic forensic when a build request ends', () => {
     const simulated = { provider: 'simulated', model: 'simulated', effort: null };
     await insertChoice(db(), { group: 'deep' }, null, 'human:test');
     try {
-      const r = await sweepForensics(services());
+      const r = await sweepForensics(services(), { since: EPOCH });
       expect(r.stopped).toBe('refused');
       expect(r.results.map((x) => [x.code, x.status])).toEqual([[task.code, 'refused']]);
       expect(r.results[0]?.reason).toMatch(/Choose a model/);
@@ -322,9 +324,9 @@ describe('the automatic forensic when a build request ends', () => {
   });
 
   it('runs the forensic of the task whose build request ended, records which request triggered it, and does not run it twice', async () => {
-    const due = await dueForensics(db());
+    const due = await dueForensics(db(), EPOCH);
     expect(due).toEqual([expect.objectContaining({ code: task.code, request_id: requestId, outcome: 'merged', project_id: projectId })]);
-    const r = await sweepForensics(services());
+    const r = await sweepForensics(services(), { since: EPOCH });
     expect(r.stopped).toBeNull();
     expect(r.results.map((x) => [x.code, x.status, x.request_id])).toEqual([[task.code, 'analyzed', requestId]]);
     const row = await latestRow(task.id);
@@ -335,8 +337,8 @@ describe('the automatic forensic when a build request ends', () => {
     expect((event.after as { trigger_request: string }).trigger_request).toBe(requestId);
     const run = await db().selectFrom('ai_runs').select('requested_by').where('id', '=', row.ai_run_id).executeTakeFirstOrThrow();
     expect(run.requested_by.startsWith('system:forensics-sweeper')).toBe(true);
-    expect(await dueForensics(db())).toEqual([]);
-    expect(await sweepForensics(services())).toMatchObject({ due: 0, results: [] });
+    expect(await dueForensics(db(), EPOCH)).toEqual([]);
+    expect(await sweepForensics(services(), { since: EPOCH })).toMatchObject({ due: 0, results: [] });
   });
 
   it('a task whose analysis failed after its last activity is not retried by the sweep', async () => {
@@ -347,21 +349,21 @@ describe('the automatic forensic when a build request ends', () => {
       .values({ project_id: projectId, task_id: task.id, task_version_id: (await latestRow(task.id)).task_version_id, brief: 'Again.', requested_by: 'human:ana', requested_at: at.toISOString() as never, state: 'done', done_by: 'human:ana', done_at: at.toISOString() as never })
       .returning('id')
       .executeTakeFirstOrThrow();
-    expect((await dueForensics(db())).map((d) => d.request_id)).toEqual([again.id]);
+    expect((await dueForensics(db(), EPOCH)).map((d) => d.request_id)).toEqual([again.id]);
     // The agent hands back an incomplete checklist: the run fails and stores nothing.
     script.current = (p) => {
       const out = DEFAULT_SCRIPTS.task_forensics(p) as Analysis;
       return { ...out, checklist: out.checklist.slice(1) };
     };
     try {
-      const r = await sweepForensics(services());
+      const r = await sweepForensics(services(), { since: EPOCH });
       expect(r.results.map((x) => x.status)).toEqual(['failed']);
     } finally {
       script.current = null;
     }
     // The failed run is after the activity: the sweep leaves it for a person (`forensics run --force`) and does not loop.
-    expect(await dueForensics(db())).toEqual([]);
-    expect(await sweepForensics(services())).toMatchObject({ due: 0, results: [] });
+    expect(await dueForensics(db(), EPOCH)).toEqual([]);
+    expect(await sweepForensics(services(), { since: EPOCH })).toMatchObject({ due: 0, results: [] });
   });
 });
 

@@ -17,11 +17,17 @@ import { type TaskResult, runTaskForensic } from './run.ts';
 export const FORENSICS_SWEEP_MS = 60_000;
 /** Forensics one sweep starts at most; each waits for its run (the engine is a person's subscription: serial on purpose). */
 export const FORENSICS_PER_SWEEP = 3;
+/**
+ * Only build requests whose activity ends after this instant are analysed unattended: the automatic forensic arrived
+ * with the error vault (01-10-2026, 23:00 UTC), and older builds of other projects (dogfood, evals) must not spend a subscription
+ * on their own (our convention). Older tasks are analysed on purpose with `forensics run`.
+ */
+export const FORENSICS_AUTO_SINCE = '2026-10-01T23:00:00Z';
 
 export type ForensicDue = { project_id: string; task_id: string; code: string; request_id: string; outcome: 'merged' | 'withdrawn' | 'failed'; activity_at: string };
 
 /** The tasks whose latest ended build request is newer than their latest forensic and that have no analysis running or failed since. */
-export async function dueForensics(db: Db): Promise<ForensicDue[]> {
+export async function dueForensics(db: Db, since: string = FORENSICS_AUTO_SINCE): Promise<ForensicDue[]> {
   const rows = await sql<{ id: string; project_id: string; task_id: string; code: string; activity_at: Date }>`
     select b.id, b.project_id, b.task_id, r.code,
       greatest(
@@ -41,6 +47,7 @@ export async function dueForensics(db: Db): Promise<ForensicDue[]> {
   for (const r of [...latestOf.values()].toSorted((a, b) => new Date(a.activity_at).getTime() - new Date(b.activity_at).getTime())) {
     const activity = new Date(r.activity_at);
     const forensic = await db.selectFrom('task_forensics').select('created_at').where('task_id', '=', r.task_id).orderBy('created_at', 'desc').limit(1).executeTakeFirst();
+    if (activity.getTime() < Date.parse(since)) continue;
     if (forensic && new Date(forensic.created_at as unknown as Date).getTime() >= activity.getTime()) continue;
     // An analysis already running, or one that failed after the activity: a person retries it (`forensics run --force`), the sweep does not loop on it.
     const attempt = await sql<{ n: number }>`
@@ -56,10 +63,10 @@ export async function dueForensics(db: Db): Promise<ForensicDue[]> {
 export type SweepResult = { due: number; results: (TaskResult & { project_id: string; request_id: string; outcome: string })[]; stopped: 'draining' | 'refused' | null };
 
 /** One sweep: the due forensics, oldest first, up to `limit`. Never throws for a refusal (no engine assigned): it stops quietly. */
-export async function sweepForensics(services: Services, opts: { limit?: number } = {}): Promise<SweepResult> {
+export async function sweepForensics(services: Services, opts: { limit?: number; since?: string } = {}): Promise<SweepResult> {
   const out: SweepResult = { due: 0, results: [], stopped: null };
   if (isDraining()) return { ...out, stopped: 'draining' };
-  const due = await dueForensics(services.db);
+  const due = await dueForensics(services.db, opts.since);
   out.due = due.length;
   let started = 0;
   for (const d of due) {

@@ -13,6 +13,7 @@ import { TypeSafeClient, score } from '@typesafe-ai/sdk';
 import type { Services } from '../services.ts';
 import { jevAllowed } from './aspect.ts';
 import { JEV_DEFAULT_MODEL, jevCostUsd } from './jev.ts';
+import { questionVersion } from './question-version.ts';
 import { loadRepoContext, type RepoContext } from './repo-context.ts';
 import { type TaskObject, loadTaskObject } from './task-input.ts';
 
@@ -31,6 +32,15 @@ type Client = Pick<TypeSafeClient, 'systemOne'>;
 
 const SIZE_FOCUS = 'Judge the new code needed. What already exists in the repository is reused, not rebuilt.';
 
+const SIZE_QUESTION_WITH_REPO: Record<string, string> = {
+  question: 'How much work is it for a developer to build `task` in `repository_before_task`, from code change to passing tests?',
+  focus: SIZE_FOCUS,
+};
+const SIZE_QUESTION_PLAIN: Record<string, string> = { question: 'How much work is it for a developer to build `task`, from code change to passing tests?' };
+
+/** Version of the size question: its wordings and its levels (a short hash). */
+export const SIZE_QUESTION_VERSION = questionVersion(SIZE_QUESTION_WITH_REPO, SIZE_QUESTION_PLAIN, SIZE_LEVELS);
+
 /** The request: the task (and the repository before it) as the state, and the Score over the levels. */
 export function buildSizeRequest(input: SizeInput) {
   const repo = input.repo ?? null;
@@ -39,9 +49,7 @@ export function buildSizeRequest(input: SizeInput) {
     ...(repo?.project_stack ? { project_stack: repo.project_stack } : {}),
     ...(repo ? { repository_before_task: repo.repository } : {}),
   };
-  const question: Record<string, string> = repo
-    ? { question: 'How much work is it for a developer to build `task` in `repository_before_task`, from code change to passing tests?', focus: SIZE_FOCUS }
-    : { question: 'How much work is it for a developer to build `task`, from code change to passing tests?' };
+  const question: Record<string, string> = repo ? SIZE_QUESTION_WITH_REPO : SIZE_QUESTION_PLAIN;
   return { state, questions: { size: score(question, [...SIZE_LEVELS] as unknown as [never, never, ...never[]]) } };
 }
 
@@ -49,15 +57,30 @@ export function buildSizeRequest(input: SizeInput) {
 export const sizeOfScore = (value: number): TaskSize =>
   TASK_SIZES[Math.min(TASK_SIZES.length - 1, Math.max(0, Math.round(value)))] as TaskSize;
 
-export type SizeJudgment = { size: TaskSize; score: number; confidence: number; input_tokens: number };
+export type SizeJudgment = {
+  size: TaskSize;
+  score: number;
+  confidence: number;
+  /** Probability of each level in the order XS..XL; null when the answer carried none. */
+  distribution: number[] | null;
+  input_tokens: number;
+};
+
+/** The answer's probabilities keyed by level number (0..4) as an array; null unless every level has one. */
+export function distributionOf(probabilities: unknown): number[] | null {
+  if (!probabilities || typeof probabilities !== 'object') return null;
+  const p = probabilities as Record<string, unknown>;
+  const out = TASK_SIZES.map((_, i) => p[String(i)]);
+  return out.every((v): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0) ? out : null;
+}
 
 /** Asks Jev for a task's size. */
 export async function judgeSize(client: Client, input: SizeInput, model: string = JEV_DEFAULT_MODEL): Promise<SizeJudgment & { model: string }> {
   const { state, questions } = buildSizeRequest(input);
   const r = await client.systemOne({ state, questions, model });
-  const a = r.answers.size as { score?: number; confidence?: number } | undefined;
+  const a = r.answers.size as { score?: number; confidence?: number; probabilities?: unknown } | undefined;
   if (!a || typeof a.score !== 'number' || Number.isNaN(a.score)) throw new Error('Jev: the task came back without a size score.');
-  return { size: sizeOfScore(a.score), score: a.score, confidence: typeof a.confidence === 'number' ? a.confidence : 0, input_tokens: r.usage.input_tokens, model: r.model || model };
+  return { size: sizeOfScore(a.score), score: a.score, confidence: typeof a.confidence === 'number' ? a.confidence : 0, distribution: distributionOf(a.probabilities), input_tokens: r.usage.input_tokens, model: r.model || model };
 }
 
 export type SizeDeps = {
@@ -89,6 +112,9 @@ export async function classifyTaskSize(services: Services, projectId: string, re
         record_version_id: versionId,
         size: j.size,
         confidence: j.confidence,
+        score: j.score,
+        distribution: j.distribution ? JSON.stringify(j.distribution) : null,
+        question_version: SIZE_QUESTION_VERSION,
         classifier_id: `jev@${model}`,
       })
       .execute();

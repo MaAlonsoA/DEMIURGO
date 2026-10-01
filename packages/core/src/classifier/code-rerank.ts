@@ -19,6 +19,7 @@ import type { RankedFile } from '../build/code-map.ts';
 import type { Db } from '../db/connection.ts';
 import { jevAllowed } from './aspect.ts';
 import { JEV_DEFAULT_MODEL, jevCostUsd } from './jev.ts';
+import { questionVersion } from './question-version.ts';
 import type { TaskObject } from './task-input.ts';
 
 /** Candidates sent to Jev: the top of the deterministic ranking (our convention; the measure used 30). */
@@ -45,6 +46,16 @@ export type Reranked = {
   input_hash: string | null;
 };
 
+const RERANK_QUESTION = (id: number) =>
+  `Will a developer building \`task\` have to edit the existing file \`candidates[${id}].path\` (its symbols are in \`candidates[${id}].symbols\`)?`;
+const RERANK_LEVELS = {
+  true: 'Building the task changes this file: its component, query, action, styles or test gains or changes behaviour the task asks for.',
+  false: 'This file stays as it is: the task is implemented elsewhere or in new files.',
+};
+
+/** Version of the file question: its wording (with a placeholder index) and its levels (a short hash). */
+export const RERANK_QUESTION_VERSION = questionVersion(RERANK_QUESTION(0), RERANK_LEVELS);
+
 /** The request of a task: the task and the candidates as the state, one Noul per candidate. */
 export function buildRerankRequest(ranked: readonly RankedFile[], task: TaskObject) {
   const candidates = ranked.map((r, id) => ({
@@ -56,10 +67,7 @@ export function buildRerankRequest(ranked: readonly RankedFile[], task: TaskObje
   }));
   const questions: Record<string, ReturnType<typeof noul>> = {};
   for (const c of candidates) {
-    questions[`c${c.id}`] = noul(`Will a developer building \`task\` have to edit the existing file \`candidates[${c.id}].path\` (its symbols are in \`candidates[${c.id}].symbols\`)?`, {
-      true: 'Building the task changes this file: its component, query, action, styles or test gains or changes behaviour the task asks for.',
-      false: 'This file stays as it is: the task is implemented elsewhere or in new files.',
-    });
+    questions[`c${c.id}`] = noul(RERANK_QUESTION(c.id), RERANK_LEVELS);
   }
   return { state: { task, candidates }, questions };
 }
@@ -138,6 +146,8 @@ export async function storeCodeOpinions(
         rank: o.rank,
         classifier_id: result.classifier_id,
         input_hash: result.input_hash,
+        // Only a file that Jev rated carries the question's version; the deterministic order has no question.
+        question_version: result.classifier_id === DETERMINISTIC_ID ? null : RERANK_QUESTION_VERSION,
       })),
     )
     .execute();

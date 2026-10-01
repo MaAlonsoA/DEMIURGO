@@ -144,6 +144,11 @@ registerHandlers({
         reference: text(500).optional(),
         /** The criteria the task covers: any of them with no passing or failing case in the JUnit is reported `not_run`. */
         expected: z.array(text(40)).max(200).optional(),
+        /** Where the report comes from, for the test history. `head_sha` defaults to `reference` (the CI gatherer passes the SHA there). */
+        head_sha: text(80).optional(),
+        ci_run_id: text(80).optional(),
+        build_request_id: z.string().uuid().optional(),
+        attempt: z.number().int().min(1).max(1000).optional(),
       })
       .strict(),
     async apply(ctx, data) {
@@ -160,6 +165,12 @@ registerHandlers({
             .map(([name]) => /^AC-[A-Z]{3}-\d{3}-\d{2}/.exec(name)?.[0] ?? name),
         ),
       ];
+      await storeTestRuns(ctx, cases, {
+        buildRequestId: data.build_request_id ?? null,
+        attempt: data.attempt ?? null,
+        headSha: data.head_sha ?? data.reference ?? null,
+        ciRunId: data.ci_run_id ?? null,
+      });
       const recorded: { code: string; result: "pass" | "fail"; tests: number }[] = [];
       const unknown: string[] = [];
       let ignored = groups.ignored;
@@ -204,7 +215,7 @@ registerHandlers({
   }),
 });
 
-type TestCase = { name: string; outcome: "pass" | "fail" | "skipped" };
+type TestCase = { name: string; outcome: "pass" | "fail" | "skipped"; file?: string | null; durationMs?: number | null };
 type Group = { passed: number; failed: number; skipped: number; names: string[]; failedNames: string[] };
 
 const decodeEntities = (t: string): string =>
@@ -228,9 +239,43 @@ export function parseJunit(xml: string): TestCase[] {
     if (raw === undefined) continue;
     const body = m[3] ?? "";
     const outcome = /<(failure|error)\b/.test(body) ? "fail" : /<skipped\b/.test(body) ? "skipped" : "pass";
-    out.push({ name: decodeEntities(raw).trim(), outcome });
+    const attr = (key: string) => {
+      const a = new RegExp(`\\b${key}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(m[1] ?? "");
+      const v = a?.[1] ?? a?.[2];
+      return v === undefined ? null : decodeEntities(v).trim() || null;
+    };
+    const seconds = Number.parseFloat(attr("time") ?? "");
+    out.push({
+      name: decodeEntities(raw).trim(),
+      outcome,
+      file: (attr("file") ?? attr("classname"))?.slice(0, 500) ?? null,
+      durationMs: Number.isFinite(seconds) && seconds >= 0 ? Math.min(Math.round(seconds * 1000), 2_000_000_000) : null,
+    });
   }
   return out;
+}
+
+/** Every case of the report goes to `test_runs`, tied to a criterion or not, in the command's transaction. */
+async function storeTestRuns(
+  ctx: { trx: import("../bus/types.ts").Tx; projectId: string },
+  cases: TestCase[],
+  from: { buildRequestId: string | null; attempt: number | null; headSha: string | null; ciRunId: string | null },
+): Promise<void> {
+  const rows = cases.map((t) => ({
+    project_id: ctx.projectId,
+    build_request_id: from.buildRequestId,
+    attempt: from.attempt,
+    head_sha: from.headSha,
+    ci_run_id: from.ciRunId,
+    test_name: t.name.slice(0, 1000),
+    file: t.file ?? null,
+    criterion_code: /^AC-[A-Z]{3}-\d{3}-\d{2}/.exec(t.name)?.[0] ?? null,
+    outcome: (t.outcome === "skipped" ? "skip" : t.outcome) as "pass" | "fail" | "skip",
+    duration_ms: t.durationMs ?? null,
+  }));
+  for (let i = 0; i < rows.length; i += 500) {
+    await ctx.trx.insertInto("test_runs").values(rows.slice(i, i + 500)).execute();
+  }
 }
 
 function groupByCriterion(cases: TestCase[]): { byCode: Map<string, Group>; ignored: number } {

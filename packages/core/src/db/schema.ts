@@ -415,6 +415,10 @@ export type TaskSizeOpinionsTable = {
   size: string;
   confidence: number;
   classifier_id: string;
+  /** Expected score over the levels (0..4) and the probability of each level; only in opinions since migration 0054. */
+  score: number | null;
+  distribution: NullableJson;
+  question_version: string | null;
   created_at: Generated<Timestamp>;
 };
 
@@ -466,6 +470,7 @@ export type TaskCodeOpinionsTable = {
   rank: number;
   classifier_id: string;
   input_hash: string | null;
+  question_version: string | null;
   created_at: Generated<Timestamp>;
 };
 
@@ -907,6 +912,22 @@ export type DB = {
   pr_reviews: PrReviewsTable;
   build_steps: BuildStepsTable;
   issues: IssuesTable;
+  test_runs: TestRunsTable;
+};
+
+export type TestRunsTable = {
+  id: Generated<string>;
+  project_id: string;
+  build_request_id: string | null;
+  attempt: number | null;
+  head_sha: string | null;
+  ci_run_id: string | null;
+  test_name: string;
+  file: string | null;
+  criterion_code: string | null;
+  outcome: 'pass' | 'fail' | 'skip';
+  duration_ms: number | null;
+  recorded_at: Generated<Timestamp>;
 };
 
 export type Row<T extends keyof DB> = Selectable<DB[T]>;

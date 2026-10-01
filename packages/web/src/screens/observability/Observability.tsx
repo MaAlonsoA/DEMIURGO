@@ -14,8 +14,9 @@ import { useMessages } from '../../i18n/define.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { useSafeLocale } from '../../words.ts';
 import { correlationReading, costText, minutesText, num, shareText, tokensText } from './format.ts';
-import { observabilityCsvUrl, observabilityQuery } from './queries.ts';
-import type { AgentRow, Calibration, CostRow, ExecutionFact, ReworkCause } from './types.ts';
+import { judgmentCalibrationQuery, observabilityCsvUrl, observabilityQuery } from './queries.ts';
+import type { AgentRow, Calibration, CostRow, ExecutionFact, FileCalibration, JudgmentCalibration, ReworkCause, SizeCalibration, SizeRow } from './types.ts';
+import { TestHistorySection } from './TestHistory.tsx';
 import { OBSERVABILITY } from './words.i18n.ts';
 
 const th = 'px-3 py-2 text-xs font-medium text-fg-2 whitespace-nowrap';
@@ -62,6 +63,7 @@ export function ObservabilityScreen() {
         ) : (
           <div className="flex flex-col gap-10">
             <CalibrationSection jev={data.summary.calibration.by_jev} person={data.summary.calibration.by_person} />
+            <JudgmentsSection projectId={projectId} />
             <CostSection
               perTask={data.summary.cost.per_task}
               perFeature={data.summary.cost.per_feature}
@@ -75,6 +77,7 @@ export function ObservabilityScreen() {
               failedAttempts={data.summary.rework.failed_attempts}
             />
             <AgentsSection agents={data.summary.agents} />
+            <TestHistorySection projectId={projectId} />
             <AttemptsSection facts={data.facts} projectId={projectId} />
           </div>
         )}
@@ -129,6 +132,211 @@ function CalibrationSection({ jev, person }: { jev: Calibration; person: Calibra
       <p className="text-xs text-fg-3">
         {t.correlationNote} {t.sizesNote}
       </p>
+    </Section>
+  );
+}
+
+function bandText(locale: string, band: SizeRow['band']): string {
+  if (!band) return '—';
+  if (band.from === null && band.to !== null) return `< ${minutesText(locale, band.to)}`;
+  if (band.to === null && band.from !== null) return `≥ ${minutesText(locale, band.from)}`;
+  return band.from === null || band.to === null ? '—' : `${minutesText(locale, band.from)} – ${minutesText(locale, band.to)}`;
+}
+
+function SizeJudgments({ cal }: { cal: SizeCalibration }) {
+  const t = useMessages(OBSERVABILITY);
+  const locale = useSafeLocale();
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h3 className="text-base font-semibold text-fg">{t.judgSizeTitle}</h3>
+        {cal.builds === 0 ? (
+          <p className="text-sm text-fg-2">{t.judgNoBuilds}</p>
+        ) : (
+          <>
+            <Table
+              caption={t.judgSizeTitle}
+              head={
+                <>
+                  <th scope="col" className={th}>{t.colJevSize}</th>
+                  <th scope="col" className={numTh}>{t.colBuilds}</th>
+                  <th scope="col" className={numTh}>{t.colBuilder}</th>
+                  <th scope="col" className={numTh}>{t.colQuartiles}</th>
+                  <th scope="col" className={numTh}>{t.colFirstAttempt}</th>
+                  <th scope="col" className={numTh}>{t.colBand}</th>
+                  <th scope="col" className={numTh}>{t.colInBand}</th>
+                </>
+              }
+            >
+              {cal.by_size.map((r) => (
+                <tr key={r.size}>
+                  <th scope="row" className={`${td} font-medium text-fg`}>{r.size}</th>
+                  <td className={numTd}>{num(locale, r.n, 0)}</td>
+                  <td className={numTd}>{minutesText(locale, r.median_minutes)}</td>
+                  <td className={numTd}>
+                    {minutesText(locale, r.p25_minutes)} – {minutesText(locale, r.p75_minutes)}
+                  </td>
+                  <td className={numTd}>{minutesText(locale, r.median_first_attempt_minutes)}</td>
+                  <td className={numTd}>{bandText(locale, r.band)}</td>
+                  <td className={numTd}>
+                    {num(locale, r.in_band, 0)} / {num(locale, r.n, 0)}
+                  </td>
+                </tr>
+              ))}
+            </Table>
+            <p className="text-sm text-fg">{t.spearmanLine(cal.spearman)}</p>
+            <p className="text-xs text-fg-3">{t.judgSizeNote}</p>
+          </>
+        )}
+      </div>
+      {cal.buckets.some((b) => b.n > 0) ? (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-base font-semibold text-fg">{t.judgBucketsTitle}</h3>
+          <Table
+            caption={t.judgBucketsTitle}
+            head={
+              <>
+                <th scope="col" className={th}>{t.colBucket}</th>
+                <th scope="col" className={numTh}>{t.colBuilds}</th>
+                <th scope="col" className={numTh}>{t.colRight}</th>
+                <th scope="col" className={numTh}>{t.colAccuracy}</th>
+                <th scope="col" className={numTh}>{t.colMeanConfidence}</th>
+              </>
+            }
+          >
+            {cal.buckets.map((b) => (
+              <tr key={b.bucket}>
+                <th scope="row" className={`${td} font-normal text-fg`}>{t.bucket(b.bucket)}</th>
+                <td className={numTd}>{num(locale, b.n, 0)}</td>
+                <td className={numTd}>{num(locale, b.correct, 0)}</td>
+                <td className={numTd}>{shareText(locale, b.accuracy)}</td>
+                <td className={numTd}>{shareText(locale, b.mean_confidence)}</td>
+              </tr>
+            ))}
+          </Table>
+          <p className="text-sm text-fg">{t.eceLine(cal.ece)}</p>
+          <p className="text-sm text-fg">{t.brierLine(cal.brier)}</p>
+          <p className="text-xs text-fg-3">{t.judgBucketsNote}</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function FileJudgments({ overall }: { overall: FileCalibration }) {
+  const t = useMessages(OBSERVABILITY);
+  const locale = useSafeLocale();
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-base font-semibold text-fg">{t.judgFilesTitle}</h3>
+      {overall.builds === 0 ? (
+        <p className="text-sm text-fg-2">{t.judgEmpty}</p>
+      ) : (
+        <Table
+          caption={t.judgFilesTitle}
+          head={
+            <>
+              <th scope="col" className={numTh}>{t.colBuilds}</th>
+              <th scope="col" className={numTh}>{t.colPrecision}</th>
+              <th scope="col" className={numTh}>{t.colFileRecall}</th>
+              <th scope="col" className={numTh}>{t.colPredicted}</th>
+              <th scope="col" className={numTh}>{t.colTouched}</th>
+            </>
+          }
+        >
+          <tr>
+            <td className={numTd}>{num(locale, overall.builds, 0)}</td>
+            <td className={numTd}>{shareText(locale, overall.median_precision)}</td>
+            <td className={numTd}>{shareText(locale, overall.median_recall)}</td>
+            <td className={numTd}>{num(locale, overall.mean_predicted)}</td>
+            <td className={numTd}>{num(locale, overall.mean_touched)}</td>
+          </tr>
+        </Table>
+      )}
+      <p className="text-xs text-fg-3">{t.judgFilesNote}</p>
+    </div>
+  );
+}
+
+function VersionsTable({ data }: { data: JudgmentCalibration }) {
+  const t = useMessages(OBSERVABILITY);
+  const locale = useSafeLocale();
+  const sizes = data.sizes.by_version;
+  const files = data.files.by_version;
+  if (sizes.length === 0 && files.length === 0) return null;
+  const version = (v: string | null) => (v ? <span className="font-mono text-xs">{v}</span> : <span className="text-fg-2">{t.noVersion}</span>);
+  return (
+    <div className="flex flex-col gap-4">
+      <h3 className="text-base font-semibold text-fg">{t.versionsTitle}</h3>
+      {sizes.length > 0 ? (
+        <Table
+          caption={`${t.versionsTitle}: ${t.judgSizeTitle}`}
+          head={
+            <>
+              <th scope="col" className={th}>{t.colVersion}</th>
+              <th scope="col" className={numTh}>{t.colBuilds}</th>
+              <th scope="col" className={numTh}>{t.colAgree}</th>
+              <th scope="col" className={numTh}>{t.colEce}</th>
+              <th scope="col" className={numTh}>{t.colBrier}</th>
+            </>
+          }
+        >
+          {sizes.map((g) => (
+            <tr key={g.question_version ?? 'none'}>
+              <th scope="row" className={`${td} font-normal`}>{version(g.question_version)}</th>
+              <td className={numTd}>{num(locale, g.calibration.builds, 0)}</td>
+              <td className={numTd}>{g.calibration.builds === 0 ? '—' : shareText(locale, g.calibration.by_size.reduce((n, r) => n + r.in_band, 0) / g.calibration.builds)}</td>
+              <td className={numTd}>{num(locale, g.calibration.ece, 2)}</td>
+              <td className={numTd}>{num(locale, g.calibration.brier?.score, 3)}</td>
+            </tr>
+          ))}
+        </Table>
+      ) : null}
+      {files.length > 0 ? (
+        <Table
+          caption={`${t.versionsTitle}: ${t.judgFilesTitle}`}
+          head={
+            <>
+              <th scope="col" className={th}>{t.colVersion}</th>
+              <th scope="col" className={numTh}>{t.colBuilds}</th>
+              <th scope="col" className={numTh}>{t.colPrecision}</th>
+              <th scope="col" className={numTh}>{t.colFileRecall}</th>
+            </>
+          }
+        >
+          {files.map((g) => (
+            <tr key={g.question_version ?? 'none'}>
+              <th scope="row" className={`${td} font-normal`}>{version(g.question_version)}</th>
+              <td className={numTd}>{num(locale, g.calibration.builds, 0)}</td>
+              <td className={numTd}>{shareText(locale, g.calibration.median_precision)}</td>
+              <td className={numTd}>{shareText(locale, g.calibration.median_recall)}</td>
+            </tr>
+          ))}
+        </Table>
+      ) : null}
+      <p className="text-xs text-fg-3">{t.versionsNote}</p>
+    </div>
+  );
+}
+
+function JudgmentsSection({ projectId }: { projectId: string }) {
+  const t = useMessages(OBSERVABILITY);
+  const q = useQuery(judgmentCalibrationQuery(projectId));
+  return (
+    <Section title={t.judgTitle} id="judgments" note={t.judgNote}>
+      {q.isPending ? (
+        <RowsSkeleton label={t.loading} rows={3} />
+      ) : q.error || !q.data ? (
+        <ErrorNotice error={q.error} onRetry={() => void q.refetch()} />
+      ) : q.data.sizes.overall.tasks === 0 && q.data.files.overall.builds === 0 ? (
+        <p className="text-sm text-fg-2">{t.judgEmpty}</p>
+      ) : (
+        <>
+          <SizeJudgments cal={q.data.sizes.overall} />
+          <FileJudgments overall={q.data.files.overall} />
+          <VersionsTable data={q.data} />
+        </>
+      )}
     </Section>
   );
 }

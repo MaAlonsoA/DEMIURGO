@@ -104,3 +104,31 @@ export type ObservabilitySummary = {
 };
 
 export type Observability = { facts: ExecutionFact[]; summary: ObservabilitySummary };
+
+// GET /api/projects/:id/observability/calibration (core queries/calibration.ts).
+export type SizeRow = {
+  size: TaskSizeCode;
+  n: number;
+  median_minutes: number | null;
+  p25_minutes: number | null;
+  p75_minutes: number | null;
+  median_first_attempt_minutes: number | null;
+  band: { from: number | null; to: number | null } | null;
+  in_band: number;
+};
+export type ConfidenceBucket = { bucket: 'low' | 'mid' | 'high'; n: number; correct: number; accuracy: number | null; mean_confidence: number | null };
+export type SizeCalibration = {
+  tasks: number;
+  builds: number;
+  by_size: SizeRow[];
+  spearman: { rho: number; n: number } | null;
+  buckets: ConfidenceBucket[];
+  ece: number | null;
+  brier: { score: number; n: number } | null;
+};
+export type FileCalibration = { builds: number; median_precision: number | null; median_recall: number | null; mean_predicted: number | null; mean_touched: number | null };
+export type FileScore = { task_code: string; attempt: number; question_version: string | null; predicted: string[]; touched: string[]; hits: number; precision: number | null; recall: number | null };
+export type JudgmentCalibration = {
+  sizes: { overall: SizeCalibration; by_version: { question_version: string | null; calibration: SizeCalibration }[] };
+  files: { overall: FileCalibration; by_version: { question_version: string | null; calibration: FileCalibration }[]; builds: FileScore[] };
+};

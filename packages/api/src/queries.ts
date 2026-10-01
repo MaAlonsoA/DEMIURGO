@@ -43,6 +43,8 @@ import {
   executionFacts,
   factsToCsv,
   observabilitySummary,
+  judgmentCalibration,
+  testHistory,
   buildTimelineOf,
   projectDeliveryMetrics,
   autoStatus,
@@ -272,6 +274,12 @@ registerQueries([
     },
   },
   {
+    // Flaky and slow tests, from every CI test result kept per test and commit.
+    path: '/api/projects/:projectId/observability/tests',
+    queryName: 'query.records',
+    respond: async ({ services, params }) => testHistory(services.db, uuid(params.projectId, 'project')),
+  },
+  {
     // Integrated observability: one fact per build attempt joined with what DEMIURGO knows, and the summary over them.
     path: '/api/projects/:projectId/observability',
     queryName: 'query.records',
@@ -279,6 +287,12 @@ registerQueries([
       const { facts, agent_runs } = await executionFacts(services.db, uuid(params.projectId, 'project'));
       return { facts, summary: observabilitySummary(facts, agent_runs) };
     },
+  },
+  {
+    // Did Jev's size and file predictions match what happened? Derived on read (core queries/calibration.ts).
+    path: '/api/projects/:projectId/observability/calibration',
+    queryName: 'query.records',
+    respond: ({ services, params }) => judgmentCalibration(services.db, uuid(params.projectId, 'project')),
   },
   {
     path: '/api/projects/:projectId/observability.csv',

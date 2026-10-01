@@ -211,7 +211,7 @@ registerChecker('pr_review', async ({ db, run, output }) => {
   if (extra.length > 0) notes.push(`\`criteria\` lists ${extra.join(', ')}, which the task does not cover or which appear twice: exactly one entry per covered criterion.`);
   // `covered: true` on an automatic criterion needs a passing case for it in CI: a claim with no `pass` is not evidence.
   const passing = new Set((pack.ci?.tests ?? []).filter((t) => t.result === 'pass').map((t) => t.code));
-  const manual = new Set(pack.criteria.filter((c) => c.verification === 'manual').map((c) => c.code));
+  const manual = new Set(pack.criteria.filter((c) => c.verification === 'manual' || c.verification === 'release').map((c) => c.code));
   for (const c of output.criteria)
     if (c.covered && codes.includes(c.code) && !manual.has(c.code) && !passing.has(c.code))
       notes.push(`${c.code} is marked covered but CI has no passing test for it: mark it \`covered: false\` (not run) and say why.`);
@@ -219,8 +219,8 @@ registerChecker('pr_review', async ({ db, run, output }) => {
   if (output.verdict === 'approve') {
     if (blocking.length > 0) notes.push('An approval has no `blocking` comment: change the verdict to request_changes or downgrade the comment to a nit.');
     for (const c of output.criteria) {
-      // A manual criterion is checked by a person after the merge (its evidence is recorded on the
-      // feature): it never blocks an agent's pull request, covered or not.
+      // A manual criterion is checked by a person after the merge, and a release one automatically against the
+      // deployed candidate (its evidence is recorded on the feature): neither ever blocks an agent's pull request, covered or not.
       if (manual.has(c.code) && !c.covered) continue;
       if (!c.covered) notes.push(`${c.code} is not covered: an approval needs every automatic criterion covered.`);
       else if (!c.test_name || !c.test_name.startsWith(c.code))

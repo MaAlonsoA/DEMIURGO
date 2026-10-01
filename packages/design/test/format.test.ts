@@ -301,7 +301,7 @@ describe('criteria of a document', () => {
     {
       sample: 'a verification that is neither automatic nor manual',
       change: (t: string) => t.replace('- Verification: automatic', '- Verification: sometimes'),
-      error: /verification must be "automatic" or "manual"/,
+      error: /verification must be "automatic", "manual" or "release"/,
     },
     {
       sample: 'a criterion without verification',

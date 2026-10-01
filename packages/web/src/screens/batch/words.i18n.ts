@@ -524,6 +524,7 @@ export const PARTS = messages(
   {
     verifiedAutomatically: 'Verified automatically',
     youVerify: 'You verify it',
+    checkedAtRelease: 'Checked at release',
     checkLabel: 'How it’s verified: ',
     empty: 'Empty.',
     checkedAgainstKnowledge: 'Checked against what DEMIURGO knows',
@@ -542,6 +543,7 @@ export const PARTS = messages(
   {
     verifiedAutomatically: 'Verificada automáticamente',
     youVerify: 'La verificas tú',
+    checkedAtRelease: 'Se comprueba en la entrega',
     checkLabel: 'Cómo se verifica: ',
     empty: 'Vacío.',
     checkedAgainstKnowledge: 'Comprobado contra lo que sabe DEMIURGO',

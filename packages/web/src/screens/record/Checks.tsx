@@ -37,18 +37,19 @@ export function VerificationMark({
 }) {
   const t = useMessages(CHECKS);
   const you = verification === "manual";
+  const release = verification === "release";
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1.5 text-xs text-fg-2",
         className,
       )}
-      title={you ? t.verifyManualTitle : t.verifyAutoTitle}
+      title={you ? t.verifyManualTitle : release ? t.verifyReleaseTitle : t.verifyAutoTitle}
     >
       <WhoAvatar kind={you ? "you" : "automatic"} size={16} />
       <span>
         {t.checkedBy}
-        <span className="font-medium text-fg">{you ? t.you : t.automatic}</span>
+        <span className="font-medium text-fg">{you ? t.you : release ? t.release : t.automatic}</span>
       </span>
     </span>
   );

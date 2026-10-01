@@ -253,7 +253,7 @@ function parseCriteria(text: string, path: string): Result<Criterion[]> {
       continue;
     }
     if (!(VERIFICATIONS as readonly string[]).includes(verif[1])) {
-      problems.push({ path, message: `${code}: verification must be "automatic" or "manual".` });
+      problems.push({ path, message: `${code}: verification must be "automatic", "manual" or "release".` });
       continue;
     }
     k += 2;

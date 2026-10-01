@@ -155,6 +155,7 @@ async function acStatus(): Promise<number> {
       const e = byAc.get(c.code) ?? { passed: 0, failed: 0 };
       let state: string;
       if (c.verification === 'manual') state = 'manual';
+      else if (c.verification === 'release') state = 'release';
       else if (!r.increment || !implemented.includes(r.increment)) state = 'not implemented';
       else if (e.failed > 0) state = 'red';
       else if (e.passed > 0) state = 'green';

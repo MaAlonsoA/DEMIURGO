@@ -208,7 +208,7 @@ function JourneyView({ projectId, journey: j }: { projectId: string; journey: Jo
                 <span className="mt-auto flex items-center gap-2 border-t border-edge-subtle pt-2 text-xs text-fg-2">
                   <ChecksIcon size={13} className="shrink-0 text-fg-3" />
                   <span className="min-w-0 flex-1">
-                    {p.title} · {p.verification === 'manual' ? t.youCheckIt : t.checkedAutomatically}
+                    {p.title} · {p.verification === 'manual' ? t.youCheckIt : p.verification === 'release' ? t.checkedAtRelease : t.checkedAutomatically}
                   </span>
                   <Code className="shrink-0">{p.code}</Code>
                 </span>

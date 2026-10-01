@@ -25,6 +25,7 @@ function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDra
   const WHO: { value: Verification; label: string; detail: string }[] = [
     { value: 'automatic', label: t.automatic, detail: t.automaticDetail },
     { value: 'manual', label: t.you, detail: t.youDetail },
+    { value: 'release', label: t.release, detail: t.releaseDetail },
   ];
   return (
     <div className="flex flex-col gap-4 border-t border-edge-subtle pt-4">
@@ -79,7 +80,7 @@ function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDra
       </Field>
       <ChoiceGroup
         legend={t.whoChecksIt}
-        columns={2}
+        columns={3}
         value={[check.verification]}
         onChange={([v]) => v && onChange({ ...check, verification: v as Verification })}
         choices={WHO.map((w) => ({ value: w.value, label: w.label, detail: w.detail }))}

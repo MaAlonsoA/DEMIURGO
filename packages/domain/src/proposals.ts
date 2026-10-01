@@ -302,7 +302,7 @@ const acCode = z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/);
 const criterionText = {
   title: text(160),
   statement: text(1500),
-  verification: z.enum(['automatic', 'manual']),
+  verification: z.enum(['automatic', 'manual', 'release']),
   check: text(600),
   step: z.number().int().min(1).nullable().optional(),
 };

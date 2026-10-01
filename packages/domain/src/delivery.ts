@@ -1,7 +1,7 @@
 // Delivery states, always computed from what is recorded (evidence, build requests, covers) and never stored.
 
 /** How far a criterion is: from nothing started to verified by a passing check. */
-export const CRITERION_STATES = ['verified', 'failing', 'in_pr', 'no_evidence', 'check_by_hand', 'not_started'] as const;
+export const CRITERION_STATES = ['verified', 'failing', 'in_pr', 'no_evidence', 'check_by_hand', 'check_at_release', 'not_started'] as const;
 export type CriterionState = (typeof CRITERION_STATES)[number];
 
 /** Where a task is in its build: from open to merged. */
@@ -18,6 +18,8 @@ export function criterionState(input: {
   if (input.evidence) return 'verified';
   if (input.tasks.some((t) => t === 'in_pr' || t === 'requested')) return 'in_pr';
   if (input.verification === 'manual') return 'check_by_hand';
+  // A release criterion is checked automatically against the deployed candidate, after the merge.
+  if (input.verification === 'release') return 'check_at_release';
   // Built but no passing test recorded yet.
   if (input.tasks.some((t) => t === 'merged')) return 'no_evidence';
   return 'not_started';

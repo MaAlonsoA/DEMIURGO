@@ -8,7 +8,7 @@ export type RecordType = (typeof RECORD_TYPES)[number];
 export const DOCUMENT_STATUSES = ['proposed', 'approved'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 
-export const VERIFICATIONS = ['automatic', 'manual'] as const;
+export const VERIFICATIONS = ['automatic', 'manual', 'release'] as const;
 export type Verification = (typeof VERIFICATIONS)[number];
 
 export const LINK_TYPES = ['based_on', 'design_of', 'covers', 'origin', 'conflicts_with', 'derived_from'] as const;

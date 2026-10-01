@@ -32,11 +32,28 @@ export async function testabilityFlagsOf(db: Db, recordIds: readonly string[]): 
       if ((index.tasks.get(o.code) ?? []).length > 0 || (index.features.get(o.code) ?? []).length > 0) declared.add(o.id);
     }
   }
+  // A criterion since moved to `manual` or `release` is checked by a person or at release, not in CI: no flag,
+  // even if Jev judged it while it was automatic. The newest version of the criterion decides.
+  const codes = [...new Set(rows.map((r) => r.criterion_code))];
+  const kinds = new Map<string, string>();
+  if (codes.length > 0) {
+    const latest = await db
+      .selectFrom('criteria')
+      .innerJoin('record_versions', 'record_versions.id', 'criteria.record_version_id')
+      .select(['criteria.project_id', 'criteria.code', 'criteria.verification'])
+      .where('criteria.code', 'in', codes)
+      .orderBy('record_versions.n', 'asc')
+      .execute();
+    for (const c of latest) kinds.set(`${c.project_id}/${c.code}`, c.verification);
+  }
+  const projectOf = new Map(owners.map((o) => [o.id, o.project_id]));
   const seen = new Set<string>();
   for (const r of rows) {
     const key = `${r.record_id}/${r.criterion_code}`;
     if (seen.has(key)) continue;
     seen.add(key);
+    const verification = kinds.get(`${projectOf.get(r.record_id)}/${r.criterion_code}`);
+    if (verification === 'manual' || verification === 'release') continue;
     const p = { needs_outside_ci: r.needs_outside_ci, needs_unbuilt_feature: r.needs_unbuilt_feature };
     const kind = testabilityVerdict(p);
     if (kind === 'ok' || (kind === 'waits_for_feature' && declared.has(r.record_id))) continue;

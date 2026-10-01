@@ -125,7 +125,7 @@ function NewVersionForm({
         title: o.title,
         statement: o.statement,
         check: o.check,
-        verification: o.verification === 'manual' ? 'manual' : 'automatic',
+        verification: o.verification === 'manual' || o.verification === 'release' ? o.verification : 'automatic',
       };
     } else if (was && o && was.choice !== 'change' && changed.choice === 'change' && edits[was.key]) {
       // Back to Change: the edits come back.

@@ -976,7 +976,7 @@ type ProposedRecordChange = {
     code: string | null;
     title: string | null;
     statement: string | null;
-    verification: 'automatic' | 'manual' | null;
+    verification: 'automatic' | 'manual' | 'release' | null;
     check: string | null;
     step: number | null;
   }[];

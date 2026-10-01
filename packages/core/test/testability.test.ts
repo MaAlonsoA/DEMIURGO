@@ -186,11 +186,11 @@ describe('classifyTaskTestability', () => {
     expect(infos.some((m) => m.startsWith('error:'))).toBe(true);
   });
 
-  it('skips a task with no automatic criterion', async () => {
+  it.each(['manual', 'release'])('skips a task with only %s criteria', async (verification) => {
     const { client, requests } = fakeClient(() => 0.5);
     await classifyTaskTestability(services(), 'p', 'r', 'v', {
       client,
-      load: async () => ({ ...INPUT, criteria: [{ code: 'AC-3', statement: 'x', verification: 'manual' }] }),
+      load: async () => ({ ...INPUT, criteria: [{ code: 'AC-3', statement: 'x', verification }] }),
       store: async () => {
         throw new Error('nothing to store');
       },

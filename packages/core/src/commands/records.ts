@@ -50,7 +50,7 @@ const sectionSchema = z.object({ title: text(L.sectionTitle), content: z.string(
 const criterionContent = {
   title: text(L.criterionTitle),
   statement: text(L.statement),
-  verification: z.enum(['automatic', 'manual']),
+  verification: z.enum(['automatic', 'manual', 'release']),
   check: text(L.check),
   step: z.number().int().min(1).nullable().optional(),
   // Given/When/Then apart (all three or none); `statement` stays the composed sentence.

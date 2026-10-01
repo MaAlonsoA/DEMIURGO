@@ -6,7 +6,7 @@ import type { Link, RecordVersion, Section } from '../../api/types.ts';
 import type { VersionRef } from '../record/logic.ts';
 
 export type Choice = 'keep' | 'change' | 'drop';
-export type Verification = 'automatic' | 'manual';
+export type Verification = 'automatic' | 'manual' | 'release';
 
 export type CheckDraft = {
   /** Code of the base check, or "new-n" for an added one. */
@@ -32,7 +32,7 @@ export function initialForm(base: RecordVersion): VersionForm {
       choice: null,
       title: c.title,
       statement: c.statement,
-      verification: c.verification === 'manual' ? 'manual' : 'automatic',
+      verification: c.verification === 'manual' || c.verification === 'release' ? c.verification : 'automatic',
       check: c.check,
     })),
     added: 0,

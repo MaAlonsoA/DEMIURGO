@@ -73,9 +73,14 @@ function sectionParts(m: Middle, titles: readonly string[]): { what: number[]; h
 function checksWords(criteria: Content['criteria'], words: ReviewWords): Words {
   const n = criteria.length;
   if (n === 0) return { question: words.noChecksQuestion, hint: words.noChecksHint };
-  const automatic = criteria.filter((c) => c.verification !== 'manual').length;
-  const manual = n - automatic;
-  const parts = [automatic ? words.automaticCount(automatic) : '', manual ? words.manualCount(manual) : ''].filter(Boolean);
+  const manual = criteria.filter((c) => c.verification === 'manual').length;
+  const release = criteria.filter((c) => c.verification === 'release').length;
+  const automatic = n - manual - release;
+  const parts = [
+    automatic ? words.automaticCount(automatic) : '',
+    manual ? words.manualCount(manual) : '',
+    release ? words.releaseCount(release) : '',
+  ].filter(Boolean);
   return { question: words.checksQuestion(n), hint: parts.join(' ') };
 }
 

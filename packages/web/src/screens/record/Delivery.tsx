@@ -409,6 +409,7 @@ export const CRITERION: Record<CriterionState, { tone: string; icon: ReactNode }
   in_pr: { tone: 'text-warning-text', icon: <CircleHalfIcon size={16} /> },
   no_evidence: { tone: 'text-fg-3', icon: <CircleDashedIcon size={16} /> },
   check_by_hand: { tone: 'text-accent-text', icon: <CircleDotIcon size={16} /> },
+  check_at_release: { tone: 'text-accent-text', icon: <CircleDotIcon size={16} /> },
   not_started: { tone: 'text-fg-3', icon: <CircleIcon size={16} /> },
 };
 

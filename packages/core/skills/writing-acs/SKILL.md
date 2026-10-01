@@ -5,7 +5,7 @@ description: How to write acceptance criteria that can be verified.
 Each acceptance criterion is an observable statement: Given…, when…, then….
 
 - It describes behavior the person can see, not implementation.
-- `verification` is `automatic` when a test can check it and `manual` when a person has to judge it.
+- `verification` is `automatic` when a test in CI can check it, `manual` when a person has to judge it, and `release` when it can only be decided against the deployed release candidate (real hosting, network, provider behaviour, cold starts, capacity): an automated check runs there, not in CI (Jez Humble and David Farley, "Continuous Delivery", deployment pipeline: later stages such as capacity and acceptance testing run against a deployed environment).
 - `check` says how it is checked, in product terms, concretely enough that two people would check the same thing.
 - Avoid vague words (fast, easy, friendly, robust) unless the criterion says how they are measured.
 - Criteria don't overlap: each one covers a distinct behavior.

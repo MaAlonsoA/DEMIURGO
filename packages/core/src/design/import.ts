@@ -399,7 +399,7 @@ registerApplication('imported_record', async (ctx, { proposalId, payload }) => {
     code: c.code,
     title: c.title,
     statement: c.statement,
-    verification: c.verification === 'automatic' ? 'automatic' : 'manual',
+    verification: c.verification === 'automatic' || c.verification === 'release' ? c.verification : 'manual',
     check: c.check,
     ...(c.derivedFrom ? { derived_from: c.derivedFrom } : {}),
   }));

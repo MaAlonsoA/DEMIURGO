@@ -21,7 +21,7 @@ type GivenWhenThen = {
   given: string;
   when: string;
   then: string;
-  verification: 'automatic' | 'manual';
+  verification: 'automatic' | 'manual' | 'release';
   check: string;
 };
 

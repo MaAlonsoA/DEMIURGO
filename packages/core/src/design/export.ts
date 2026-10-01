@@ -107,7 +107,7 @@ export async function versionDocument(
     criteria: criteria.map((c) => ({
       code: c.code,
       title: c.title,
-      verification: c.verification === 'automatic' ? 'automatic' : 'manual',
+      verification: c.verification === 'automatic' || c.verification === 'release' ? c.verification : 'manual',
       check: c.check_text,
       statement: c.statement,
       ...(derivedFrom.has(c.id) ? { derivedFrom: derivedFrom.get(c.id) } : {}),

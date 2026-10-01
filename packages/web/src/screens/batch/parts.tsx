@@ -69,10 +69,11 @@ export function RecordChip({
 function Verification({ verification }: { verification: string }) {
   const t = useMessages(PARTS);
   const automatic = verification === 'automatic';
+  const release = verification === 'release';
   return (
     <span className="inline-flex items-center gap-1.5">
-      <WhoAvatar kind={automatic ? 'automatic' : 'you'} size={16} />
-      {automatic ? t.verifiedAutomatically : t.youVerify}
+      <WhoAvatar kind={automatic || release ? 'automatic' : 'you'} size={16} />
+      {automatic ? t.verifiedAutomatically : release ? t.checkedAtRelease : t.youVerify}
     </span>
   );
 }

@@ -217,7 +217,7 @@ export const proposedCriterion = z
   .object({
     title: recordText(160),
     statement: recordText(1500),
-    verification: z.enum(['automatic', 'manual']),
+    verification: z.enum(['automatic', 'manual', 'release']),
     check: recordText(600),
     step: stepRef,
   })
@@ -230,7 +230,7 @@ export const gwtCriterion = z
     given: recordText(500).describe('The precondition, one plain sentence, without the word "Given".'),
     when: recordText(500).describe('The action or event, one plain sentence, without the word "When".'),
     then: recordText(500).describe('The observable result, one plain sentence, without the word "Then".'),
-    verification: z.enum(['automatic', 'manual']),
+    verification: z.enum(['automatic', 'manual', 'release']),
     check: recordText(600),
     step: z.number().int().min(1).describe('The 1-based number of the Behavior step this criterion checks.'),
   })
@@ -420,7 +420,7 @@ export const explorationChatOutput = z
                         .describe('For modify and drop: the code of one of `about_record.criteria`; null for add.'),
                       title: recordText(160).nullable().describe('For add and modify: the whole new title; null for drop.'),
                       statement: recordText(1500).nullable().describe('For add and modify: the whole new statement (Given/when/then); null for drop.'),
-                      verification: z.enum(['automatic', 'manual']).nullable().describe('For add and modify; null for drop.'),
+                      verification: z.enum(['automatic', 'manual', 'release']).nullable().describe('For add and modify; null for drop.'),
                       check: recordText(600).nullable().describe('For add and modify: how it is checked; null for drop.'),
                       step: stepRef.describe('For add and modify of a feature criterion: the Behavior step it checks; null otherwise.'),
                     })

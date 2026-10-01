@@ -293,7 +293,7 @@ export function readiness(e: ReadinessInput): Readiness {
   else if (e.current !== e.version.n) reasons.push(`It's not the current version: the current one is ${e.current ?? '—'}.`);
   if (RECORD_TEMPLATES[e.type].requiresCriteria && e.criteria.length === 0) reasons.push('It has no acceptance criteria.');
   for (const c of e.criteria) {
-    if (!['automatic', 'manual'].includes(c.verification) || c.check.trim() === '') {
+    if (!['automatic', 'manual', 'release'].includes(c.verification) || c.check.trim() === '') {
       reasons.push(`Criterion ${c.code} doesn't say how it's checked.`);
     }
   }

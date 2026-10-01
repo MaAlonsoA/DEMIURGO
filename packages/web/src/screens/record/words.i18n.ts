@@ -73,6 +73,8 @@ export const CHECKS = messages(
   {
     verifyManualTitle: 'You check it by hand once it is built.',
     verifyAutoTitle: 'A test checks it on its own.',
+    verifyReleaseTitle: 'An automated check runs against the deployed release candidate, not in CI.',
+    release: 'At release',
     checkedBy: 'Checked by: ',
     you: 'You',
     automatic: 'Automatic',
@@ -105,6 +107,8 @@ export const CHECKS = messages(
   {
     verifyManualTitle: 'Lo compruebas tú a mano una vez esté construido.',
     verifyAutoTitle: 'Una prueba lo comprueba sola.',
+    verifyReleaseTitle: 'Una comprobación automática se ejecuta contra el candidato desplegado, no en la CI.',
+    release: 'En la entrega',
     checkedBy: 'Lo comprueba: ',
     you: 'Tú',
     automatic: 'Automático',
@@ -318,6 +322,7 @@ export const REVIEW = messages(
     checksQuestion: (n: number) => `Would ${n === 1 ? 'this criterion' : `these ${n} criteria`} prove it works?`,
     automaticCount: (n: number) => `${n} ${n === 1 ? 'is' : 'are'} automatic.`,
     manualCount: (n: number) => `${n} ${n === 1 ? 'is' : 'are'} yours to try, once it is built.`,
+    releaseCount: (n: number) => `${n} ${n === 1 ? 'is' : 'are'} checked at release, against the deployed candidate.`,
     assumedName: 'What DEMIURGO assumed',
     assumedQuestion: (n: number) =>
       `DEMIURGO assumed ${n} ${n === 1 ? 'answer' : 'answers'}. ${n === 1 ? 'Is it' : 'Are they'} right?`,
@@ -375,6 +380,8 @@ export const REVIEW = messages(
     checksQuestion: (n: number) =>
       `¿${n === 1 ? 'Este criterio demostraría' : `Estos ${n} criterios demostrarían`} que funciona?`,
     automaticCount: (n: number) => (n === 1 ? '1 es automática.' : `${n} son automáticas.`),
+    releaseCount: (n: number) =>
+      n === 1 ? '1 se comprueba en la entrega, contra el candidato desplegado.' : `${n} se comprueban en la entrega, contra el candidato desplegado.`,
     manualCount: (n: number) =>
       n === 1 ? '1 es tuya, para probarla una vez esté construido.' : `${n} son tuyas, para probarlas una vez esté construido.`,
     assumedName: 'Lo que asumió DEMIURGO',
@@ -605,6 +612,7 @@ export const DELIVERY = messages(
     cs_in_pr: 'In PR',
     cs_no_evidence: 'No evidence',
     cs_check_by_hand: 'Check by hand',
+    cs_check_at_release: 'Checked at release',
     cs_not_started: 'Not started',
     given: 'Given',
     when: 'When',
@@ -757,6 +765,7 @@ export const DELIVERY = messages(
     cs_in_pr: 'En PR',
     cs_no_evidence: 'Sin evidencia',
     cs_check_by_hand: 'Comprobar a mano',
+    cs_check_at_release: 'Se comprueba en la entrega',
     cs_not_started: 'Sin empezar',
     given: 'Dado',
     when: 'Cuando',
@@ -1163,9 +1172,9 @@ export const SCREENS = messages(
 export const TESTABILITY = messages(
   {
     untestable: (code: string, p: string) =>
-      `Jev: ${code} looks impossible to check in CI (needs a person or production, ${p}). Mark it manual or move it to a release check before building.`,
+      `Jev: ${code} looks impossible to check in CI (needs a person or production, ${p}). Set its verification to manual (a person) or release (checked against the deployed candidate) before building.`,
     untestableProduction: (code: string, p: string) =>
-      `Jev: ${code} can only be checked in a deployed environment (real hosting, network or provider behaviour, ${p}). CI cannot decide it: move it to a release check before building.`,
+      `Jev: ${code} can only be checked in a deployed environment (real hosting, network or provider behaviour, ${p}). CI cannot decide it: set its verification to release (checked against the deployed candidate) before building.`,
     untestablePerson: (code: string, p: string) =>
       `Jev: ${code} needs a person to use or judge it (${p}). CI cannot decide it: mark it manual before building.`,
     waits: (code: string, p: string) =>
@@ -1173,9 +1182,9 @@ export const TESTABILITY = messages(
   },
   {
     untestable: (code: string, p: string) =>
-      `Jev: ${code} parece imposible de comprobar en la CI (necesita a una persona o producción, ${p}). Márcalo como manual o pásalo a una comprobación de entrega antes de construir.`,
+      `Jev: ${code} parece imposible de comprobar en la CI (necesita a una persona o producción, ${p}). Pon su verificación en manual (una persona) o en entrega (se comprueba contra el candidato desplegado) antes de construir.`,
     untestableProduction: (code: string, p: string) =>
-      `Jev: ${code} solo se puede comprobar en un entorno desplegado (alojamiento, red o proveedor reales, ${p}). La CI no puede decidirlo: pásalo a una comprobación de entrega antes de construir.`,
+      `Jev: ${code} solo se puede comprobar en un entorno desplegado (alojamiento, red o proveedor reales, ${p}). La CI no puede decidirlo: pon su verificación en entrega (se comprueba contra el candidato desplegado) antes de construir.`,
     untestablePerson: (code: string, p: string) =>
       `Jev: ${code} necesita que una persona lo use o lo juzgue (${p}). La CI no puede decidirlo: márcalo como manual antes de construir.`,
     waits: (code: string, p: string) =>

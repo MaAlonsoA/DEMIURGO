@@ -11,6 +11,7 @@ import { executeCommand } from '../src/bus/bus.ts';
 import {
   type GithubConfig,
   checkRunsFor,
+  ciStatusOf,
   ensureProjectRepo,
   githubConfig,
   junitArtifactFor,
@@ -224,5 +225,37 @@ describe('github', () => {
     expect(ci.calls.some((c) => c.url.includes('/actions/runs?'))).toBe(false);
     const none = mock(() => ({ status: 200, json: { workflow_runs: [] } }));
     expect(await junitArtifactFor(none.cfg, 'ana', 'app', 'sha')).toBeNull();
+  });
+});
+
+describe('ciStatusOf', () => {
+  const run = (status: string, conclusion: string | null, name = 'ci') => ({ name, status, conclusion, detailsUrl: null });
+  it('reads every run named ci on the SHA, as branch protection does', () => {
+    expect(ciStatusOf([])).toMatchObject({ state: 'missing' });
+    expect(ciStatusOf([run('completed', 'success', 'lint')])).toMatchObject({ state: 'missing' });
+    expect(ciStatusOf([run('completed', 'success'), run('completed', 'success')])).toMatchObject({ state: 'done', conclusion: 'success', runs: 2 });
+    expect(ciStatusOf([run('completed', 'success'), run('completed', 'failure')])).toMatchObject({ state: 'done', conclusion: 'failure', failed: ['failure'] });
+    expect(ciStatusOf([run('completed', 'failure'), run('completed', 'success')])).toMatchObject({ state: 'done', conclusion: 'failure' });
+    expect(ciStatusOf([run('completed', 'success'), run('completed', 'cancelled')])).toMatchObject({ conclusion: 'cancelled' });
+    expect(ciStatusOf([run('completed', 'success'), run('completed', 'timed_out')])).toMatchObject({ conclusion: 'timed_out' });
+    expect(ciStatusOf([run('completed', 'success'), run('in_progress', null)])).toMatchObject({ state: 'pending' });
+  });
+
+  it('reads the JUnit of every ci run on the SHA', async () => {
+    const zipA = zipOf([['a.xml', '<testcase name="AC-X-001-01 a"/>']]);
+    const zipB = zipOf([['b.xml', '<testcase name="AC-X-001-01 a"><failure/></testcase>']]);
+    const { cfg } = mock((c) => {
+      if (c.url.includes('/check-runs'))
+        return { status: 200, json: { check_runs: [
+          { name: 'ci', status: 'completed', conclusion: 'success', details_url: 'https://github.com/ana/app/actions/runs/1/job/2' },
+          { name: 'ci', status: 'completed', conclusion: 'failure', details_url: 'https://github.com/ana/app/actions/runs/3/job/4' },
+        ] } };
+      if (c.url.endsWith('/runs/1/artifacts')) return { status: 200, json: { artifacts: [{ id: 10, name: 'junit', expired: false }] } };
+      if (c.url.endsWith('/runs/3/artifacts')) return { status: 200, json: { artifacts: [{ id: 11, name: 'junit', expired: false }] } };
+      return { status: 200, body: new Uint8Array(c.url.endsWith('/10/zip') ? zipA : zipB) };
+    });
+    const xml = await junitArtifactFor(cfg, 'ana', 'app', 'sha');
+    expect(xml).toContain('<failure/>');
+    expect(xml?.match(/<testcase/g)).toHaveLength(2);
   });
 });

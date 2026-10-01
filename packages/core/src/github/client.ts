@@ -403,6 +403,29 @@ export async function checkRunsFor(cfg: GithubConfig, owner: string, repo: strin
   }));
 }
 
+const PASSING_CONCLUSIONS = new Set(['success', 'neutral', 'skipped']);
+
+export type CiStatus =
+  | { state: 'missing'; conclusion: null; runs: 0; failed: [] }
+  | { state: 'pending'; conclusion: null; runs: number; failed: string[] }
+  | { state: 'done'; conclusion: string; runs: number; failed: string[] };
+
+/**
+ * The state of a required check on a head SHA, as GitHub branch protection reads it: EVERY check run with
+ * that name (a workflow that runs on `push` and on `pull_request` yields two) must have completed and none
+ * may have failed. Missing: no run yet. Pending: some run has not completed. Done: all completed, and the
+ * conclusion is `success` only when all of them passed, else the first bad one (`failure`, `cancelled`,
+ * `timed_out`, `action_required`, ...). `failed` lists the bad runs' conclusions.
+ */
+export function ciStatusOf(checks: CheckRun[], name = 'ci'): CiStatus {
+  const runs = checks.filter((c) => c.name === name);
+  if (runs.length === 0) return { state: 'missing', conclusion: null, runs: 0, failed: [] };
+  const bad = runs.filter((c) => c.status === 'completed' && !PASSING_CONCLUSIONS.has(c.conclusion ?? ''));
+  const failed = bad.map((c) => c.conclusion ?? 'unknown');
+  if (runs.some((c) => c.status !== 'completed')) return { state: 'pending', conclusion: null, runs: runs.length, failed };
+  return { state: 'done', conclusion: failed[0] ?? 'success', runs: runs.length, failed };
+}
+
 // ---------------------------------------------------------------------------------- artifacts
 
 /** The text of every *.xml entry of a zip (stored and deflate entries), concatenated. */
@@ -442,23 +465,26 @@ export function unzipXml(zip: Buffer): string {
 export const workflowRunIdOf = (detailsUrl: string | null): string | null => /\/actions\/runs\/(\d+)/.exec(detailsUrl ?? '')?.[1] ?? null;
 
 /**
- * The JUnit XML from the artifact named `junit` of the workflow run that produced the `ci` check of a
- * head SHA (another workflow on the same commit may have run later and has no JUnit), or, when the
- * check does not say which run, of the latest run. Null without it.
+ * The JUnit XML from the artifact named `junit` of EVERY workflow run that produced a `ci` check of a head
+ * SHA, concatenated (the same test failing in one run and passing in another shows as both cases), or, when
+ * the checks do not say which run, of the latest run. Null without any.
  */
 export async function junitArtifactFor(cfg: GithubConfig, owner: string, repo: string, headSha: string): Promise<string | null> {
-  const ci = (await checkRunsFor(cfg, owner, repo, headSha)).find((c) => c.name === 'ci');
-  let runId = workflowRunIdOf(ci?.detailsUrl ?? null);
-  if (!runId) {
+  const checks = (await checkRunsFor(cfg, owner, repo, headSha)).filter((c) => c.name === 'ci');
+  const runIds = [...new Set(checks.map((c) => workflowRunIdOf(c.detailsUrl)).filter((id): id is string => id !== null))];
+  if (runIds.length === 0) {
     const runs = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/runs?head_sha=${encodeURIComponent(headSha)}&per_page=1`);
     const latest = runs.data?.workflow_runs?.[0];
     if (!latest) return null;
-    runId = String(latest.id);
+    runIds.push(String(latest.id));
   }
-  const list = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/runs/${runId}/artifacts`);
-  const artifact = (list.data?.artifacts ?? []).find((a: any) => a.name === 'junit' && !a.expired);
-  if (!artifact) return null;
-  const res = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/artifacts/${artifact.id}/zip`, { raw: true });
-  const zip = Buffer.from(await (res.data as Response).arrayBuffer());
-  return unzipXml(zip);
+  const parts: string[] = [];
+  for (const runId of runIds) {
+    const list = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/runs/${runId}/artifacts`);
+    const artifact = (list.data?.artifacts ?? []).find((a: any) => a.name === 'junit' && !a.expired);
+    if (!artifact) continue;
+    const res = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/artifacts/${artifact.id}/zip`, { raw: true });
+    parts.push(unzipXml(Buffer.from(await (res.data as Response).arrayBuffer())));
+  }
+  return parts.length > 0 ? parts.join('\n') : null;
 }

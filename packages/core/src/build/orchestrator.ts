@@ -35,7 +35,8 @@ import { executeCommand } from '../bus/bus.ts';
 import { systemInteraction } from '../engine/observe.ts';
 import { engineServices } from '../engine/registry.ts';
 import * as github from '../github/client.ts';
-import { redactConfigured } from '../github/client.ts';
+import { ciStatusOf, redactConfigured } from '../github/client.ts';
+import { flakyNote } from './flaky.ts';
 import { classifyBuilderFailure, failureExcerpt } from './failure.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
 import { projectsDir } from '../repo/repo.ts';
@@ -218,7 +219,7 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   };
 }
 
-type Feedback = { blocking: string[]; failing: string[]; design: string[] };
+type Feedback = { blocking: string[]; failing: string[]; design: string[]; flaky: string[] };
 
 /** What the previous attempt got wrong: the reviewer's blocking comments and the tests that failed. */
 async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
@@ -242,7 +243,8 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
     .orderBy('created_at', 'desc')
     .orderBy('id', 'desc')
     .executeTakeFirst();
-  const recorded = ((evidence?.detail as { recorded?: { code: string; result: string }[] } | null)?.recorded ?? []).filter((t) => t.result === 'fail');
+  const evidenceDetail = evidence?.detail as { recorded?: { code: string; result: string }[]; flaky?: string[] } | null;
+  const recorded = (evidenceDetail?.recorded ?? []).filter((t) => t.result === 'fail');
   const design = await s.db
     .selectFrom('build_steps')
     .select(['outcome', 'detail'])
@@ -253,7 +255,7 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
     .orderBy('id', 'desc')
     .executeTakeFirst();
   const violations = design?.outcome === 'failed' ? ((design.detail as { violations?: DesignViolation[] } | null)?.violations ?? []) : [];
-  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine) };
+  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine), flaky: evidenceDetail?.flaky ?? [] };
 }
 
 const violationLine = (v: DesignViolation): string => `${v.path}${v.line ? `:${v.line}` : ''} (rule ${v.rule}): ${v.message}`;
@@ -290,10 +292,11 @@ function promptOf(
   design: { manifest: DesignManifest; manifestText: string; tokensText: string } | null = null,
 ): string {
   const lines = [body, '', '# Brief', brief, ...designSection(design)];
-  if (attempt > 1 && (f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0)) {
+  if (attempt > 1 && (f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.flaky.length > 0)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
     if (f.blocking.length > 0) lines.push('The reviewer asked for these changes:', ...f.blocking.map((b) => `- ${b}`));
     if (f.failing.length > 0) lines.push(`The tests of these criteria failed in CI: ${f.failing.join(', ')}.`);
+    if (f.flaky.length > 0) lines.push(flakyNote(f.flaky));
     if (f.design.length > 0) lines.push('The design-system check (demiurgo/design) failed, fix these:', ...f.design.map((v) => `- ${v}`));
   } else if (attempt > 1) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`, 'The previous attempt did not merge; check the tests and the review comments on the pull request.');
@@ -434,7 +437,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const resolution = await resolveEngine(s0.db, s0.providers, { agent: agent.id });
     const problem = resolutionProblem(agent.id, resolution);
     if (problem || resolution.status !== 'ok') throw new DomainError('guard', problem ?? 'The builder has no engine.');
-    const feedback = attempt > 1 ? await feedbackOf(s0, r) : { blocking: [], failing: [], design: [] };
+    const feedback = attempt > 1 ? await feedbackOf(s0, r) : { blocking: [], failing: [], design: [], flaky: [] };
     const designSystem = await designSystemOf(worktree.path).catch(() => null);
     const control = new AbortController();
     builders.set(requestId, control);
@@ -585,10 +588,9 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   for (;;) {
     const poll = await plain('ci-poll', async () => {
       const checks = await d.github.checkRunsFor(cfg, owner, repoName, headSha);
-      const found = checks.find((c) => c.name === 'ci');
-      if (!found) return { state: 'missing' as const, conclusion: null };
-      if (found.status === 'completed') return { state: 'done' as const, conclusion: found.conclusion };
-      return { state: 'pending' as const, conclusion: null };
+      // Every run named `ci` on this SHA counts (push and pull_request each yield one): all must complete, none may fail.
+      const { state, conclusion } = ciStatusOf(checks);
+      return { state, conclusion };
     });
     if (poll.state === 'done') {
       ci = { conclusion: poll.conclusion };
@@ -623,7 +625,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   // evidence
   const evidence = await stage(r, 'evidence', async () => {
     const junit = await d.github.junitArtifactFor(cfg, owner, repoName, headSha);
-    if (!junit) return { value: { tests: [] as { code: string; result: 'pass' | 'fail' }[] }, detail: { note: 'The CI run has no artifact named "junit": no evidence recorded.', recorded: [] } };
+    if (!junit) return { value: { tests: [] as { code: string; result: 'pass' | 'fail' }[], flaky: [] as string[] }, detail: { note: 'The CI run has no artifact named "junit": no evidence recorded.', recorded: [] } };
     const taskRow = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow();
     const done = await executeCommand(s0, {
       command: 'evidence.ingest_junit',
@@ -631,10 +633,10 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       projectId,
       data: { junit, pr_url: pull.url, reference: headSha, expected: await taskCoversOf(s0.db, taskRow.task_id) },
     });
-    const result = done.result as { recorded: { code: string; result: 'pass' | 'fail'; tests: number }[]; unknown: string[]; ignored: number; not_run: string[] };
+    const result = done.result as { recorded: { code: string; result: 'pass' | 'fail'; tests: number }[]; unknown: string[]; ignored: number; not_run: string[]; flaky: string[] };
     return {
-      value: { tests: result.recorded.map((t) => ({ code: t.code, result: t.result })) },
-      detail: { recorded: result.recorded, unknown: result.unknown, ignored: result.ignored, not_run: result.not_run },
+      value: { tests: result.recorded.map((t) => ({ code: t.code, result: t.result })), flaky: result.flaky },
+      detail: { recorded: result.recorded, unknown: result.unknown, ignored: result.ignored, not_run: result.not_run, flaky: result.flaky },
     };
   });
   if (!evidence.ok) return stop('evidence', evidence.outcome);
@@ -655,7 +657,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
             data: {
               action: 'pr_review',
               scope: { type: 'build_request', id: requestId },
-              input: { diff, pr_url: pull.url, ci: { conclusion, tests: evidence.value.tests } },
+              input: { diff, pr_url: pull.url, ci: { conclusion, tests: evidence.value.tests, flaky: evidence.value.flaky } },
             },
           });
           return { value: { runId: run.entityId }, detail: { run_id: run.entityId, ci_conclusion: conclusion }, outcome: 'waiting' as const };
@@ -776,9 +778,12 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     if (repo.value.protection === 'demiurgo') {
       // GitHub Free private repo: no branch protection or auto-merge, so DEMIURGO applies the same rule itself.
       const checks = await d.github.checkRunsFor(cfg, owner, repoName, headSha);
-      const ci = checks.find((c) => c.name === 'ci');
+      const ci = ciStatusOf(checks);
       const red: string[] = [];
-      if (!ci || ci.status !== 'completed' || ci.conclusion !== 'success') red.push(`ci (${ci ? (ci.conclusion ?? ci.status) : 'missing'})`);
+      if (ci.state !== 'done' || ci.conclusion !== 'success') {
+        const why = ci.state === 'missing' ? 'missing' : ci.state === 'pending' ? 'still running' : ci.failed.join(', ');
+        red.push(`ci (${why}${ci.runs > 1 && ci.failed.length > 0 ? `; ${ci.failed.length} of ${ci.runs} runs failed` : ''})`);
+      }
       // demiurgo/review is the status set on the head SHA in `publish`; demiurgo/design was set green in `status`
       // (a failing design check stops the attempt before the push), so both come from this same run.
       if (!approved) red.push(REVIEW_STATUS);

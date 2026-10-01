@@ -152,7 +152,7 @@ function writeDesign(dir: string, violating: boolean): void {
   );
 }
 
-function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean; auto?: number; greenAfterRuns?: number }): Partial<BuildDeps> {
+function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean; auto?: number; greenAfterRuns?: number; extraCiRun?: (poll: number) => { status: string; conclusion: string | null } }): Partial<BuildDeps> {
   const base = builderRuns;
   // With greenAfterRuns, CI is red until the builder has run that many times, then green.
   const conclusionNow = (): 'success' | 'failure' => (opts.greenAfterRuns !== undefined && builderRuns - base >= opts.greenAfterRuns ? 'success' : opts.ciConclusion);
@@ -185,13 +185,25 @@ function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating'
     },
     checkRunsFor: async () => {
       calls.polls.ci++;
+      // A second run named `ci` on the same SHA (the workflow runs on push and on pull_request).
+      if (opts.extraCiRun) {
+        const extra = opts.extraCiRun(calls.polls.ci);
+        return [
+          { name: 'ci', status: 'completed', conclusion: 'success', detailsUrl: null },
+          { name: 'ci', ...extra, detailsUrl: null },
+        ];
+      }
       // With ciFlipsRed, CI is green while it is awaited and red when DEMIURGO re-checks it before merging.
       if (opts.ciFlipsRed && calls.polls.ci >= 3) return [{ name: 'ci', status: 'completed', conclusion: 'failure', detailsUrl: null }];
       return calls.polls.ci < 2
         ? [{ name: 'ci', status: 'in_progress', conclusion: null, detailsUrl: null }]
         : [{ name: 'ci', status: 'completed', conclusion: conclusionNow(), detailsUrl: null }];
     },
-    junitArtifactFor: async () => junit(conclusionNow() === 'failure'),
+    junitArtifactFor: async () => {
+      // The run that failed and the run that passed on the same commit: every test shows once failing, once passing.
+      if (opts.extraCiRun?.(Number.MAX_SAFE_INTEGER).conclusion === 'failure') return junit(false) + junit(true);
+      return junit(conclusionNow() === 'failure');
+    },
   } as unknown as BuildDeps['github'];
   return {
     github,
@@ -439,6 +451,37 @@ describe('build.start', () => {
     expect(calls.autoMerge).toEqual([]);
     const failed = (await steps(requestId)).find((s) => s.stage === 'merge' && s.outcome === 'failed');
     expect(JSON.stringify(failed?.detail)).toContain('required checks are not green: ci (failure)');
+  });
+
+  it('two ci runs on the same SHA, one failed: not mergeable, and the flaky test is reported', async () => {
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('project_id', '=', projectId).where('state', '=', 'in_review').execute();
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', extraCiRun: () => ({ status: 'completed', conclusion: 'failure' }) }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('changes_requested:merge');
+    expect(calls.merges).toBe(0);
+    const rows = await steps(requestId);
+    expect(rows.find((s) => s.stage === 'ci' && s.outcome === 'failed')?.detail).toMatchObject({ conclusion: 'failure' });
+    expect(rows.find((s) => s.stage === 'evidence' && s.outcome === 'ok')?.detail).toMatchObject({ flaky: expect.arrayContaining([codes[0]]) });
+  });
+
+  it('two ci runs on the same SHA, both passing: mergeable', async () => {
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('project_id', '=', projectId).where('state', '=', 'in_review').execute();
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', extraCiRun: () => ({ status: 'completed', conclusion: 'success' }) }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('done');
+    expect(calls.merges).toBe(1);
+  });
+
+  it('two ci runs on the same SHA, one still running: it waits for it', async () => {
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('project_id', '=', projectId).where('state', '=', 'in_review').execute();
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', extraCiRun: (poll) => (poll < 5 ? { status: 'in_progress', conclusion: null } : { status: 'completed', conclusion: 'success' }) }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('done');
+    expect(calls.polls.ci).toBeGreaterThanOrEqual(5);
+    expect(calls.merges).toBe(1);
   });
 
   it('GitHub plan without protection: a reviewer that asked for changes never reaches the merge', async () => {

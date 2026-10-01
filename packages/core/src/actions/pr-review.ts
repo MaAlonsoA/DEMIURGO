@@ -14,13 +14,17 @@ const BUILDER = 'pr_review@1';
 export const PR_REVIEW_DIFF_MAX = 400_000;
 const BUDGET = { brief: 20_000, task: 8_000, criteria: 12_000, diff: PR_REVIEW_DIFF_MAX };
 
-type Ci = { conclusion: string | null; tests: { code: string; result: 'pass' | 'fail' }[] };
+type Ci = { conclusion: string | null; tests: { code: string; result: 'pass' | 'fail' }[]; flaky?: string[]; note?: string };
+
+import { flakyNote } from '../build/flaky.ts';
 
 function ciOf(value: unknown): Ci {
   const v = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>;
   const tests = Array.isArray(v.tests) ? v.tests : [];
+  const flaky = (Array.isArray(v.flaky) ? v.flaky : []).filter((c): c is string => typeof c === 'string');
   return {
     conclusion: typeof v.conclusion === 'string' ? v.conclusion : null,
+    ...(flaky.length > 0 ? { flaky, note: flakyNote(flaky) } : {}),
     tests: tests
       .map((t) => (typeof t === 'object' && t !== null ? (t as Record<string, unknown>) : {}))
       .filter((t) => typeof t.code === 'string' && (t.result === 'pass' || t.result === 'fail'))

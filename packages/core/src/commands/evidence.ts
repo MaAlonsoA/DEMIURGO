@@ -147,7 +147,19 @@ registerHandlers({
       })
       .strict(),
     async apply(ctx, data) {
-      const groups = groupByCriterion(parseJunit(data.junit));
+      const cases = parseJunit(data.junit);
+      const groups = groupByCriterion(cases);
+      // The JUnit of several CI runs on one commit is concatenated: a test that passed in one run and failed in
+      // another on the same SHA is flaky.
+      const outcomes = new Map<string, Set<string>>();
+      for (const t of cases) outcomes.set(t.name, (outcomes.get(t.name) ?? new Set()).add(t.outcome));
+      const flaky = [
+        ...new Set(
+          [...outcomes]
+            .filter(([, o]) => o.has("pass") && o.has("fail"))
+            .map(([name]) => /^AC-[A-Z]{3}-\d{3}-\d{2}/.exec(name)?.[0] ?? name),
+        ),
+      ];
       const recorded: { code: string; result: "pass" | "fail"; tests: number }[] = [];
       const unknown: string[] = [];
       let ignored = groups.ignored;
@@ -186,7 +198,7 @@ registerHandlers({
         const g = groups.byCode.get(code);
         return !g || g.passed + g.failed === 0;
       });
-      const result = { recorded, unknown, ignored, not_run: notRun };
+      const result = { recorded, unknown, ignored, not_run: notRun, flaky };
       return { entityId: lastId ?? ctx.projectId, after: result, result };
     },
   }),

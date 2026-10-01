@@ -229,6 +229,7 @@ function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failu
         : [{ name: 'ci', status: 'completed', conclusion: conclusionNow(), detailsUrl: null }];
     },
     cancelWorkflowRuns: async () => 1,
+    rerunCancelledRuns: async () => 0,
     junitArtifactFor: async (_c: unknown, _o: string, _r: string, sha: string) => {
       if (sha === UPDATED_SHA) return junit(opts.updatedCi === 'failure');
       // A test outside the task's criteria that failed in one run and passed in the other.

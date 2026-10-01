@@ -466,6 +466,18 @@ export async function cancelWorkflowRuns(cfg: GithubConfig, owner: string, repo:
   return open.length;
 }
 
+/**
+ * Re-runs the workflow runs of a head SHA that ended cancelled (DEMIURGO cancels them when the review rejects first):
+ * a new attempt on the same commit then gets a real CI result instead of the old «cancelled» (GitHub REST «Re-run a
+ * workflow»). Returns how many re-runs were requested.
+ */
+export async function rerunCancelledRuns(cfg: GithubConfig, owner: string, repo: string, sha: string): Promise<number> {
+  const { data } = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/runs?head_sha=${sha}&per_page=100`);
+  const cancelled = (data?.workflow_runs ?? []).filter((w: any) => w.status === 'completed' && w.conclusion === 'cancelled');
+  for (const w of cancelled) await call(cfg, 'POST', `/repos/${owner}/${repo}/actions/runs/${w.id}/rerun`, { okStatuses: [403, 409] });
+  return cancelled.length;
+}
+
 const PASSING_CONCLUSIONS = new Set(['success', 'neutral', 'skipped']);
 
 export type CiStatus =

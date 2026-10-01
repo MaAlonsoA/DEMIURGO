@@ -95,6 +95,7 @@ export type GithubApi = Pick<
   | 'mergePullRequest'
   | 'checkRunsFor'
   | 'cancelWorkflowRuns'
+  | 'rerunCancelledRuns'
   | 'junitArtifactFor'
   | 'closePullRequest'
   | 'deleteBranch'
@@ -926,7 +927,11 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
 
   // ci and review run in parallel (Software Engineering at Google, ch. 19 "Critique": presubmit results show beside the
   // review; see build/gate.ts). CI is already running on the pushed head; the reviewer starts now, without waiting for it.
-  await plain('ci-start', () => record(r, 'ci', 'started'));
+  // Same step as before (a replay stays deterministic): a head whose CI an earlier attempt cancelled gets it re-run.
+  await plain('ci-start', async () => {
+    const rerun = await d.github.rerunCancelledRuns(cfg, owner, repoName, headSha).catch(() => 0);
+    await record(r, 'ci', 'started', rerun > 0 ? { rerun_cancelled: rerun } : undefined);
+  });
 
   // evidence (of a head SHA; again after the branch is updated from the base)
   const gatherEvidence = (sha: string) => stage(r, 'evidence', async () => {

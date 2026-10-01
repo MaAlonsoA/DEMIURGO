@@ -6,6 +6,7 @@
 import { DomainError, formatActor } from "@demiurgo/domain";
 import { z } from "zod";
 import { advanceBuildQueue, queueAutoOn } from "../build/auto.ts";
+import { openHoldOf } from "../build/holds.ts";
 import { composeBrief } from "../build/queue.ts";
 import { githubConfig } from "../github/client.ts";
 import { mergedBuildOf } from "../queries/read.ts";
@@ -43,6 +44,76 @@ registerHandlers({
     },
   }),
 
+  // «On hold»: a person puts a task on hold with the reason it cannot be built yet, and takes it off later.
+  "task.hold": handler({
+    data: z.object({ task: z.string().trim().min(1).max(40), reason: z.string().trim().min(1).max(1000) }).strict(),
+    async apply(ctx, data, e) {
+      const task = await ctx.trx
+        .selectFrom("records")
+        .select(["id", "code", "type"])
+        .where("project_id", "=", ctx.projectId)
+        .where("code", "=", data.task)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!task) throw new DomainError("not_found", `Task ${data.task} does not exist.`);
+      if (task.type !== "task") throw new DomainError("validation", `${data.task} is not a task.`);
+      if (await mergedBuildOf(ctx.trx, task.id))
+        throw new DomainError("guard", `${task.code} is already built: its pull request was merged.`);
+      if (await openHoldOf(ctx.trx, task.id)) throw new DomainError("conflict", `${task.code} is already on hold.`);
+      const open = await ctx.trx
+        .selectFrom("build_requests")
+        .select("id")
+        .where("task_id", "=", task.id)
+        .where("state", "in", ["requested", "in_review"])
+        .executeTakeFirst();
+      if (open && (await buildRunning(ctx.trx, open.id)))
+        throw new DomainError("conflict", `A build of ${task.code} is running: withdraw it before putting the task on hold.`);
+      const by = formatActor(ctx.actor);
+      await ctx.trx
+        .insertInto("task_holds")
+        .values({ project_id: ctx.projectId, task_id: task.id, reason: data.reason, held_by: by })
+        .execute();
+      return {
+        entityId: e?.id ?? ctx.projectId,
+        after: { task: task.code, reason: data.reason, held_by: by },
+        result: { task: task.code },
+      };
+    },
+  }),
+
+  "task.release": handler({
+    data: z.object({ task: z.string().trim().min(1).max(40) }).strict(),
+    async apply(ctx, data, e) {
+      const task = await ctx.trx
+        .selectFrom("records")
+        .select(["id", "code"])
+        .where("project_id", "=", ctx.projectId)
+        .where("code", "=", data.task)
+        .where("type", "=", "task")
+        .forUpdate()
+        .executeTakeFirst();
+      if (!task) throw new DomainError("not_found", `Task ${data.task} does not exist.`);
+      const hold = await openHoldOf(ctx.trx, task.id);
+      if (!hold) throw new DomainError("conflict", `${task.code} is not on hold.`);
+      const by = formatActor(ctx.actor);
+      await ctx.trx
+        .updateTable("task_holds")
+        .set({ released_by: by, released_at: new Date() })
+        .where("task_id", "=", task.id)
+        .where("released_at", "is", null)
+        .execute();
+      // A task that is ready again makes room in «Build the queue» (a no-op with the flag off).
+      const projectId = ctx.projectId;
+      ctx.afterCommit(async () => void (await advanceBuildQueue(ctx.services, projectId)));
+      return {
+        entityId: e?.id ?? projectId,
+        before: { task: task.code, reason: hold.reason, held_by: hold.held_by },
+        after: { task: task.code, released_by: by },
+        result: { task: task.code },
+      };
+    },
+  }),
+
   "build_request.request": handler({
     data: z.object({ task: z.string().trim().min(1).max(40) }).strict(),
     async apply(ctx, data, _e, to) {
@@ -66,6 +137,9 @@ registerHandlers({
           merged.pr_url ? [`Merged pull request: ${merged.pr_url}.`] : [],
         );
       }
+      const hold = await openHoldOf(ctx.trx, task.id);
+      if (hold)
+        throw new DomainError("guard", `${task.code} is on hold.`, [`Reason: ${hold.reason}`]);
       const open = await ctx.trx
         .selectFrom("build_requests")
         .select(["requested_by", "requested_at"])
@@ -202,8 +276,8 @@ registerHandlers({
   }),
 
   "build_request.withdraw": handler({
-    data: z.object({}).strict(),
-    async apply(ctx, _data, e, to) {
+    data: z.object({ reason: z.string().trim().min(1).max(1000).optional() }).strict(),
+    async apply(ctx, data, e, to) {
       const id = e?.id as string;
       const by = formatActor(ctx.actor);
       // A build still running is stopped: its builder and workflow are cancelled after the commit, and the
@@ -234,6 +308,11 @@ registerHandlers({
         .set({ state: to, withdrawn_by: by, withdrawn_at: new Date() })
         .where("id", "=", id)
         .execute();
+      // An open pull request is closed on GitHub with the reason, and its branch deleted (after the commit).
+      if (e?.row.pr_number != null) {
+        const reason = data.reason;
+        ctx.afterCommit(() => ctx.services.engine.closeBuildPullRequest(id, reason));
+      }
       const task = await ctx.trx
         .selectFrom("records")
         .select("code")

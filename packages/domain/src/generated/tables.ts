@@ -960,6 +960,22 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Turn «Build the queue» on or off: with it on, the system starts the next ready task by itself, one build at a time, after each merge."
     },
+    "task.hold": {
+      "entity": "project",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Put a task on hold with the reason it cannot be built yet (an external prerequisite): «Build the queue» skips it and takes the next ready one."
+    },
+    "task.release": {
+      "entity": "project",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Take a task off hold: it is ready to build again."
+    },
     "build_step.record": {
       "entity": "build_step",
       "allowed": [
@@ -1156,6 +1172,20 @@ export const TRANSITIONS = {
         },
         {
           "command": "build.queue_auto",
+          "from": [
+            "active"
+          ],
+          "to": "active"
+        },
+        {
+          "command": "task.hold",
+          "from": [
+            "active"
+          ],
+          "to": "active"
+        },
+        {
+          "command": "task.release",
           "from": [
             "active"
           ],

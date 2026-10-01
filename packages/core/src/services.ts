@@ -14,6 +14,8 @@ export type WorkflowEngine = {
   startBuild(buildRequestId: string, projectId: string, attempt: number): Promise<void>;
   /** Stops the build workflow of an attempt and its builder container (the request was withdrawn). */
   cancelBuild(buildRequestId: string, attempt: number): Promise<void>;
+  /** Closes the open pull request of a withdrawn request on GitHub, with a comment, and deletes its branch. Never throws. */
+  closeBuildPullRequest(buildRequestId: string, reason?: string): Promise<void>;
   startResponse(messageId: string, projectId: string, explorationId: string, questionId?: string, agent?: string): Promise<void>;
   /**
    * Requests an exploration_chat run in that thread with that input as soon as knowledge is up to
@@ -92,6 +94,7 @@ export function inertEngine(): WorkflowEngine & {
   return {
     builds,
     cancelBuild: async () => undefined,
+    closeBuildPullRequest: async () => undefined,
     startBuild: async (id, _p, attempt) => {
       builds.push(`${id}:${attempt}`);
     },

@@ -659,6 +659,18 @@ export type BuildQueueSettingsTable = {
   set_at: Generated<Timestamp>;
 };
 
+export type TaskHoldsTable = {
+  id: Generated<string>;
+  project_id: string;
+  task_id: string;
+  /** Why the task cannot be built yet (an external prerequisite). */
+  reason: string;
+  held_by: string;
+  held_at: Generated<Timestamp>;
+  released_by: string | null;
+  released_at: Timestamp | null;
+};
+
 export type ProjectGithubTable = {
   id: Generated<string>;
   project_id: string;
@@ -778,6 +790,7 @@ export type DB = {
   project_repos: ProjectReposTable;
   project_github: ProjectGithubTable;
   build_queue_settings: BuildQueueSettingsTable;
+  task_holds: TaskHoldsTable;
   build_requests: BuildRequestsTable;
   project_commits: ProjectCommitsTable;
   pr_reviews: PrReviewsTable;

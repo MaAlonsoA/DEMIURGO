@@ -27,6 +27,7 @@ export function createInlineEngine(services: () => Services): InlineEngine {
     cancelRun: async () => undefined,
     startBuild: async () => undefined,
     cancelBuild: async () => undefined,
+    closeBuildPullRequest: async () => undefined,
     startResponse: async (id) => {
       responses.push(id);
     },

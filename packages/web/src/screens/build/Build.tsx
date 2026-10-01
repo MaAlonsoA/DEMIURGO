@@ -12,7 +12,7 @@ import type { BuildQueue, QueueTask } from "../../api/types.ts";
 import { Code } from "../../components/Badge.tsx";
 import { Button } from "../../components/Button.tsx";
 import { ConfirmDialog } from "../../components/Dialog.tsx";
-import { Checkbox, TextInput } from "../../components/Field.tsx";
+import { Checkbox, Field, TextArea, TextInput } from "../../components/Field.tsx";
 import { EmptyState } from "../../components/EmptyState.tsx";
 import { PlayIcon } from "../../components/icons.tsx";
 import { ErrorNotice, Notice } from "../../components/Notice.tsx";
@@ -269,6 +269,9 @@ function Actions({
             {t.withdraw}
           </Button>
         ) : canStart ? (
+          <HoldButton projectId={projectId} task={task} t={t} onDone={refresh} />
+        ) : null}
+        {!task.request && canStart ? (
           <Button
             size="sm"
             variant="primary"
@@ -299,6 +302,112 @@ function Actions({
         error={request.error}
       />
     </div>
+  );
+}
+
+/** «Put on hold»: a task that cannot be built yet (an outside prerequisite) leaves the queue with its reason. */
+function HoldButton({ projectId, task, t, onDone }: { projectId: string; task: QueueTask; t: Words; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const hold = useCommand(projectId);
+  const submit = () => {
+    if (!reason.trim() || hold.isPending) return;
+    hold.mutate(
+      { command: "task.hold", entityId: projectId, data: { task: task.code, reason: reason.trim() } },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          setReason("");
+          onDone();
+          announce(t.holdDone(task.code));
+        },
+      },
+    );
+  };
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="quiet"
+        aria-label={t.holdLabel(task.code)}
+        data-hold={task.code}
+        onClick={() => {
+          hold.reset();
+          setOpen(true);
+        }}
+      >
+        {t.hold}
+      </Button>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={(o) => {
+          if (!hold.isPending) setOpen(o);
+        }}
+        title={t.holdTitle(task.code)}
+        description={<p>{t.holdBody}</p>}
+        confirm={t.holdConfirm}
+        onConfirm={submit}
+        pending={hold.isPending}
+        error={hold.error}
+      >
+        <Field label={t.holdReason} hint={t.holdReasonHint} count={[reason.length, 1000]}>
+          {(props) => (
+            <TextArea
+              {...props}
+              value={reason}
+              maxLength={1000}
+              autoGrow
+              data-hold-reason
+              onChange={(ev) => setReason(ev.target.value)}
+            />
+          )}
+        </Field>
+      </ConfirmDialog>
+    </>
+  );
+}
+
+/** A held task: its reason, who and when, and «Release». */
+function HeldLine({ projectId, task, t }: { projectId: string; task: BuildQueue["held"][number]; t: Words }) {
+  const release = useCommand(projectId);
+  const client = useQueryClient();
+  return (
+    <li data-held-task={task.code} className="flex flex-wrap items-start justify-between gap-3 py-3">
+      <div className="flex min-w-0 flex-col gap-1">
+        <TaskLine projectId={projectId} task={task} t={t} />
+        <p className="text-sm text-fg" data-hold-reason-text>
+          {task.hold.reason}
+        </p>
+        <span className="flex flex-wrap items-center gap-x-1.5 text-sm text-fg-2">
+          <Who actor={task.hold.held_by} size={16} prefix={t.heldBy} />
+          <span aria-hidden>,</span>
+          <RelativeTime iso={task.hold.held_at} />
+        </span>
+      </div>
+      <div className="ml-auto flex flex-col items-end gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          pending={release.isPending}
+          aria-label={t.releaseLabel(task.code)}
+          data-release={task.code}
+          onClick={() =>
+            release.mutate(
+              { command: "task.release", entityId: projectId, data: { task: task.code } },
+              {
+                onSuccess: () => {
+                  void client.invalidateQueries({ queryKey: buildQueueQuery(projectId).queryKey });
+                  announce(t.released(task.code));
+                },
+              },
+            )
+          }
+        >
+          {t.release}
+        </Button>
+        {release.error ? <ErrorNotice error={release.error} compact /> : null}
+      </div>
+    </li>
   );
 }
 
@@ -448,6 +557,16 @@ export function BuildScreen() {
                 </ol>
               )}
             </Section>
+
+            {q.held.length > 0 ? (
+              <Section id="build-held" title={t.held(q.held.length)} note={t.heldNote}>
+                <ul className="flex flex-col divide-y divide-edge-subtle" data-build-held>
+                  {q.held.map((task) => (
+                    <HeldLine key={task.code} projectId={projectId} task={task} t={t} />
+                  ))}
+                </ul>
+              </Section>
+            ) : null}
 
             <Section id="build-waiting" title={t.waiting} note={t.waitingNote}>
               {q.waiting.length === 0 ? (

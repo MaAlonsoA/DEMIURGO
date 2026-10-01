@@ -21,6 +21,7 @@ import { taskCoversOf } from "../queries/sizes.ts";
 import { projectsDir } from "../repo/repo.ts";
 import type { AutoStatus } from "./auto.ts";
 import { stageFailure } from "./failure.ts";
+import { type TaskHold, openHolds } from "./holds.ts";
 
 type StateRow = Awaited<ReturnType<typeof productState>>["designs"][number];
 
@@ -59,11 +60,16 @@ export type QueueTask = {
  */
 export type WaitingTask = QueueTask & { reasons: string[]; suspect: Suspect | null };
 
+/** A task a person put on hold with the reason it cannot be built yet: the queue skips it. */
+export type HeldTask = QueueTask & { hold: TaskHold };
+
 /** A task whose pull request was merged (its build request is done). */
 export type BuiltTask = QueueTask & { pr_url: string | null; done_at: string | null };
 
 export type BuildQueue = {
   ready: QueueTask[];
+  /** On hold: not ready, skipped by «Build the queue», until a person releases it. */
+  held: HeldTask[];
   waiting: WaitingTask[];
   /** Open requests on tasks no longer in the queue or Waiting (built, for instance): stale. */
   stale: QueueTask[];
@@ -315,13 +321,17 @@ export async function buildQueue(
     return (created.get(a.code) ?? 0) - (created.get(b.code) ?? 0);
   };
 
+  const holds = await openHolds(db, projectId);
   const approved = tasks
     .filter((t) => t.current !== null && t.implementation !== "implemented")
     .sort(order);
-  const ready = approved.filter((t) => t.readiness?.ready).map(lineOf);
+  const held: HeldTask[] = approved
+    .filter((t) => holds.has(t.code))
+    .map((t) => ({ ...lineOf(t), hold: holds.get(t.code) as TaskHold }));
+  const ready = approved.filter((t) => t.readiness?.ready && !holds.has(t.code)).map(lineOf);
   const suspects = new Map((await suspectRecords(db, projectId)).map((x) => [x.from_code, x.suspect]));
   const waiting: WaitingTask[] = approved
-    .filter((t) => !t.readiness?.ready)
+    .filter((t) => !t.readiness?.ready && !holds.has(t.code))
     .map((t) => {
       const suspect = suspects.get(t.code) ?? null;
       const reasons = t.readiness?.reasons ?? [];
@@ -355,6 +365,7 @@ export async function buildQueue(
   built.sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
   return {
     ready,
+    held,
     waiting,
     stale,
     built,

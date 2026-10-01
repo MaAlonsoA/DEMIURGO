@@ -41,7 +41,7 @@ import type { Db, Tx } from '../db/connection.ts';
 import type { Row } from '../db/schema.ts';
 import { traceParentOf } from '../observe/trace-contexts.ts';
 import type { DeferredRunRequest, WorkflowEngine, Services } from '../services.ts';
-import { cancelBuildWorkflow, startBuildWorkflow } from '../build/orchestrator.ts';
+import { cancelBuildWorkflow, closeWithdrawnPullRequest, startBuildWorkflow } from '../build/orchestrator.ts';
 import { stepSpan, systemInteraction } from './observe.ts';
 import { starters, reconcilers, setEngineServices, engineServices } from './registry.ts';
 
@@ -912,6 +912,9 @@ export const dbosEngine: WorkflowEngine = {
   },
   async cancelBuild(buildRequestId, attempt) {
     await cancelBuildWorkflow(buildRequestId, attempt);
+  },
+  async closeBuildPullRequest(buildRequestId, reason) {
+    await closeWithdrawnPullRequest(buildRequestId, reason);
   },
   async startResponse(messageId, projectId, explorationId, questionId, agent) {
     await startOutsideWorkflow(async () => {

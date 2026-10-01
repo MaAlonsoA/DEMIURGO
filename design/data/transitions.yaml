@@ -18,6 +18,8 @@ entities:
       - { command: project.rename, from: [active], to: active }
       - { command: repository.connect, from: [active], to: active }
       - { command: build.queue_auto, from: [active], to: active }
+      - { command: task.hold, from: [active], to: active }
+      - { command: task.release, from: [active], to: active }
 
   agent_token:
     label: Agent token

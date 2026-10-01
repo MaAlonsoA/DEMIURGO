@@ -64,6 +64,8 @@ export type GithubApi = Pick<
   | 'mergePullRequest'
   | 'checkRunsFor'
   | 'junitArtifactFor'
+  | 'closePullRequest'
+  | 'deleteBranch'
 >;
 
 /** What the flow talks to; the tests replace it (GitHub, the builder container and time). */
@@ -851,4 +853,31 @@ export async function cancelBuildWorkflow(requestId: string, attempt: number): P
 /** Waits for the result of an attempt (tests). */
 export async function waitForBuild(requestId: string, attempt: number): Promise<string> {
   return DBOS.retrieveWorkflow<string>(buildWorkflowId(requestId, attempt)).getResult();
+}
+
+/**
+ * A withdrawn request whose pull request is open: comments on it and closes it, and deletes its branch, so GitHub
+ * does not keep a pull request DEMIURGO no longer tracks. Best effort: the withdrawal stands even if GitHub fails.
+ */
+export async function closeWithdrawnPullRequest(requestId: string, reason?: string): Promise<void> {
+  try {
+    const cfg = deps.config();
+    if (!cfg) return;
+    const db = engineServices().db;
+    const row = await db
+      .selectFrom('build_requests')
+      .select(['project_id', 'pr_number', 'branch'])
+      .where('id', '=', requestId)
+      .executeTakeFirst();
+    if (!row || row.pr_number == null) return;
+    const repo = await db.selectFrom('project_github').select(['owner', 'repo']).where('project_id', '=', row.project_id).executeTakeFirst();
+    if (!repo) return;
+    const pr = await deps.github.pullRequest(cfg, repo.owner, repo.repo, Number(row.pr_number));
+    if (pr.state === 'open') {
+      await deps.github.closePullRequest(cfg, repo.owner, repo.repo, Number(row.pr_number), `Withdrawn in DEMIURGO${reason ? `: ${reason}` : '.'}`);
+      if (row.branch) await deps.github.deleteBranch(cfg, repo.owner, repo.repo, row.branch);
+    }
+  } catch (e) {
+    engineServices().logger.error('Could not close the pull request of a withdrawn build request', { request: requestId, error: redactConfigured(String(e)) });
+  }
 }

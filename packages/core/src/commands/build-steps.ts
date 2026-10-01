@@ -9,6 +9,7 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
+import { openHoldOf } from '../build/holds.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import { githubConfig } from '../github/client.ts';
 import { mergedBuildOf } from '../queries/read.ts';
@@ -66,6 +67,8 @@ registerGuards({
       .where('code', '=', code)
       .executeTakeFirst();
     if (record && (await mergedBuildOf(ctx.trx, record.id))) return `${code} is already built: its pull request was merged.`;
+    const hold = record ? await openHoldOf(ctx.trx, record.id) : null;
+    if (hold) return `${code} is on hold: ${hold.reason}`;
     const request = await openRequestOf(ctx.trx, ctx.projectId, code);
     if (!request) return `${code} has no open build request: request the build first.`;
     if (githubConfig() === null) return 'Connect GitHub first: set DEMIURGO_GITHUB_TOKEN and DEMIURGO_GITHUB_OWNER.';

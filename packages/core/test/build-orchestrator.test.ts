@@ -519,6 +519,36 @@ describe('a merged task and a withdrawn build', () => {
     expect(await db().selectFrom('build_requests').select('id').where('task_id', '=', taskId).where('state', 'in', ['requested', 'in_review']).execute()).toEqual([]);
   });
 
+  it('withdrawing a request whose pull request is open closes it on GitHub with a comment and deletes its branch', async () => {
+    const closed: { number: number; comment: string }[] = [];
+    const deleted: string[] = [];
+    const fake = fakes({ ciConclusion: 'success' });
+    setBuildDeps({
+      ...fake,
+      github: {
+        ...(fake.github as object),
+        pullRequest: async () => ({ state: 'open', merged: false, mergedAt: null, headSha: 'x', url: 'https://github.com/acme/recipes/pull/9' }),
+        closePullRequest: async (_c: unknown, _o: string, _r: string, number: number, comment: string) => {
+          closed.push({ number, comment });
+        },
+        deleteBranch: async (_c: unknown, _o: string, _r: string, branch: string) => {
+          deleted.push(branch);
+        },
+      } as unknown as BuildDeps['github'],
+    });
+    await db().insertInto('project_github').values({ project_id: projectId, owner: 'acme', repo: 'recipes' }).onConflict((oc) => oc.doNothing()).execute();
+    const requestId = await newRequest();
+    await db()
+      .updateTable('build_requests')
+      .set({ state: 'in_review', in_review_by: 'human:ana', in_review_at: new Date(), pr_url: 'https://github.com/acme/recipes/pull/9', pr_number: 9, branch: 'tsk-held-slug' })
+      .where('id', '=', requestId)
+      .execute();
+    await cmd('build_request.withdraw', { reason: 'Needs the real deployment' }, requestId);
+    for (let i = 0; i < 100 && deleted.length === 0; i++) await sleep(50);
+    expect(closed).toEqual([{ number: 9, comment: 'Withdrawn in DEMIURGO: Needs the real deployment' }]);
+    expect(deleted).toEqual(['tsk-held-slug']);
+  });
+
   it('withdrawing a running build cancels it: the builder is aborted, the workflow cancelled and the journal says why', async () => {
     const cancelled: string[] = [];
     const engine = environment().services.engine;
@@ -682,6 +712,46 @@ describe('Build the queue (opt-in per project)', () => {
     await sleep(300);
     expect(await allRequests()).toHaveLength(1);
     expect(Math.max(...(await steps(one.id)).map((x) => x.attempt))).toBe(1);
+  });
+
+  it('on hold: a held task is not ready and the queue skips it and builds the next one; releasing it brings it back', async () => {
+    setBuildDeps(queueFakes({ ciConclusion: 'success' }));
+    const [first, second] = await readyCodes();
+    expect(second, 'two ready tasks').toBeDefined();
+    await expect(cmd('task.hold', { task: first, reason: '   ' }, projectId)).rejects.toMatchObject({ type: 'validation' });
+    await expect(
+      executeCommand(environment().services, { command: 'task.hold', actor: system('build', '1'), projectId, entityId: projectId, data: { task: first, reason: 'x' } }),
+    ).rejects.toMatchObject({ type: 'forbidden' });
+
+    const held = await cmd('task.hold', { task: first, reason: 'Needs the real Vercel and Neon deployment' }, projectId);
+    expect(held.result).toEqual({ task: first });
+    await expect(cmd('task.hold', { task: first, reason: 'again' }, projectId)).rejects.toMatchObject({ type: 'conflict' });
+    const queue = await buildQueue(db(), projectId);
+    expect(queue.ready.map((t) => t.code)).not.toContain(first);
+    expect(queue.waiting.map((t) => t.code)).not.toContain(first);
+    expect(queue.held).toHaveLength(1);
+    expect(queue.held[0]).toMatchObject({ code: first, hold: { reason: 'Needs the real Vercel and Neon deployment', held_by: 'human:ana' } });
+    await expect(cmd('build_request.request', { task: first })).rejects.toThrow(/on hold/);
+
+    // The queue skips it: the next ready task is built, and the held one never gets a request.
+    await cmd('build.queue_auto', { on: true }, projectId);
+    const one = await requestFor(second as string);
+    expect(await finished(one.id, 1)).toBe('done');
+    await sleep(300);
+    expect((await requestsOf(first as string)).filter((r) => r.state !== 'withdrawn')).toEqual([]);
+    expect(await autoStatus(db(), projectId, await buildQueue(db(), projectId))).toEqual({ on: true, building: null, next: null, stopped: null });
+    await cmd('build.queue_auto', { on: false }, projectId);
+
+    const events = await db().selectFrom('events').select(['actor', 'command', 'after']).where('project_id', '=', projectId).where('command', 'in', ['task.hold']).execute();
+    expect(events.at(-1)).toMatchObject({ actor: 'human:ana', after: { task: first, reason: 'Needs the real Vercel and Neon deployment' } });
+
+    await cmd('task.release', { task: first }, projectId);
+    await expect(cmd('task.release', { task: first }, projectId)).rejects.toMatchObject({ type: 'conflict' });
+    const after = await buildQueue(db(), projectId);
+    expect(after.held).toEqual([]);
+    expect(after.ready.map((t) => t.code)).toContain(first);
+    const rows = await db().selectFrom('task_holds').select(['released_by', 'released_at']).execute();
+    expect(rows.filter((r) => r.released_at !== null).every((r) => r.released_by === 'human:ana')).toBe(true);
   });
 
   it('turning it on needs GitHub, and only a person can run it', async () => {

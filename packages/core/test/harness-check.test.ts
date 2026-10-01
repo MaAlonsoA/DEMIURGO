@@ -40,10 +40,11 @@ describe('regressions (pure)', () => {
     expect(regressionsOf(snap({ units: { usd_per_merged_task: null, tokens_per_merged_task: null } }), snap({ units: { usd_per_merged_task: 9, tokens_per_merged_task: 9 } }))).toEqual([]);
   });
 
-  it('counts a phase as contained when the error was found in the phase that introduced it', () => {
+  it('counts as contained only the rows the rule marked; later phases escaped; an unmarked same-phase row is neither', () => {
     expect(
       containmentOf([
-        { introduced_phase: 'P5', found_phase: 'P5' },
+        { introduced_phase: 'P5', found_phase: 'P5', evidence: { contained: true } },
+        { introduced_phase: 'P5', found_phase: 'P5', evidence: {} },
         { introduced_phase: 'P5', found_phase: 'P10' },
         { introduced_phase: 'P7', found_phase: 'P9' },
       ]),

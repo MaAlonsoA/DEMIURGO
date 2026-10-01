@@ -35,6 +35,7 @@ const empty = (): EscapeInputs => ({
   ideaConflicts: [],
   events: [],
   bases: [],
+  links: [],
 });
 const rec = (id: string, code: string, type: string, created_at = T0) => ({
   id,
@@ -81,6 +82,22 @@ const step = (
   created_at: T1,
   detail,
 });
+const link = (
+  type: string,
+  from_record_id: string,
+  to_record_id: string,
+  to_type: string,
+  from_type = "task",
+) => ({
+  type,
+  state: "current",
+  from_record_id,
+  from_version_id: `${from_record_id}v`,
+  from_n: 1,
+  from_type,
+  to_record_id,
+  to_type,
+});
 const run = (rule: string, i: EscapeInputs) =>
   (
     ESCAPE_RULES[rule] as (
@@ -89,32 +106,34 @@ const run = (rule: string, i: EscapeInputs) =>
   )(i);
 
 describe("escape rules", () => {
-  it("E01 a blocking comment of a test gap or manual evidence is an escape; a nit or another category is not", () => {
+  it("E01 one escape per task and criterion; manual criteria, tasks without covers and other categories are not", () => {
     const i = {
       ...empty(),
-      records: [rec("t", "TSK-X-001", "task")],
-      requests: [req("r", "t")],
+      records: [rec("t", "TSK-X-001", "task"), rec("u", "TSK-X-002", "task")],
+      requests: [req("r", "t"), req("r2", "u")],
+      covers: [
+        { record_id: "t", codes: ["AC-X-001-02", "AC-X-001-03"] },
+        { record_id: "u", codes: [] },
+      ],
     };
+    i.criteria = [
+      { record_version_id: "v", code: "AC-X-001-02", carry: "new", verification: "automatic" },
+      { record_version_id: "v", code: "AC-X-001-03", carry: "new", verification: "manual" },
+    ];
+    i.versions = [ver("v", "f", 1)];
+    const c = (body: string, extra = {}) => ({ severity: "blocking", body, path: "a.spec.ts", ...extra });
     i.reviews = [
-      {
-        id: "rv",
-        build_request_id: "r",
-        created_at: T1,
-        comments: [
-          {
-            severity: "blocking",
-            body: "AC-X-001-02 is not exercised",
-            path: "a.spec.ts",
-          },
-          { severity: "nit", body: "x" },
-          { severity: "blocking", body: "y" },
-        ],
-      },
+      { id: "rv", build_request_id: "r", created_at: T1, comments: [c("AC-X-001-02 is not exercised"), { severity: "nit", body: "x" }, c("y"), c("AC-X-001-03 needs a person")] },
+      { id: "rv2", build_request_id: "r", created_at: T2, comments: [c("AC-X-001-02 still not exercised", { needs_person: true })] },
+      { id: "rv3", build_request_id: "r2", created_at: T1, comments: [c("AC-X-009-01 not exercised")] },
     ];
     i.findingKinds = [
       { pr_review_id: "rv", comment_index: 0, category: "test_gap" },
       { pr_review_id: "rv", comment_index: 1, category: "manual_evidence" },
       { pr_review_id: "rv", comment_index: 2, category: "defect" },
+      { pr_review_id: "rv", comment_index: 3, category: "manual_evidence" },
+      { pr_review_id: "rv2", comment_index: 0, category: "test_gap" },
+      { pr_review_id: "rv3", comment_index: 0, category: "test_gap" },
     ];
     const e = run("E01", i);
     expect(e).toHaveLength(1);
@@ -124,6 +143,7 @@ describe("escape rules", () => {
       record_code: "TSK-X-001",
       criterion_code: "AC-X-001-02",
       comment_index: 0,
+      evidence: { rounds: 2 },
     });
   });
 
@@ -157,6 +177,10 @@ describe("escape rules", () => {
       ver("v2", "t", 2, T2),
       ver("v0", "t", 2, T0),
     ];
+    i.reviewProposals = [
+      { id: "pr", batch_id: "b", state: "accepted", resolved_at: T1, verdict: "update", record_code: "TSK-X-001" },
+    ];
+    i.versions.push({ ...ver("v3", "t", 3, T2), origin_type: "proposal", origin_id: "pr" } as never);
     const e = run("E03", i);
     expect(e).toHaveLength(1);
     expect(e[0]).toMatchObject({
@@ -176,6 +200,11 @@ describe("escape rules", () => {
         rec("c", "TSK-X-003", "task", T2),
       ],
     };
+    i.covers = [
+      { record_id: "a", codes: ["AC-X-001-01"] },
+      { record_id: "b", codes: ["AC-X-001-01"] },
+      { record_id: "c", codes: ["AC-X-001-01"] },
+    ];
     i.taskBases = [
       { task_id: "a", fdr_id: "f", batch_id: "plan" },
       { task_id: "b", fdr_id: "f", batch_id: "plan" },
@@ -189,99 +218,84 @@ describe("escape rules", () => {
     });
   });
 
-  it("E05 a criterion new or modified in a version after an approved one is an escape; a kept one and a first version are not", () => {
-    const i = { ...empty(), records: [rec("f", "FDR-X-001", "fdr")] };
-    i.versions = [ver("v1", "f", 1, T0, T0), ver("v2", "f", 2, T2)];
-    i.criteria = [
-      {
-        record_version_id: "v1",
-        code: "AC-X-001-01",
-        carry: "new",
-        verification: "automatic",
-      },
-      {
-        record_version_id: "v2",
-        code: "AC-X-001-01",
-        carry: "kept",
-        verification: "automatic",
-      },
-      {
-        record_version_id: "v2",
-        code: "AC-X-001-02",
-        carry: "new",
-        verification: "automatic",
-      },
-      {
-        record_version_id: "v2",
-        code: "AC-X-001-03",
-        carry: "modified",
-        verification: "automatic",
-      },
+  it("E05 one escape per version with its real found phase; a first version, kept criteria and reviewed versions are not", () => {
+    const i = {
+      ...empty(),
+      records: [rec("f", "FDR-X-001", "fdr"), rec("t", "TSK-X-001", "task")],
+    };
+    i.versions = [
+      ver("v1", "f", 1, T0, T0),
+      ver("v2", "f", 2, T1, T1),
+      ver("v3", "f", 3, T2),
+      { ...ver("v4", "f", 4, T2), origin_type: "proposal", origin_id: "rp" } as never,
     ];
-    expect(run("E05", i).map((e) => e.criterion_code)).toEqual([
-      "AC-X-001-02",
-      "AC-X-001-03",
-    ]);
+    i.reviewProposals = [
+      { id: "rp", batch_id: "b", state: "accepted", resolved_at: T2, verdict: "update", record_code: "FDR-X-001" },
+    ];
+    i.taskBases = [{ task_id: "t", fdr_id: "f", batch_id: null }];
+    i.requests = [{ ...req("r", "t", "done", T0), in_review_at: T0, done_at: T1 }];
+    const c = (record_version_id: string, code: string, carry: string) => ({
+      record_version_id,
+      code,
+      carry,
+      verification: "automatic",
+    });
+    i.criteria = [
+      c("v1", "AC-X-001-01", "new"),
+      c("v2", "AC-X-001-01", "kept"),
+      c("v3", "AC-X-001-02", "new"),
+      c("v3", "AC-X-001-03", "modified"),
+      c("v4", "AC-X-001-04", "new"),
+    ];
+    const e = run("E05", i);
+    expect(e).toHaveLength(1);
+    expect(e[0]).toMatchObject({
+      record_version_id: "v3",
+      introduced_phase: "P5",
+      found_phase: "P13",
+      subject: "v3 defect",
+      evidence: { approved_version_id: "v2" },
+    });
+    expect((e[0]?.evidence as { criteria: unknown[] }).criteria).toHaveLength(2);
   });
 
-  it("E06 an accepted knowledge review, an accepted idea conflict and a change note citing another record are escapes", () => {
-    const i = { ...empty(), records: [rec("f", "FDR-X-001", "fdr")] };
+  it("E06 counts versions that resulted from a review or idea conflict, once each and marked contained; propagation, criteria codes and unknown records do not", () => {
+    const i = {
+      ...empty(),
+      records: [
+        rec("f", "FDR-X-001", "fdr"),
+        rec("g", "FDR-XYZ-002", "fdr"),
+        rec("t", "TSK-X-001", "task"),
+        rec("h", "FDR-XYZ-009", "fdr"),
+      ],
+    };
+    const orig = (id: string, rid: string, n: number, proposal: string, note: string | null = null) =>
+      ({ ...ver(id, rid, n, T1, null, note), origin_type: "proposal", origin_id: proposal }) as never;
+    i.versions = [
+      ver("f1", "f", 1),
+      orig("f2", "f", 2, "p1"),
+      orig("g2", "g", 2, "p3"),
+      orig("t2", "t", 2, "p4"),
+      ver("h2", "h", 2, T1, null, "Resolves the contradiction with FDR-XYZ-002 and AC-KNO-003 and FDR-ZZZ-001"),
+      ver("g3", "g", 3, T1, null, "Reworded."),
+    ];
+    i.links = [link("based_on", "t", "g", "fdr")];
     i.reviewProposals = [
-      {
-        id: "p1",
-        batch_id: "b",
-        state: "accepted",
-        resolved_at: T1,
-        verdict: "update",
-        record_code: "FDR-X-002",
-      },
-      {
-        id: "p2",
-        batch_id: "b",
-        state: "rejected",
-        resolved_at: T1,
-        verdict: "update",
-        record_code: "FDR-X-003",
-      },
-      {
-        id: "p3",
-        batch_id: "b",
-        state: "accepted",
-        resolved_at: T1,
-        verdict: "keep",
-        record_code: "FDR-X-004",
-      },
+      { id: "p1", batch_id: "b", state: "accepted", resolved_at: T1, verdict: "update", record_code: "FDR-X-001" },
+      { id: "p2", batch_id: "b", state: "rejected", resolved_at: T1, verdict: "update", record_code: "FDR-X-003" },
+      { id: "p3", batch_id: "b", state: "accepted", resolved_at: T1, verdict: "keep", record_code: "FDR-X-004" },
+      { id: "p4", batch_id: "b", state: "accepted", resolved_at: T1, verdict: "update", record_code: "TSK-X-001", change_version_id: "g3" },
     ];
     i.ideaConflicts = [
-      {
-        assessment_id: "a1",
-        proposal_id: "p1",
-        citation: "FDR-X-005@1",
-        created_at: T1,
-      },
-      {
-        assessment_id: "a2",
-        proposal_id: "p2",
-        citation: "FDR-X-006@1",
-        created_at: T1,
-      },
+      { assessment_id: "a1", proposal_id: "p1", citation: "FDR-X-005@1", created_at: T1 },
+      { assessment_id: "a2", proposal_id: "p2", citation: "FDR-X-006@1", created_at: T1 },
     ];
-    i.versions = [
-      ver(
-        "v2",
-        "f",
-        2,
-        T1,
-        null,
-        "Resolves the contradiction with FDR-XYZ-009",
-      ),
-      ver("v3", "f", 3, T1, null, "Reworded."),
-    ];
-    expect(run("E06", i).map((e) => e.subject)).toEqual([
-      "review_accepted",
-      "idea_conflict",
-      "FDR-XYZ-009",
+    const e = run("E06", i);
+    expect(e.map((x) => [x.record_version_id, x.subject])).toEqual([
+      ["f2", "review_accepted"],
+      ["h2", "FDR-XYZ-002"],
     ]);
+    expect(e.every((x) => x.evidence.contained === true)).toBe(true);
   });
 
   it("E07 a task hold is an escape, released or not", () => {
@@ -314,7 +328,7 @@ describe("escape rules", () => {
     });
   });
 
-  it("E08 uncovered, not_run and an automatic -> release change are escapes, once per request and criterion", () => {
+  it("E08 uncovered, not_run (not for manual criteria) and an automatic -> release change are escapes, once per request and criterion", () => {
     const i = {
       ...empty(),
       records: [rec("t", "TSK-X-001", "task"), rec("f", "FDR-X-001", "fdr")],
@@ -327,6 +341,7 @@ describe("escape rules", () => {
     ];
     i.versions = [ver("v1", "f", 1), ver("v2", "f", 2)];
     i.criteria = [
+      { record_version_id: "v1", code: "AC-X-001-02", carry: "new", verification: "manual" },
       {
         record_version_id: "v1",
         code: "AC-X-001-05",
@@ -343,7 +358,6 @@ describe("escape rules", () => {
     const e = run("E08", i);
     expect(e.map((x) => `${x.subject}:${x.criterion_code}`)).toEqual([
       "uncovered:AC-X-001-01",
-      "not_run:AC-X-001-02",
       "automatic -> release:AC-X-001-05",
     ]);
   });
@@ -373,63 +387,59 @@ describe("escape rules", () => {
     });
   });
 
-  it("E10 a task with no covers and no feature base is an escape; covered or based tasks are not", () => {
+  it("E10 a feature-based task with no covers is an escape; an enabler based on a definition, a covered task and a task with no basis are not", () => {
     const i = {
       ...empty(),
       records: [
         rec("a", "TSK-X-001", "task"),
         rec("b", "TSK-X-002", "task"),
         rec("c", "TSK-X-003", "task"),
+        rec("d", "TSK-X-004", "task"),
+        rec("f", "FDR-X-001", "fdr"),
+        rec("def", "DEF-X-001", "def"),
       ],
     };
-    i.covers = [
-      { record_id: "a", codes: ["AC-X-001-01"] },
-      { record_id: "b", codes: [] },
+    i.requests = [req("r1", "a"), req("r2", "b"), req("r3", "c")];
+    i.covers = [{ record_id: "a", codes: ["AC-X-001-01"] }];
+    i.links = [
+      link("based_on", "a", "f", "fdr"),
+      link("based_on", "b", "f", "fdr"),
+      link("based_on", "c", "def", "def"),
     ];
-    i.taskBases = [{ task_id: "c", fdr_id: "f", batch_id: null }];
     expect(run("E10", i).map((e) => e.record_code)).toEqual(["TSK-X-002"]);
   });
 
-  it("E11 corrections by the person are escapes; a first size and a rejected knowledge review are not", () => {
+  it("E11 corrections by the person are escapes; a first size, revalidations, retries, nested commands and rejected knowledge reviews are not", () => {
     const ev = (
       id: string,
       command: string,
       after: Record<string, unknown> = {},
       proposal_type: string | null = null,
+      cause: Record<string, unknown> = {},
     ) => ({
       id,
       command,
       at: T1,
       entity_id: null,
       after,
-      cause: {},
+      cause,
       proposal_type,
     });
     const i = { ...empty() };
     i.events = [
-      ev("e1", "record.set_size", {
-        code: "TSK-X-001",
-        size: "L",
-        previous: "M",
-      }),
-      ev("e2", "record.set_size", {
-        code: "TSK-X-002",
-        size: "M",
-        previous: null,
-      }),
+      ev("e1", "record.set_size", { code: "TSK-X-001", size: "L", previous: "M" }),
+      ev("e2", "record.set_size", { code: "TSK-X-002", size: "M", previous: null }),
       ev("e3", "question.reopen"),
+      ev("e3b", "question.reopen", {}, null, { sourceCommand: "proposal.accept" }),
       ev("e4", "run.retry"),
       ev("e5", "link.revalidate"),
       ev("e6", "proposal.reject", {}, "design_record"),
+      ev("e6b", "proposal.reject", { reason: "Not what was asked" }, "design_record"),
       ev("e7", "proposal.reject", {}, "review"),
     ];
-    expect(run("E11", i).map((e) => e.key)).toEqual([
-      "e1",
-      "e3",
-      "e4",
-      "e5",
-      "e6",
-    ]);
+    const e = run("E11", i);
+    expect(e.map((x) => x.key)).toEqual(["e1", "e3", "e6", "e6b"]);
+    expect(e.map((x) => x.evidence.contained === true)).toEqual([false, false, true, false]);
   });
 
   it("E12 a withdrawn request is an escape with the reason the journal kept", () => {
@@ -447,7 +457,77 @@ describe("escape rules", () => {
       build_request_id: "r",
       subject: "Duplicate request",
       record_code: "TSK-X-001",
+      evidence: { reason_class: "duplicate", reason_missing: false },
     });
+    i.steps = [step("s", "r", "withdraw", "cancelled", { reason: "The build request was withdrawn." })];
+    expect(run("E12", i)[0]?.evidence).toMatchObject({ reason_class: null, reason_missing: true });
+  });
+
+  it("E09 falls back to the footprint: a file another feature's task added, changed without a dependency", () => {
+    const i = {
+      ...empty(),
+      records: [rec("a", "TSK-X-001", "task"), rec("b", "TSK-X-002", "task"), rec("c", "TSK-X-003", "task")],
+      requests: [req("ra", "a"), req("rb", "b"), req("rc", "c")],
+      taskBases: [
+        { task_id: "a", fdr_id: "f1", batch_id: null },
+        { task_id: "b", fdr_id: "f2", batch_id: null },
+        { task_id: "c", fdr_id: "f2", batch_id: null },
+      ],
+    };
+    const fp = (id: string, request: string, at: string, files: { path: string; status: string }[]) => ({
+      ...step(id, request, "merge", "ok", { footprint_files: files }),
+      created_at: at,
+    });
+    i.steps = [
+      fp("s1", "ra", T0, [{ path: "src/db/cardio.sql", status: "added" }]),
+      fp("s2", "rb", T2, [{ path: "src/db/cardio.sql", status: "modified" }, { path: "package.json", status: "modified" }]),
+      fp("s3", "rc", T2, [{ path: "src/other.ts", status: "added" }]),
+    ];
+    const e = run("E09", i);
+    expect(e).toHaveLength(1);
+    expect(e[0]).toMatchObject({ record_code: "TSK-X-002", evidence: { source: "footprint", owners: { "TSK-X-001": ["src/db/cardio.sql"] } } });
+    i.links = [link("depends_on", "b", "a", "task")];
+    expect(run("E09", i)).toHaveLength(0);
+  });
+
+  it("E15 a dependency with no shared files, and shared files with no dependency, are escapes", () => {
+    const i = {
+      ...empty(),
+      records: [rec("a", "TSK-X-001", "task"), rec("b", "TSK-X-002", "task"), rec("c", "TSK-X-003", "task")],
+      requests: [req("ra", "a"), req("rb", "b"), req("rc", "c")],
+    };
+    const fp = (id: string, request: string, at: string, files: { path: string; status: string }[]) => ({
+      ...step(id, request, "merge", "ok", { footprint_files: files }),
+      created_at: at,
+    });
+    i.steps = [
+      fp("s1", "ra", T0, [{ path: "src/a/x.ts", status: "added" }]),
+      fp("s2", "rb", T1, [{ path: "src/b/y.ts", status: "added" }]),
+      fp("s3", "rc", T2, [{ path: "src/a/x.ts", status: "modified" }]),
+    ];
+    i.links = [link("depends_on", "b", "a", "task")];
+    const e = run("E15", i);
+    expect(e.map((x) => x.evidence.class).sort()).toEqual(["declared_without_shared_files", "shared_without_dependency"]);
+    expect(e.find((x) => x.evidence.class === "shared_without_dependency")).toMatchObject({ record_code: "TSK-X-003" });
+    i.links.push(link("depends_on", "c", "a", "task"));
+    expect(run("E15", i).map((x) => x.evidence.class)).toEqual(["declared_without_shared_files"]);
+  });
+
+  it("E16 a feature approved without tasks while dependents wait for hours is an escape", () => {
+    const i = {
+      ...empty(),
+      records: [rec("f", "FDR-X-001", "fdr", T0), rec("t", "TSK-X-001", "task", T1), rec("p", "TSK-X-002", "task", T2)],
+    };
+    i.versions = [ver("fv", "f", 1, T0, T0)];
+    i.links = [link("depends_on", "t", "f", "fdr")];
+    const e = run("E16", i);
+    expect(e).toHaveLength(1);
+    expect(e[0]).toMatchObject({ record_code: "FDR-X-001", evidence: { waiting: 1, planned: false, hours_waited: 1 } });
+    i.taskBases = [{ task_id: "p", fdr_id: "f", batch_id: null }];
+    expect(run("E16", i)[0]?.evidence).toMatchObject({ planned: true, hours_waited: 1 });
+    i.links = [link("depends_on", "t", "f", "fdr")];
+    i.records[1] = rec("t", "TSK-X-001", "task", "2026-09-30T13:00:00.000Z");
+    expect(run("E16", i)).toHaveLength(0);
   });
 
   it("E13 a base adopted after the first attempt is an escape", () => {
@@ -542,7 +622,7 @@ describe("stored escapes", () => {
 
     const read = await harnessEscapes(s.db, projectId);
     expect(read.by_rule.find((r) => r.rule === "E12")?.n).toBe(1);
-    expect(read.pending_rules).toEqual(["E14", "E15"]);
+    expect(read.pending_rules).toEqual(["E14"]);
 
     await expect(
       s.db

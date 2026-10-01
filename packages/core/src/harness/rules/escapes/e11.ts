@@ -2,6 +2,10 @@
 // `record.set_size` over an existing size, `record.keep_size`, `question.reopen`, `run.retry`, `link.revalidate`
 // (the link stays without a new version) and `proposal.reject` of a design proposal (rejections of knowledge review
 // proposals are E06 noise, not corrections, and are left out). The phase is where the person noticed (our convention).
+// esc-2: `link.revalidate` («Still valid», a confirmation, already the cost of readiness) and `run.retry` (operation)
+// are no longer corrections, and neither is a command run nested inside another one (`cause.sourceCommand`, e.g. the
+// reopening inside `proposal.accept`). A rejected design proposal is work inside the phase: it is marked
+// `contained`, unless its reason says it was not what was asked (the agent failed, not the design).
 
 import {
   type Escape,
@@ -17,8 +21,6 @@ const PHASES: Record<
   "record.set_size": { introduced: "P7", found: "P7" },
   "record.keep_size": { introduced: "P7", found: "P7" },
   "question.reopen": { introduced: "P1", found: "P5" },
-  "run.retry": { introduced: "P5", found: "P5" },
-  "link.revalidate": { introduced: "P5", found: "P5" },
   "proposal.reject": { introduced: "P5", found: "P5" },
 };
 
@@ -35,8 +37,13 @@ export const e11: EscapeRule = (i) => {
   for (const e of i.events) {
     const phases = PHASES[e.command];
     if (!phases || !corrects(e)) continue;
+    if (typeof e.cause.sourceCommand === "string" && e.cause.sourceCommand)
+      continue;
     if (e.command === "proposal.reject" && e.proposal_type === "review")
       continue;
+    const reason = typeof e.after.reason === "string" ? e.after.reason : "";
+    const contained =
+      e.command === "proposal.reject" && !/not what was asked/i.test(reason);
     out.push({
       rule: "E11",
       introduced_phase: phases.introduced,
@@ -45,7 +52,12 @@ export const e11: EscapeRule = (i) => {
         (typeof e.after.code === "string" ? e.after.code : null) ??
         (e.entity_id ? (byId.get(e.entity_id)?.code ?? null) : null),
       subject: e.command,
-      evidence: { event_id: e.id, command: e.command, entity_id: e.entity_id },
+      evidence: {
+        event_id: e.id,
+        command: e.command,
+        entity_id: e.entity_id,
+        ...(contained ? { contained: true } : {}),
+      },
       occurred_at: e.at,
       key: e.id,
     });

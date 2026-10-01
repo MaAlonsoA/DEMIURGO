@@ -110,12 +110,18 @@ export function regressionsOf(previous: CheckSnapshot | null, current: CheckSnap
 const ms = (d: unknown): number => new Date(d as Date | string).getTime();
 const round = (n: number, digits = 3): number => Math.round(n * 10 ** digits) / 10 ** digits;
 
-/** Containment per introducing phase from escape rows: introduced = found is a contained error, the rest escaped. Pure. */
-export function containmentOf(rows: readonly { introduced_phase: string; found_phase: string }[]): PhaseContainment[] {
+/**
+ * Containment per introducing phase from escape rows. Contained is only a row the rule marked (`evidence.contained`: a
+ * problem the design itself caught, e.g. a contradiction resolved before building); found in a later phase is escaped;
+ * a row found in its own phase and not marked is neither (a confirmation or an operation is not a caught error). Pure.
+ */
+export function containmentOf(rows: readonly { introduced_phase: string; found_phase: string; evidence?: unknown }[]): PhaseContainment[] {
   const by = new Map<string, { contained: number; escaped: number }>();
   for (const r of rows) {
+    const marked = (r.evidence as { contained?: unknown } | null | undefined)?.contained === true;
+    if (!marked && r.introduced_phase === r.found_phase) continue;
     const cell = by.get(r.introduced_phase) ?? { contained: 0, escaped: 0 };
-    if (r.introduced_phase === r.found_phase) cell.contained += 1;
+    if (marked) cell.contained += 1;
     else cell.escaped += 1;
     by.set(r.introduced_phase, cell);
   }
@@ -250,7 +256,7 @@ export async function runCheck(services: Services, projectId: string, trigger: C
 
     const rows = await db
       .selectFrom('harness_escapes')
-      .select(['id', 'rule', 'introduced_phase', 'found_phase', 'detected_at', 'occurred_at'])
+      .select(['id', 'rule', 'introduced_phase', 'found_phase', 'evidence', 'detected_at', 'occurred_at'])
       .where('project_id', '=', projectId)
       .where('rules_version', '=', ESCAPES_RULES_VERSION)
       .orderBy('detected_at')

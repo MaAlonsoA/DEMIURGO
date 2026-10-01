@@ -1,7 +1,7 @@
 // Registry of the escape rules (salud-del-harness §4.2). One pure function per rule; adding one is an import and an
 // entry. A change to any rule or attribution must bump `ESCAPES_RULES_VERSION` (types.ts): old escapes are kept.
 // Pending for lack of stored data: E14 (reviewer hints about another feature's piece: Jev's triage hints are not stored)
-// and E15 (declared dependencies against the real footprint: needs the per-task file and table footprint joined to links).
+// (E15 and E16 exist since esc-2).
 
 import { e01 } from "./e01.ts";
 import { e02 } from "./e02.ts";
@@ -16,6 +16,8 @@ import { e10 } from "./e10.ts";
 import { e11 } from "./e11.ts";
 import { e12 } from "./e12.ts";
 import { e13 } from "./e13.ts";
+import { e15 } from "./e15.ts";
+import { e16 } from "./e16.ts";
 import type { EscapeRule } from "./types.ts";
 
 export { E11_COMMANDS } from "./e11.ts";
@@ -35,5 +37,7 @@ export const ESCAPE_RULES: Record<string, EscapeRule> = {
   E11: e11,
   E12: e12,
   E13: e13,
+  E15: e15,
+  E16: e16,
 };
-export const PENDING_ESCAPE_RULES = ["E14", "E15"] as const;
+export const PENDING_ESCAPE_RULES = ["E14"] as const;

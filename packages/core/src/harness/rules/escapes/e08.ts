@@ -2,13 +2,20 @@
 // `uncovered`; (b) the evidence step listed it as `not_run`; (c) a later feature version moved it from `automatic` to
 // `manual` or `release`. The criterion was written (P5) in a way the build could not verify; found while building (P9).
 
-import { type EscapeRule, recordById, requestTaskCode } from "./types.ts";
+import {
+  type EscapeRule,
+  recordById,
+  requestTaskCode,
+  verificationAt,
+} from "./types.ts";
 
 const codesOf = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((c): c is string => typeof c === "string") : [];
 
+// esc-2: (a) and (b) skip criteria checked by a person (`manual`/`release`): nothing can have a test for them.
 export const e08: EscapeRule = (i) => {
   const taskCode = requestTaskCode(i);
+  const verification0 = verificationAt(i);
   const out = [];
   const seen = new Set<string>();
   for (const s of i.steps) {
@@ -20,6 +27,8 @@ export const e08: EscapeRule = (i) => {
           : null;
     if (!source) continue;
     for (const code of codesOf(s.detail[source])) {
+      const how = verification0(code, s.created_at);
+      if (how === "manual" || how === "release") continue;
       const key = `${source}:${s.build_request_id}:${code}`;
       if (seen.has(key)) continue;
       seen.add(key);

@@ -56,8 +56,10 @@ export async function loadEscapeInputs(
       created_at: Date;
       approved_at: Date | null;
       change_note: string | null;
+      origin_type: string | null;
+      origin_id: string | null;
     }>`
-      select id, record_id, n, state, created_at, approved_at, change_note from record_versions where project_id = ${projectId}`,
+      select id, record_id, n, state, created_at, approved_at, change_note, origin->>'type' as origin_type, origin->>'id' as origin_id from record_versions where project_id = ${projectId}`,
   );
   const criteria = await q(
     sql<{
@@ -75,8 +77,10 @@ export async function loadEscapeInputs(
       requested_at: Date;
       state: string;
       withdrawn_at: Date | null;
+      in_review_at: Date | null;
+      done_at: Date | null;
     }>`
-      select id, task_id, requested_at, state, withdrawn_at from build_requests where project_id = ${projectId}`,
+      select id, task_id, requested_at, state, withdrawn_at, in_review_at, done_at from build_requests where project_id = ${projectId}`,
   );
   // One small object per step: the whole detail of a builder or evidence step can be hundreds of kilobytes.
   const steps = await q(
@@ -91,14 +95,17 @@ export async function loadEscapeInputs(
     }>`
       select id, build_request_id, attempt, stage, outcome, created_at,
         case when jsonb_typeof(detail) <> 'object' then null
-          when stage = 'merge' then jsonb_build_object('needs_you', detail->'needs_you', 'escalated', detail->'escalated', 'tried', detail->'tried')
+          when stage = 'merge' then jsonb_build_object('needs_you', detail->'needs_you', 'escalated', detail->'escalated', 'tried', detail->'tried',
+            'footprint_files', (select jsonb_agg(jsonb_build_object('path', x->>'path', 'status', x->>'status')) from jsonb_array_elements(case when jsonb_typeof(detail->'footprint'->'files') = 'array' then detail->'footprint'->'files' else '[]'::jsonb end) x))
+          when stage = 'footprint' then jsonb_build_object('footprint_files', (select jsonb_agg(jsonb_build_object('path', x->>'path', 'status', x->>'status')) from jsonb_array_elements(case when jsonb_typeof(detail->'footprint'->'files') = 'array' then detail->'footprint'->'files' else '[]'::jsonb end) x))
+          when stage = 'commit' then jsonb_build_object('files', detail->'files', 'own_files', detail->'own_files')
           when stage = 'withdraw' then jsonb_build_object('reason', detail->'reason')
           when stage = 'design' then jsonb_build_object('ownership', detail->'ownership')
           when stage = 'evidence' then jsonb_build_object('not_run', detail->'not_run')
           when stage = 'builder' then jsonb_build_object('uncovered', detail->'tdd'->'uncovered')
         end as detail
       from build_steps
-      where project_id = ${projectId} and stage in ('merge', 'withdraw', 'design', 'evidence', 'builder')`,
+      where project_id = ${projectId} and stage in ('merge', 'withdraw', 'design', 'evidence', 'builder', 'footprint', 'commit')`,
   );
   const reviews = await q(
     sql<{
@@ -152,8 +159,10 @@ export async function loadEscapeInputs(
       resolved_at: Date | null;
       verdict: string | null;
       record_code: string | null;
+      change_version_id: string | null;
     }>`
-      select id, batch_id, state, resolved_at, payload->>'verdict' as verdict, payload->'record'->>'code' as record_code
+      select id, batch_id, state, resolved_at, payload->>'verdict' as verdict, payload->'record'->>'code' as record_code,
+        case when payload->'change'->>'type' = 'record_version' then payload->'change'->>'id' end as change_version_id
       from proposals where project_id = ${projectId} and type = 'review'`,
   );
   const ideaConflicts = await q(
@@ -189,8 +198,29 @@ export async function loadEscapeInputs(
       adopted_at: Date;
     }>`select id, build_request_id, attempt, adopted_at from build_request_bases where project_id = ${projectId}`,
   );
+  const links = await q(
+    sql<{
+      type: string;
+      state: string;
+      from_record_id: string;
+      from_version_id: string;
+      from_n: number;
+      from_type: string;
+      to_record_id: string;
+      to_type: string;
+    }>`
+      select l.type, l.state, fv.record_id as from_record_id, fv.id as from_version_id, fv.n as from_n, fr.type as from_type,
+        tv.record_id as to_record_id, tr.type as to_type
+      from links l
+      join record_versions fv on fv.id = l.from_id
+      join records fr on fr.id = fv.record_id
+      join record_versions tv on tv.id = l.to_id
+      join records tr on tr.id = tv.record_id
+      where l.project_id = ${projectId} and l.type in ('based_on', 'depends_on') and l.from_type = 'record_version' and l.to_type = 'record_version'`,
+  );
   return {
     projectId,
+    links,
     records: records.map((r) => ({ ...r, created_at: iso(r.created_at) })),
     versions: versions.map((v) => ({
       ...v,
@@ -202,6 +232,8 @@ export async function loadEscapeInputs(
       ...r,
       requested_at: iso(r.requested_at),
       withdrawn_at: isoOrNull(r.withdrawn_at),
+      in_review_at: isoOrNull(r.in_review_at),
+      done_at: isoOrNull(r.done_at),
     })),
     steps: steps.map((s) => ({
       ...s,

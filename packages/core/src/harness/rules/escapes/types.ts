@@ -4,7 +4,7 @@
 // failure with no design phase to blame (E10). Every attribution below is our convention, written in code under
 // `ESCAPES_RULES_VERSION`; the containment measure itself comes from Motorola (Daskalantonakis 1992; Kan, ch. 4).
 
-export const ESCAPES_RULES_VERSION = "esc-1";
+export const ESCAPES_RULES_VERSION = "esc-2";
 
 export type Phase = `P${number}`;
 
@@ -42,6 +42,9 @@ export type EscapeVersion = {
   created_at: string;
   approved_at: string | null;
   change_note: string | null;
+  /** What created the version (`origin.type` / `origin.id`, e.g. a proposal), when the journal kept it. */
+  origin_type?: string | null;
+  origin_id?: string | null;
 };
 export type EscapeCriterion = {
   record_version_id: string;
@@ -55,6 +58,8 @@ export type EscapeRequest = {
   requested_at: string;
   state: string;
   withdrawn_at: string | null;
+  in_review_at?: string | null;
+  done_at?: string | null;
 };
 /** A step with the few detail keys the rules read (extracted by the loader; the whole detail can be huge). */
 export type EscapeStep = {
@@ -99,6 +104,19 @@ export type EscapeReviewProposal = {
   resolved_at: string | null;
   verdict: string | null;
   record_code: string | null;
+  /** The record version whose change triggered the review (`payload.change.id`), when it is one. */
+  change_version_id?: string | null;
+};
+/** A link between two record versions, read at record level (`based_on`, `depends_on`). */
+export type EscapeLink = {
+  type: string;
+  state: string;
+  from_record_id: string;
+  from_version_id: string;
+  from_n: number;
+  from_type: string;
+  to_record_id: string;
+  to_type: string;
 };
 export type EscapeIdeaConflict = {
   assessment_id: string;
@@ -138,6 +156,7 @@ export type EscapeInputs = {
   ideaConflicts: EscapeIdeaConflict[];
   events: EscapeEvent[];
   bases: EscapeBase[];
+  links: EscapeLink[];
 };
 
 export type EscapeRule = (inputs: EscapeInputs) => Escape[];
@@ -153,3 +172,45 @@ export const requestTaskCode = (i: EscapeInputs): Map<string, string> => {
 };
 export const ms = (d: string | null | undefined): number =>
   d ? new Date(d).getTime() : Number.NaN;
+
+/**
+ * The verification of each criterion code as it was at `at` (the latest version of the criterion created by then;
+ * the latest overall when none was). A criterion that is not stored is absent: callers treat it as unknown.
+ */
+export const verificationAt = (
+  i: EscapeInputs,
+): ((code: string, at: string | null) => string | null) => {
+  const created = new Map(i.versions.map((v) => [v.id, v.created_at]));
+  const byCode = new Map<string, { at: number; verification: string }[]>();
+  for (const c of i.criteria) {
+    const list = byCode.get(c.code) ?? [];
+    list.push({
+      at: ms(created.get(c.record_version_id)),
+      verification: c.verification,
+    });
+    byCode.set(c.code, list);
+  }
+  for (const list of byCode.values()) list.sort((a, b) => a.at - b.at);
+  return (code, at) => {
+    const list = byCode.get(code);
+    if (!list || list.length === 0) return null;
+    const cut = at ? ms(at) : Number.POSITIVE_INFINITY;
+    const upTo = list.filter((x) => x.at <= cut);
+    return (upTo.length > 0 ? upTo[upTo.length - 1] : list[list.length - 1])
+      ?.verification ?? null;
+  };
+};
+
+/** The latest `task_covers` codes of each task, by task record id. */
+export const coversOf = (i: EscapeInputs): Map<string, string[]> =>
+  new Map(i.covers.map((c) => [c.record_id, c.codes]));
+
+/** Paths that say nothing about who owns what: lockfiles, root configuration, barrels and generated files. */
+const SHARED_PATH =
+  /(^|\/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|package\.json|tsconfig[^/]*\.json|index\.[a-z]+|README\.md)$|\.snap$|(^|\/)(__snapshots__|generated|dist)\//;
+export const isOwnedPath = (path: string): boolean =>
+  path.includes("/") && !SHARED_PATH.test(path);
+
+/** Source code paths only: styles, tests and documents are shared by design and say nothing about a missing dependency. */
+export const isCodePath = (path: string): boolean =>
+  isOwnedPath(path) && !/\.(css|scss|md|snap)$|\.(spec|test)\.[a-z]+$|(^|\/)e2e\//.test(path);

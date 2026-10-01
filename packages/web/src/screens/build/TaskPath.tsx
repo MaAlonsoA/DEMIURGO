@@ -384,6 +384,15 @@ function Entered({ attempt, previous, t, stages }: { attempt: TimelineAttempt; p
           <span className="text-fg-2">{b ? t.tpNone : t.tpNotKept}</span>
         )}
       </Row>
+      {b && b.context.length > 0 ? (
+        <Row label={t.tpContextGiven}>
+          <ul className="m-0 list-none p-0">
+            {b.context.map((c) => (
+              <li key={c}>{t.tpContextSection(c)}</li>
+            ))}
+          </ul>
+        </Row>
+      ) : null}
       {b && b.wip_files > 0 ? <Row label={t.tpWip}>{t.tpWipValue(b.wip_files)}</Row> : null}
       <Row label={t.tpFeedback}>
         {prev && previous ? (

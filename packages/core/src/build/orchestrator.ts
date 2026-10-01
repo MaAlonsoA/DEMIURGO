@@ -53,6 +53,7 @@ import * as github from '../github/client.ts';
 import { ciStatusOf, redactConfigured } from '../github/client.ts';
 import { parseJunit } from '../commands/evidence.ts';
 import { PASSED_ELSEWHERE_DAYS, ciFeedbackText, type CiFailureDetail } from './ci-feedback.ts';
+import { builderContextOf, type BuilderContext } from './context-data.ts';
 import { flakyNote, quarantineNote, quarantineOf } from './flaky.ts';
 import { classifyBuilderFailure, failureExcerpt } from './failure.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
@@ -267,7 +268,7 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   };
 }
 
-type Feedback = { blocking: string[]; fixes: string[]; failing: string[]; failures: CiFailureDetail[]; design: string[]; ownership: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string };
+type Feedback = { blocking: string[]; fixes: string[]; failing: string[]; failures: CiFailureDetail[]; design: string[]; ownership: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string; history?: string[] };
 
 const NO_FEEDBACK: Feedback = { blocking: [], fixes: [], failing: [], failures: [], design: [], ownership: [], flaky: [], conflicts: [] };
 
@@ -425,13 +426,15 @@ function promptOf(
   design: { manifest: DesignManifest; manifestText: string; tokensText: string } | null = null,
   code: string[] = [],
   resumed = false,
+  earlier: string[] = [],
 ): string {
   // A continued session already has the brief, the design system and its own notes: it only gets what is new.
   const lines = resumed
     ? [`# Continue (attempt ${attempt} on the same branch)`, 'You are continuing your previous session on this task: the brief and your earlier work are in this conversation. Read the new feedback below, fix what it names and keep to the same rules and report format.', ...(code.length > 0 ? ['', ...code] : [])]
-    : [body, '', '# Brief', brief, ...(code.length > 0 ? ['', ...code] : []), ...designSection(design)];
+    : [body, '', '# Brief', brief, ...(code.length > 0 ? ['', ...code] : []), ...(earlier.length > 0 ? ['', ...earlier] : []), ...designSection(design)];
   const progress = resumed ? undefined : f.progress;
-  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.fixes.length > 0 || f.failing.length > 0 || f.failures.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || progress)) {
+  const history = resumed ? [] : (f.history ?? []);
+  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.fixes.length > 0 || f.failing.length > 0 || f.failures.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || progress || history.length > 0)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
     if (f.wip) {
       lines.push(
@@ -441,6 +444,7 @@ function promptOf(
       );
     }
     if (progress) lines.push('Progress notes from the previous attempt:', progress.trim());
+    if (history.length > 0) lines.push(...history);
     if (f.conflicts.length > 0) {
       lines.push(
         `The branch conflicts with main: the merge of origin/main into this branch is in progress and these files have conflict markers: ${f.conflicts.join(', ')}.`,
@@ -720,7 +724,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const resolution = await resolveEngine(s0.db, s0.providers, { agent: agent.id });
     const problem = resolutionProblem(agent.id, resolution);
     if (problem || resolution.status !== 'ok') throw new DomainError('guard', problem ?? 'The builder has no engine.');
-    const feedback = attempt > 1 ? { ...(await feedbackOf(s0, r)), conflicts: worktree.conflicts ?? [] } : NO_FEEDBACK;
+    const feedbackBase = attempt > 1 ? { ...(await feedbackOf(s0, r)), conflicts: worktree.conflicts ?? [] } : NO_FEEDBACK;
     const designSystem = await designSystemOf(worktree.path).catch(() => null);
     // Registered before anything slow, so a withdrawal can already abort this attempt.
     const control = new AbortController();
@@ -728,7 +732,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     // «Code to extend», computed on the branch this attempt works on (attempt 2 sees its own earlier work); what was shown is kept in the step and per file in task_code_opinions.
     const code = await codeToExtend(s0.db, projectId, info.taskCode, { repoPath: worktree.path, ref: 'HEAD', versionId: info.taskVersionId });
     await storeCodeOpinions(s0.db, { projectId, buildRequestId: requestId, attempt, versionId: info.taskVersionId }, code).catch(() => undefined);
-    const affected = await affectedLine(worktree.path, code.files, attempt > 1 && feedback.failing.length > 0);
+    const affected = await affectedLine(worktree.path, code.files, attempt > 1 && feedbackBase.failing.length > 0);
     // The existing tests of the task's criteria, so the builder extends them (test-guard.ts); help, never a gate.
     const { lines: testLines, reuse: testReuse } = await (async (): Promise<{ lines: string[]; reuse: { criterion: string; path: string; title: string; p: number }[] }> => {
       try {
@@ -762,6 +766,16 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     // Claude takes the id of a new session up front; Codex announces it and the runner reports it back.
     const freshId = plan.mode === 'fresh' && provider === 'claude' ? randomUUID() : undefined;
     const sessionId = plan.mode === 'resumed' ? plan.id : freshId;
+    // Everything tried before: earlier attempts (fresh session only), earlier builds of the task and what the reviewer asked on sibling tasks.
+    const earlierContext = await (async () => {
+      try {
+        const task = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow();
+        return await builderContextOf(s0.db, { requestId, taskId: task.task_id, attempt, resumed: plan.mode === 'resumed' });
+      } catch {
+        return { history: [], fresh: [], sections: [] } as BuilderContext;
+      }
+    })();
+    const feedback: Feedback = { ...feedbackBase, history: earlierContext.history };
     const result = await d.runBuilder(
       {
         worktreeHostPath: hostPathOf(worktree.path),
@@ -769,7 +783,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
         provider,
         model: resolution.model,
         effort: resolution.effort ?? 'medium',
-        prompt: promptOf(agent.body, info.brief, attempt, feedback, designSystem, codeLines, plan.mode === 'resumed'),
+        prompt: promptOf(agent.body, info.brief, attempt, feedback, designSystem, codeLines, plan.mode === 'resumed', earlierContext.fresh),
         session: { mode: plan.mode, ...(sessionId ? { id: sessionId } : {}), hostDir: hostPathOf(sessionDir) },
         maxTimeMs: Math.min(agent.timeLimitSeconds * 1000, BUILDER_MAX_TIME_MS),
         limits: { cpus: 2, memoryMb: 4096, pids: 512 },
@@ -808,6 +822,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       ...(result.usage ? { usage: result.usage } : {}),
       report: result.report,
       ...(progressText ? { progress: progressText } : {}),
+      ...(earlierContext.sections.length > 0 ? { context: earlierContext.sections } : {}),
       ...(testReuse.length > 0 ? { test_reuse: testReuse } : {}),
       ...(code.lines.length > 0 ? { code_to_extend: { commit: code.commit, files: code.files, classifier_id: code.classifier_id, section: codeLines.join('\n') } } : {}),
       ...(wip ? { wip_commit: wip.sha, wip_files: wip.files, ...(wip.pushError ? { wip_push_error: wip.pushError } : {}) } : {}),
@@ -1610,5 +1625,6 @@ export async function failDeadAttempts(db: Services['db']): Promise<number> {
 
 // On startup, once DBOS has tried to recover the workflows (a replay that no longer matches fails then).
 registerReconciler(async (s) => {
-  setTimeout(() => void failDeadAttempts(s.db).catch(() => undefined), 90_000);
+  // unref: a short-lived process (the CLI) must not wait 90 s for this check before it can exit.
+  setTimeout(() => void failDeadAttempts(s.db).catch(() => undefined), 90_000).unref();
 }, 'build-dead-attempts');

@@ -84,6 +84,8 @@ export type TimelineAttempt = {
     affected_tests: { count: number; first: string[] } | null;
     progress: string | null;
     progress_chars: number;
+    /** The earlier-context sections the builder was given (attempt_history, earlier_builds, sibling_reviews). */
+    context: string[];
     notes: string | null;
     tests_written: number | null;
     wip_files: number;
@@ -217,6 +219,7 @@ function builderOf(rows: TimelineStepRow[]): TimelineAttempt['builder'] {
     affected_tests: affectedTestsOf(section),
     progress: cut(progress, NOTES),
     progress_chars: progress ? progress.length : 0,
+    context: Array.isArray(d.context) ? d.context.filter((x): x is string => typeof x === 'string').slice(0, 5) : [],
     notes: cut(report.notes, NOTES),
     tests_written: Array.isArray(report.tests) ? report.tests.length : null,
     wip_files: Array.isArray(d.wip_files) ? d.wip_files.length : 0,

@@ -1318,6 +1318,7 @@ export type TimelineAttempt = {
     affected_tests: { count: number; first: string[] } | null;
     progress: string | null;
     progress_chars: number;
+    context: string[];
     notes: string | null;
     tests_written: number | null;
     wip_files: number;

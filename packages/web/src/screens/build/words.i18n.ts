@@ -236,6 +236,9 @@ export const BUILD = messages(
     tpAffected: 'Tests that depend on it',
     tpAffectedValue: (count: number, first: string) => `${count} ${count === 1 ? 'test' : 'tests'}: ${first}${count > first.split(', ').length ? ' …' : ''}`,
     tpProgress: 'Progress notes',
+    tpContextGiven: 'Context given to the builder',
+    tpContextSection: (c: string) =>
+      c === 'attempt_history' ? 'Earlier attempts on this branch (the session restarted)' : c === 'earlier_builds' ? 'Earlier builds of this task' : c === 'sibling_reviews' ? 'Review comments on earlier tasks of this feature' : c,
     tpProgressValue: (chars: number) => `${chars.toLocaleString('en')} characters left by the builder`,
     tpNone: 'None.',
     tpWip: 'Unfinished work kept on the branch',
@@ -517,6 +520,9 @@ export const BUILD = messages(
     tpAffected: 'Pruebas que dependen de él',
     tpAffectedValue: (count: number, first: string) => `${count} ${count === 1 ? 'prueba' : 'pruebas'}: ${first}${count > first.split(', ').length ? ' …' : ''}`,
     tpProgress: 'Notas de progreso',
+    tpContextGiven: 'Contexto dado al constructor',
+    tpContextSection: (c: string) =>
+      c === 'attempt_history' ? 'Intentos anteriores en esta rama (la sesión se reinició)' : c === 'earlier_builds' ? 'Construcciones anteriores de esta tarea' : c === 'sibling_reviews' ? 'Comentarios de revisión de tareas anteriores de esta funcionalidad' : c,
     tpProgressValue: (chars: number) => `${chars.toLocaleString('es')} caracteres que dejó el constructor`,
     tpNone: 'Ninguna.',
     tpWip: 'Trabajo sin terminar guardado en la rama',

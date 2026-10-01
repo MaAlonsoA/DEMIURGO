@@ -1244,6 +1244,8 @@ export type BuildQueue = {
     /** Every task being built now. */
     builds: string[];
     next: string | null;
+    /** Ready tasks waiting because they change the database schema while another such task builds. */
+    schema_waiting?: string[];
     stopped: {
       code: string;
       kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red';

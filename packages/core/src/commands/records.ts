@@ -33,6 +33,7 @@ import { approvedDesignSystem, screenDesignChecks } from '../design/screens.ts';
 import { reviewObsolescence } from './proposals.ts';
 import { appendSize } from './sizes.ts';
 import { jevAllowed } from '../classifier/aspect.ts';
+import { classifyTaskLayers } from '../classifier/layers.ts';
 import { classifyTaskSize } from '../classifier/size.ts';
 import { classifyTaskTestability } from '../classifier/testability.ts';
 import { DISCARD_TRIGGER, onAuthorityEvent } from './reactions.ts';
@@ -650,6 +651,8 @@ registerHandlers({
         ctx.afterCommit(() => void classifyTaskSize(services, projectId, data.record_id, v.id));
         // And its criteria the builder cannot satisfy with a CI test (H97): a warning, never a block.
         ctx.afterCommit(() => void classifyTaskTestability(services, projectId, data.record_id, v.id));
+        // And the layers it will change, so «Build the queue» never runs two schema changes at once (H101).
+        ctx.afterCommit(() => void classifyTaskLayers(services, projectId, data.record_id, v.id));
       }
       return {
         entityId: v.id,

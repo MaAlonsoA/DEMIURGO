@@ -438,7 +438,8 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
   const command = useCommand(projectId);
   const client = useQueryClient();
   const s = auto.stopped;
-  const status = !auto.on
+  const waitingSchema = auto.schema_waiting && auto.schema_waiting.length > 0 ? ` ${t.autoSchemaWaiting(auto.schema_waiting)}` : "";
+  const base = !auto.on
     ? null
     : s
       ? s.kind === "needs_you"
@@ -457,6 +458,7 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
         : auto.next
           ? t.autoNext(auto.next)
           : t.autoIdle;
+  const status = base !== null && !s ? `${base}${waitingSchema}` : base;
   return (
     <section className="flex flex-col gap-2" data-auto-queue data-auto-on={auto.on ? "true" : "false"}>
       <Checkbox

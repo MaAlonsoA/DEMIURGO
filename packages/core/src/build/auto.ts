@@ -16,6 +16,7 @@ import type { Services } from '../services.ts';
 import { isTransientFailure } from './failure.ts';
 import { type BuildQueue, type QueueTask, buildQueue } from './queue.ts';
 import { loadTaskDependencies, type TaskDependencyIndex } from '../queries/task-deps.ts';
+import { type SchemaEvidence, schemaChangingTasks } from './schema-risk.ts';
 
 const BUILD = system('build', '1');
 
@@ -43,6 +44,8 @@ export type AutoStatus = {
   builds: string[];
   /** The task that starts next, when nothing stops the queue. */
   next: string | null;
+  /** Ready tasks that wait because they are predicted to change the database schema while another such task builds. Omitted when none. */
+  schema_waiting?: string[];
   stopped: AutoStopped | null;
   /** Flaky tests the last builds quarantined (they did not block their pull request): someone creates a fix task. Omitted when none. */
   quarantined?: string[];
@@ -163,12 +166,62 @@ type Plan = {
   /** The tasks to start now, in queue order. */
   start: Start[];
   stopped: AutoStopped | null;
+  /** Tasks skipped this round because a running task is predicted to change the database schema too. */
+  schemaWaiting: string[];
 };
+
+export type SelectInput = {
+  ready: QueueTask[];
+  running: string[];
+  limit: number;
+  index: TaskDependencyIndex;
+  featureOf: (code: string) => string | null;
+  /** The stored state of a ready task: it starts, or the queue stops at it. */
+  stateOf: (t: QueueTask) => Promise<{ kind: 'start'; hasRequest: boolean } | { kind: 'stopped'; stopped: AutoStopped }>;
+  /** Tasks predicted to change the database schema (running or ready). */
+  schema: Map<string, SchemaEvidence>;
+};
+
+/**
+ * The selection loop of the plan, with its inputs given: ready tasks in queue order, skipping one that depends
+ * on a busy task, belongs to the same feature as a busy one, or is predicted to change the database schema
+ * while another such task is busy (the app numbers migrations in sequence: two at once would collide). A
+ * skipped task waits and does not block the ones behind it; a task that stopped needing the person stops the queue.
+ */
+export async function selectStarts(input: SelectInput): Promise<Omit<Plan, 'running'>> {
+  const { ready, running, limit, index, featureOf, stateOf, schema } = input;
+  const result: Omit<Plan, 'running'> = { start: [], stopped: null, schemaWaiting: [] };
+  const busy = new Set(running);
+  const busyFeatures = new Set(running.map(featureOf).filter((f): f is string => f !== null));
+  let schemaBusy = running.some((c) => schema.has(c));
+  for (const t of ready) {
+    if (running.length + result.start.length >= limit) break;
+    if (busy.has(t.code)) continue;
+    const state = await stateOf(t);
+    if (state.kind === 'stopped') {
+      // Reported only when nothing runs: a running build is what the page shows then.
+      if (running.length === 0) result.stopped = state.stopped;
+      break;
+    }
+    const feature = featureOf(t.code);
+    if (dependsOnBusy(index, t.code, busy) || (feature !== null && busyFeatures.has(feature))) continue;
+    const changesSchema = schema.has(t.code);
+    if (changesSchema && schemaBusy) {
+      result.schemaWaiting.push(t.code);
+      continue;
+    }
+    result.start.push({ code: t.code, hasRequest: state.hasRequest });
+    busy.add(t.code);
+    if (feature !== null) busyFeatures.add(feature);
+    if (changesSchema) schemaBusy = true;
+  }
+  return result;
+}
 
 /**
  * What the queue does now, from the stored state only. Up to `limit` builds run at once: ready tasks are taken
  * in queue order, skipping one that depends on a task being built or belongs to the same feature as one
- * (our convention: tasks of one feature touch the same files). A task that stopped needing the person stops
+ * (our convention: tasks of one feature touch the same files) or changes the database schema while another such task builds. A task that stopped needing the person stops
  * the queue: it never skips ahead.
  */
 async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number): Promise<Plan> {
@@ -182,31 +235,17 @@ async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number)
     .execute();
   const running: string[] = [];
   for (const o of open) if (await buildRunning(db, o.id)) running.push(o.code);
-  const result: Plan = { running, start: [], stopped: null };
+  const result: Plan = { running, start: [], stopped: null, schemaWaiting: [] };
   // A red main stops the line even while builds run: they finish, and nothing new starts.
   const red = await mainRed(db, projectId);
   if (red) return { ...result, stopped: red };
   if (running.length >= limit) return result;
   const index = await loadTaskDependencies(db, projectId);
-  const busy = new Set(running);
   const featureOf = (code: string) => index.taskFeature.get(code) ?? queue.ready.find((t) => t.code === code)?.feature?.code ?? null;
-  const busyFeatures = new Set(running.map(featureOf).filter((f): f is string => f !== null));
-  for (const t of queue.ready) {
-    if (running.length + result.start.length >= limit) break;
-    if (busy.has(t.code)) continue;
-    const state = await taskState(db, t);
-    if (state.kind === 'stopped') {
-      // Reported only when nothing runs: a running build is what the page shows then.
-      if (running.length === 0) result.stopped = state.stopped;
-      break;
-    }
-    const feature = featureOf(t.code);
-    if (dependsOnBusy(index, t.code, busy) || (feature !== null && busyFeatures.has(feature))) continue;
-    result.start.push({ code: t.code, hasRequest: state.hasRequest });
-    busy.add(t.code);
-    if (feature !== null) busyFeatures.add(feature);
-  }
-  return result;
+  // Schema prediction only matters when two tasks can build together.
+  const schema = limit > 1 ? await schemaChangingTasks(db, projectId, [...new Set([...running, ...queue.ready.map((t) => t.code)])]) : new Map<string, SchemaEvidence>();
+  const picked = await selectStarts({ ready: queue.ready, running, limit, index, featureOf, stateOf: (t) => taskState(db, t), schema });
+  return { ...result, ...picked };
 }
 
 /** The state the Build page shows. */
@@ -218,7 +257,8 @@ export async function autoStatus(db: Db, projectId: string, queue: BuildQueue): 
   if (!on) return { on, parallel, building: null, builds: [], next: null, stopped: null, ...flaky };
   const p = await plan(db, projectId, queue, parallel);
   const next = p.start[0]?.code ?? (p.running.length ? (queue.ready.find((t) => !p.running.includes(t.code) && t.request === null)?.code ?? null) : null);
-  return { on, parallel, building: p.running[0] ?? null, builds: p.running, next, stopped: p.stopped, ...flaky };
+  const waiting = p.schemaWaiting.length > 0 ? { schema_waiting: p.schemaWaiting } : {};
+  return { on, parallel, building: p.running[0] ?? null, builds: p.running, next, stopped: p.stopped, ...waiting, ...flaky };
 }
 
 const tails = new Map<string, Promise<unknown>>();

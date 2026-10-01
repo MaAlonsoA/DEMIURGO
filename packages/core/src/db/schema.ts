@@ -433,6 +433,22 @@ export type TaskTestabilityOpinionsTable = {
   created_at: Generated<Timestamp>;
 };
 
+/** Jev's probabilities of the layers a task version changes (H101); append-only. */
+export type TaskLayersOpinionsTable = {
+  id: Generated<string>;
+  project_id: string;
+  record_id: string;
+  record_version_id: string;
+  schema_p: number;
+  server_p: number;
+  ui_p: number;
+  tests_only_p: number;
+  deploy_p: number;
+  classifier_id: string;
+  input_hash: string;
+  created_at: Generated<Timestamp>;
+};
+
 /** "Keep <size>": a dispute dismissed against one opinion. */
 export type TaskSizeDismissalsTable = {
   id: Generated<string>;
@@ -805,6 +821,7 @@ export type DB = {
   task_size_opinions: TaskSizeOpinionsTable;
   task_size_dismissals: TaskSizeDismissalsTable;
   task_testability_opinions: TaskTestabilityOpinionsTable;
+  task_layers_opinions: TaskLayersOpinionsTable;
   project_repos: ProjectReposTable;
   project_github: ProjectGithubTable;
   build_queue_settings: BuildQueueSettingsTable;

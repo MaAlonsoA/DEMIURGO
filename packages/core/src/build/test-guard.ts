@@ -13,7 +13,8 @@ import { promisify } from 'node:util';
 const run = promisify(execFile);
 const git = (dir: string, args: string[]) => run('git', ['-c', 'safe.directory=*', '-C', dir, ...args], { maxBuffer: 64 * 1024 * 1024 });
 
-export type TestLevel = 'e2e' | 'unit';
+/** `release`: a check run against the deployed release candidate, not in CI (Humble and Farley, Continuous Delivery). */
+export type TestLevel = 'e2e' | 'unit' | 'release';
 export type TestEntry = { criterion: string; path: string; title: string; level: TestLevel };
 export type TestsByCriterion = Map<string, TestEntry[]>;
 export type TestGuardViolation = { criterion: string; kind: 'duplicate' | 'several_new'; added: TestEntry; existing: TestEntry };
@@ -25,13 +26,16 @@ const GREP_LINE = `(^|[^A-Za-z0-9_])(test|it)(\\.(only|skip|fixme|fail|slow))?\\
 const E2E_PATH = /(^|\/)(e2e|playwright)\/|\.e2e\.[a-z]+$/;
 const TEST_FILE = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/;
 const EXAMPLE_MARKER = /\[example:\s*[^\]]+\]/;
-const RANK: Record<TestLevel, number> = { unit: 0, e2e: 1 };
+const RANK: Record<TestLevel, number> = { unit: 0, e2e: 1, release: 2 };
+const RELEASE_PATH = /(^|\/)release\/|\.release\.[a-z]+$/;
+/** CI tests and release checks are different pipeline stages: one never stands in for the other. */
+const stageOf = (level: TestLevel): 'ci' | 'release' => (level === 'release' ? 'release' : 'ci');
 
 /** The criterion tests of source files, in order. Pure. `e2ePaths`: files known to be Playwright specs. */
 export function testsFromSources(files: ReadonlyArray<{ path: string; content: string }>, e2ePaths: ReadonlySet<string> = new Set()): TestEntry[] {
   const out: TestEntry[] = [];
   for (const f of files) {
-    const level: TestLevel = E2E_PATH.test(f.path) || e2ePaths.has(f.path) ? 'e2e' : 'unit';
+    const level: TestLevel = RELEASE_PATH.test(f.path) ? 'release' : E2E_PATH.test(f.path) || e2ePaths.has(f.path) ? 'e2e' : 'unit';
     for (const line of f.content.split('\n')) {
       const m = TITLE.exec(line);
       if (m) out.push({ criterion: m[2] as string, path: f.path, title: `${m[2]}${m[3]}`, level });
@@ -79,9 +83,10 @@ export function duplicateTests(before: TestsByCriterion, after: TestsByCriterion
     const unmarked: TestEntry[] = [];
     for (const a of added) {
       if (EXAMPLE_MARKER.test(a.title)) continue;
-      const covering = kept.find((k) => RANK[k.level] <= RANK[a.level]);
+      const covering = kept.find((k) => stageOf(k.level) === stageOf(a.level) && RANK[k.level] <= RANK[a.level]);
+      const sibling = unmarked.find((u) => stageOf(u.level) === stageOf(a.level));
       if (covering) out.push({ criterion, kind: 'duplicate', added: a, existing: covering });
-      else if (unmarked.length > 0) out.push({ criterion, kind: 'several_new', added: a, existing: unmarked[0] as TestEntry });
+      else if (sibling) out.push({ criterion, kind: 'several_new', added: a, existing: sibling });
       else unmarked.push(a);
     }
   }

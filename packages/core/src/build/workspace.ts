@@ -206,6 +206,28 @@ export async function commitAll(path: string, message: string, author: string = 
   return stdout.trim();
 }
 
+/**
+ * HEAD when it holds commits the remote branch does not have yet (an earlier attempt committed and then
+ * stopped before pushing, e.g. at the design guard): the next attempt can continue with them even if the
+ * builder changes nothing more. Null when HEAD is already on the remote branch or there is no branch.
+ */
+export async function unpushedHead(path: string): Promise<string | null> {
+  try {
+    const head = (await git(path, ['rev-parse', 'HEAD'])).stdout.trim();
+    const branch = (await git(path, ['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim();
+    if (!branch || branch === 'HEAD') return null;
+    const remote = await git(path, ['rev-parse', '--verify', '-q', `refs/remotes/origin/${branch}`]).then((r) => r.stdout.trim()).catch(() => '');
+    if (remote === head) return null;
+    // Without a remote branch, HEAD counts when it is ahead of main.
+    const base = remote || (await git(path, ['merge-base', 'HEAD', 'refs/remotes/origin/main']).then((r) => r.stdout.trim()).catch(() => ''));
+    if (!base) return null;
+    const ahead = Number((await git(path, ['rev-list', '--count', `${base}..HEAD`])).stdout.trim());
+    return ahead > 0 ? head : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Files that still hold merge conflict markers or are unmerged, after staging (empty when clean). */
 export async function unresolvedConflicts(path: string): Promise<string[]> {
   await git(path, ['add', '-A']);

@@ -68,6 +68,13 @@ describe('test guard', () => {
     expect(duplicateTests(before, plusOne)).toHaveLength(1);
   });
 
+  it('a release check against the deployed candidate is a different stage from a CI test of the same criterion', () => {
+    const after = tests(src('e2e/perf.spec.ts', 'AC-X-005-01 p95 under 2 s locally'), src('release/perf.spec.ts', 'AC-X-005-01 deployed candidate p95 under 2 s'));
+    expect(duplicateTests(new Map(), after)).toEqual([]);
+    const twoReleases = tests(src('release/perf.spec.ts', 'AC-X-005-01 deployed one', 'AC-X-005-01 deployed two'));
+    expect(duplicateTests(new Map(), twoReleases)).toHaveLength(1);
+  });
+
   it('lists the existing tests per criterion, says when none, and caps the lines', () => {
     const t = tests(src('e2e/a.spec.ts', `${OWNER} owner-only access`));
     expect(existingTestsLines(t, [OWNER, 'AC-X-009-01'])).toEqual([

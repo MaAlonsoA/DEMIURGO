@@ -62,7 +62,7 @@ import { checkTestGuard, existingTestsLines, readRepoTests, testGuardFeedback } 
 import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
 import { decideRecheck } from './recheck.ts';
 import type { Services } from '../services.ts';
-import { commitAll, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, addedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { commitAll, unpushedHead, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, addedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -804,7 +804,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     if (conflicted.length > 0) {
       return { outcome: 'failed' as const, detail: { error: `The builder left merge conflicts unresolved in: ${conflicted.join(', ')}.`, conflicts: conflicted } };
     }
-    const sha = await commitAll(worktree.path, `${info.taskCode}: ${info.taskTitle}`);
+    const sha = (await commitAll(worktree.path, `${info.taskCode}: ${info.taskTitle}`)) ?? (await unpushedHead(worktree.path));
     if (!sha) return { outcome: 'failed' as const, detail: { error: 'The builder changed nothing: there is nothing to commit.' } };
     return { value: sha, detail: { sha }, extra: { head_sha: sha } };
   });

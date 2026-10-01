@@ -424,6 +424,7 @@ export type Inbox = {
   open_questions: InboxQuestion[];
   versions_to_approve: InboxVersion[];
   links_under_review: InboxLink[];
+  suspect_records?: SuspectRecord[];
   classifications_to_review: {
     id: string;
     node_ref: string;
@@ -701,6 +702,26 @@ export type RecordDetail = {
   versions: RecordVersion[];
   /** What connects to it: links of the other records' shown version that point to one of its versions. */
   incoming: IncomingLink[];
+  /** What this record rests on has a newer approved version since its current version was written. */
+  suspect?: SuspectRef[];
+};
+
+/** Deterministic impact (suspect link): based on `upstream` v`from`, which is now v`to`. */
+export type SuspectInfo = { upstream: string; from: number; to: number };
+
+export type SuspectRef = SuspectInfo & { link_id: string; upstream_title: string; from_version_id: string };
+
+/** A record to review after a change upstream (Needs you). */
+export type SuspectRecord = {
+  link_id: string;
+  link_type: string;
+  from_code: string;
+  from_type: string;
+  from_n: number;
+  from_title: string;
+  from_version_id: string;
+  upstream_title: string;
+  suspect: SuspectInfo;
 };
 
 export type IncomingLink = {
@@ -715,6 +736,8 @@ export type IncomingLink = {
   to_n: number;
   /** What the map draws for it; null for links the map doesn't draw (origin, covers). */
   relation: 'needs' | 'follows' | 'conflicts' | 'affects' | null;
+  /** The record is based on an older version of this one than its current: review it. */
+  suspect: SuspectInfo | null;
 };
 
 export type Message = {

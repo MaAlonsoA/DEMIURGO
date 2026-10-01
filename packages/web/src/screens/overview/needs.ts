@@ -130,6 +130,18 @@ function describe(n: NeedItem, state: ProductState | undefined): NeedsItem {
         code: l.from_code,
       };
     }
+    case 'suspect': {
+      const s = n.suspect;
+      return {
+        ...base,
+        label: 'To review after a change',
+        title: s.from_title,
+        from: `${s.from_code} v${s.from_n} · ${s.suspect.upstream} is now v${s.suspect.to}`,
+        mark: 'problem',
+        target: { to: '/p/$projectId/records/$code', params: { code: s.from_code }, search: { v: s.from_n } },
+        code: s.from_code,
+      };
+    }
     case 'classification': {
       const c = n.classification;
       return {

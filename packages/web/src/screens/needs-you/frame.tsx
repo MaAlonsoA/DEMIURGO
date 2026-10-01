@@ -53,6 +53,7 @@ export function kindIcon(item: NeedItem): ComponentType<IconProps> {
     case 'version':
       return iconOf(item.version.type);
     case 'link':
+    case 'suspect':
       return LinkIcon;
     case 'classification':
       return TagIcon;

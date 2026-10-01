@@ -453,6 +453,8 @@ export type LinksTable = {
   to_type: string;
   to_id: string;
   to_version: number | null;
+  /** The upstream version the person last confirmed the link against («Still valid»). */
+  checked_against: number | null;
   state: string;
   created_by: string;
   created_at: Generated<Timestamp>;

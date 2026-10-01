@@ -308,7 +308,7 @@ function DraftDecision({ projectId, task }: { projectId: string; task: TaskView 
     <div data-record-actions className="flex flex-wrap items-center gap-2">
       {allowsProposal(acceptCmd) || allowsBatch(acceptCmd) ? (
         <Button variant="primary" data-command={acceptCmd} onClick={() => open('accept')}>
-          {whole ? t.acceptAll(n) : t.accept}
+          {whole ? t.acceptAll(n) : t.approve}
         </Button>
       ) : null}
       {allowsProposal(rejectCmd) || allowsBatch(rejectCmd) ? (
@@ -319,13 +319,13 @@ function DraftDecision({ projectId, task }: { projectId: string; task: TaskView 
       <ConfirmDialog
         open={dialog === 'accept'}
         onOpenChange={(o) => !o && setDialog(null)}
-        title={whole ? t.acceptAllTitle(n) : t.acceptTitle(task.title)}
-        description={<p>{whole ? t.acceptAllBody(n) : t.acceptBody}</p>}
-        confirm={whole ? t.acceptAll(n) : t.accept}
+        title={whole ? t.acceptAllTitle(n) : t.approveTitle(task.title)}
+        description={<p>{whole ? t.acceptAllBody(n) : t.approveBody}</p>}
+        confirm={whole ? t.acceptAll(n) : t.approve}
         pendingLabel={t.accepting}
         pending={command.isPending}
         error={dialog === 'accept' ? command.error : null}
-        onConfirm={() => run(acceptCmd, {}, t.accepted2)}
+        onConfirm={() => (whole ? run(acceptCmd, {}, t.accepted2) : run(acceptCmd, { approve: true }, t.approved2))}
       />
       <PromptDialog
         open={dialog === 'reject'}

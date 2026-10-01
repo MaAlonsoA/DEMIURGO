@@ -131,6 +131,7 @@ entities:
       - { command: link.flag_review, from: [current, kept, changed], to: needs_review }
       - { command: link.keep, from: [needs_review], to: kept }
       - { command: link.change, from: [needs_review], to: changed }
+      - { command: link.revalidate, from: [current, kept, changed], to: current }
       - { command: link.obsolete, from: [needs_review], to: obsolete }
 
   batch:

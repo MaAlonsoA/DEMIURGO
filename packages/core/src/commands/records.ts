@@ -841,6 +841,32 @@ registerHandlers({
       return { entityId: e?.id ?? '', after: { note: d.note ?? null } };
     },
   }),
+  // «Still valid»: the person confirms what rests on an older version still holds against the current
+  // one. The link keeps pointing at the version it was written against; it records the one it was confirmed against.
+  'link.revalidate': handler({
+    data: z.object({ note: z.string().trim().max(1000).optional() }).strict(),
+    async apply(ctx, d, e) {
+      const row = e?.row as { id: string; to_id: string; to_version: number | null; checked_against: number | null } | undefined;
+      const target = await ctx.trx
+        .selectFrom('record_versions')
+        .select('record_id')
+        .where('id', '=', row?.to_id ?? '')
+        .executeTakeFirst();
+      const current = target
+        ? await ctx.trx
+            .selectFrom('record_versions')
+            .select('n')
+            .where('record_id', '=', target.record_id)
+            .where('state', '=', 'approved')
+            .orderBy('n', 'desc')
+            .executeTakeFirst()
+        : undefined;
+      if (!current || current.n <= Math.max(row?.to_version ?? 0, row?.checked_against ?? 0))
+        throw new DomainError('conflict', 'What it rests on has no newer approved version: there is nothing to confirm.');
+      await ctx.trx.updateTable('links').set({ checked_against: current.n }).where('id', '=', row?.id ?? '').execute();
+      return { entityId: row?.id ?? '', after: { checked_against: current.n, note: d.note ?? null } };
+    },
+  }),
   'link.obsolete': handler({
     data: z.object({ note: z.string().trim().max(1000).optional() }).strict(),
     async apply(_ctx, d, e) {

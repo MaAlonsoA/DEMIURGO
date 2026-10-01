@@ -1,6 +1,8 @@
 // Versioned records (decision, FDR, ADR, bug): templates, readiness, epistemic
 // status and verifiability warning. All pure.
 
+import { suspectReason } from './impact.ts';
+
 export const RECORD_TYPES = [
   'decision',
   'epic',
@@ -170,6 +172,8 @@ export type ReadinessInput = {
     versionState: string;
     current: number | null;
     linkState: string;
+    /** This version is current and rests on an older version of it than its current one, unconfirmed (domain/impact.ts). */
+    suspect?: { upstream: string; from: number; to: number };
     /** Knowledge has compared it with the current version, when it rests on an older one. */
     checked?: boolean;
   }[];
@@ -258,6 +262,8 @@ export function readiness(e: ReadinessInput): Readiness {
     for (const d of e.basedOn) {
       if (d.current === null) {
         reasons.push(`The ${BASIS_NOUN[d.type] ?? 'record'} it is based on, ${d.code}, is not approved.`);
+      } else if (d.suspect) {
+        reasons.push(suspectReason(d.suspect));
       } else if (d.current !== d.version && d.checked === false && d.linkState !== 'kept') {
         // An older basis holds once knowledge has checked it against the current version (a
         // contradiction comes back as a review) or the person kept the link.

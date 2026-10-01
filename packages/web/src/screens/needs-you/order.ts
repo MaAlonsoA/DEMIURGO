@@ -3,7 +3,7 @@
 // reasons the server gives (packages/domain/src/records.ts, readiness()): nothing is invented.
 
 import { questionReason } from '../../../../domain/src/records.ts';
-import type { Inbox, InboxBatch, InboxLink, InboxProposal, InboxQuestion, InboxVersion, ProductRow } from '../../api/types.ts';
+import type { Inbox, InboxBatch, InboxLink, InboxProposal, InboxQuestion, InboxVersion, ProductRow, SuspectRecord } from '../../api/types.ts';
 import { taskDraftsFeature } from '../../lib/attention.ts';
 import { ORDER } from './words.i18n.ts';
 
@@ -20,12 +20,14 @@ export type Need =
   | { kind: 'proposal'; key: string; batch: InboxBatch; proposal: InboxProposal; position: number }
   | { kind: 'version'; key: string; version: InboxVersion }
   | { kind: 'link'; key: string; link: InboxLink }
+  /** A record whose basis got a newer approved version since it was written (suspect link). */
+  | { kind: 'suspect'; key: string; suspect: SuspectRecord }
   | { kind: 'classification'; key: string; classification: Classification }
   | { kind: 'update'; key: string; update: FailedUpdate };
 
 export type NeedItem = Need & { unblocks: string[]; minutes: number };
 
-export type GroupKey = 'conflicts' | 'questions' | 'proposals' | 'versions' | 'links' | 'classifications' | 'updates';
+export type GroupKey = 'conflicts' | 'questions' | 'proposals' | 'versions' | 'links' | 'suspects' | 'classifications' | 'updates';
 
 export const GROUPS: { key: GroupKey; kinds: Need['kind'][] }[] = [
   { key: 'conflicts', kinds: ['conflict'] },
@@ -33,6 +35,7 @@ export const GROUPS: { key: GroupKey; kinds: Need['kind'][] }[] = [
   { key: 'proposals', kinds: ['proposal', 'package'] },
   { key: 'versions', kinds: ['version'] },
   { key: 'links', kinds: ['link'] },
+  { key: 'suspects', kinds: ['suspect'] },
   { key: 'classifications', kinds: ['classification'] },
   { key: 'updates', kinds: ['update'] },
 ];
@@ -45,6 +48,7 @@ const MINUTES: Record<Need['kind'], number> = {
   proposal: 1,
   version: 2,
   link: 1,
+  suspect: 2,
   classification: 1,
   update: 1,
 };
@@ -128,6 +132,7 @@ export function needsOf(inbox: Inbox, rows: readonly ProductRow[]): NeedItem[] {
   }
   needs.push(...inbox.versions_to_approve.map((version): Need => ({ kind: 'version', key: `version:${version.id}`, version })));
   needs.push(...inbox.links_under_review.map((link): Need => ({ kind: 'link', key: `link:${link.id}`, link })));
+  needs.push(...(inbox.suspect_records ?? []).map((suspect): Need => ({ kind: 'suspect', key: `suspect:${suspect.link_id}`, suspect })));
   needs.push(
     ...inbox.classifications_to_review.map(
       (classification): Need => ({ kind: 'classification', key: `classification:${classification.id}`, classification }),
@@ -153,6 +158,7 @@ export function catchUpRank(n: NeedItem): number {
     case 'version':
       return 4;
     case 'link':
+    case 'suspect':
     case 'classification':
       return 5;
     default:

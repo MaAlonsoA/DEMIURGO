@@ -27,3 +27,4 @@ export * from './knowledge-inputs.ts';
 export * from './sizes.ts';
 export * from './delivery.ts';
 export * from './typical-duration.ts';
+export * from './impact.ts';

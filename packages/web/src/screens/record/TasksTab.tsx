@@ -71,7 +71,18 @@ export function TasksTab({ projectId, record, draft }: { projectId: string; reco
         ))}
       </ol>
       {drafts.length > 0 ? <DraftsDecision projectId={projectId} drafts={drafts} /> : null}
-      {uncovered.length > 0 ? <p className="text-sm text-fg-2">{t.uncovered(uncovered.join(', '))}</p> : null}
+      {uncovered.length > 0 ? (
+        <div className="flex flex-col items-start gap-2" data-uncovered={uncovered.join(' ')}>
+          <p className="text-sm text-fg-2">{t.uncovered(uncovered.join(', '))}</p>
+          {/* The approved feature has criteria no task covers (a newer version added them): plan only those. */}
+          {writable && drafts.length === 0 ? (
+            <Button variant="secondary" size="sm" pending={draft.pending} pendingLabel={t.drafting} onClick={draft.run} data-draft-missing>
+              {t.draftMissing}
+            </Button>
+          ) : null}
+          {draft.error ? <ErrorNotice error={draft.error} compact /> : null}
+        </div>
+      ) : null}
       {/* A failed draft request shows under the header's "Draft the tasks" button. */}
       {draft.asked ? <p className="text-sm text-fg-2">{t.draftAsked}</p> : null}
       {writable ? (
@@ -174,7 +185,7 @@ function ApproveAllTasks({ projectId, drafts }: { projectId: string; drafts: Non
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const pending = canAccept ? drafts.filter((d) => d.resolution === 'item') : [];
-  if (pending.length < 2 && !running && !error) return null;
+  if (pending.length < 1 && !running && !error) return null;
   const n = running || error ? queue.length : pending.length;
 
   const start = async () => {

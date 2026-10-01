@@ -7,12 +7,15 @@ import { join } from "node:path";
 import {
   DomainError,
   SIZE_POINTS,
+  type Suspect,
   type TaskSize,
   sizeLine,
+  suspectReason,
 } from "@demiurgo/domain";
 import { sql } from "kysely";
 import type { Db } from "../db/connection.ts";
 import { githubConfig } from "../github/client.ts";
+import { suspectRecords } from "../queries/impact.ts";
 import { mergedBuildOf, productState } from "../queries/read.ts";
 import { taskCoversOf } from "../queries/sizes.ts";
 import { projectsDir } from "../repo/repo.ts";
@@ -50,7 +53,11 @@ export type QueueTask = {
   stage: { stage: string; outcome: string; failure?: { kind: string; excerpt: string | null } } | null;
 };
 
-export type WaitingTask = QueueTask & { reasons: string[] };
+/**
+ * `suspect`: its feature (what it is based on) has a newer approved version since the task was written;
+ * it waits for the person to review it («Still valid» or a new version) and the queue does not take it.
+ */
+export type WaitingTask = QueueTask & { reasons: string[]; suspect: Suspect | null };
 
 /** A task whose pull request was merged (its build request is done). */
 export type BuiltTask = QueueTask & { pr_url: string | null; done_at: string | null };
@@ -312,9 +319,24 @@ export async function buildQueue(
     .filter((t) => t.current !== null && t.implementation !== "implemented")
     .sort(order);
   const ready = approved.filter((t) => t.readiness?.ready).map(lineOf);
-  const waiting = approved
+  const suspects = new Map((await suspectRecords(db, projectId)).map((x) => [x.from_code, x.suspect]));
+  const waiting: WaitingTask[] = approved
     .filter((t) => !t.readiness?.ready)
-    .map((t) => ({ ...lineOf(t), reasons: t.readiness?.reasons ?? [] }));
+    .map((t) => {
+      const suspect = suspects.get(t.code) ?? null;
+      const reasons = t.readiness?.reasons ?? [];
+      return {
+        ...lineOf(t),
+        suspect,
+        // The one reason a changed feature gives, in the words of the Build page.
+        reasons: suspect
+          ? [
+              `Its feature changed: review before building (${suspect.upstream} v${suspect.from} is now v${suspect.to}).`,
+              ...reasons.filter((r) => r !== suspectReason(suspect)),
+            ]
+          : reasons,
+      };
+    });
   const listed = new Set(approved.map((t) => t.code));
   const stale = tasks
     .filter(

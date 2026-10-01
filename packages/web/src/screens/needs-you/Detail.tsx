@@ -23,6 +23,7 @@ import { Conflict } from './Conflict.tsx';
 import { DetailFrame, type NeedContext } from './frame.tsx';
 import type { NeedItem } from './order.ts';
 import { HomeLink, homeOf } from './home.tsx';
+import { SuspectActions } from '../record/SuspectActions.tsx';
 import { axisOf, needReason, needTitle, nodeName, updateTitle } from './titles.ts';
 import { DETAIL, TITLES } from './words.i18n.ts';
 
@@ -47,6 +48,8 @@ export function NeedDetail(props: DetailProps) {
       return <GoDetail {...props} />;
     case 'link':
       return <LinkDetail {...(props as DetailProps<'link'>)} />;
+    case 'suspect':
+      return <SuspectDetail {...(props as DetailProps<'suspect'>)} />;
     case 'classification':
       return <ClassificationDetail {...(props as DetailProps<'classification'>)} />;
     case 'update':
@@ -176,6 +179,42 @@ function LinkDetail({ item, ctx, titleId, top }: DetailProps<'link'>) {
         onConfirm={() => run('link.obsolete')}
       />
     </DetailFrame>
+  );
+}
+
+function SuspectDetail({ item, ctx, titleId, top }: DetailProps<'suspect'>) {
+  const t = useMessages(DETAIL);
+  const kindWords = useMessages(TITLES);
+  const s = item.suspect;
+  return (
+    <DetailFrame
+      item={item}
+      ctx={ctx}
+      titleId={titleId}
+      top={top}
+      title={needTitle(item, ctx.rows, kindWords)}
+      code={`${s.from_code} v${s.from_n}`}
+      why={
+        <>
+          <RecordChip projectId={ctx.projectId} code={s.from_code} version={s.from_n} rows={ctx.rows} />
+          <ArrowRightIcon size={13} className="text-fg-3" />
+          <RecordChip projectId={ctx.projectId} code={s.suspect.upstream} version={s.suspect.to} rows={ctx.rows} />
+        </>
+      }
+      line={t.suspectLine(s.suspect.upstream, s.suspect.from, s.suspect.to)}
+      decision={
+        <DecisionBar>
+          <SuspectActions
+            projectId={ctx.projectId}
+            linkId={s.link_id}
+            versionId={s.from_version_id}
+            code={s.from_code}
+            n={s.from_n}
+            suspect={s.suspect}
+          />
+        </DecisionBar>
+      }
+    />
   );
 }
 

@@ -15,6 +15,8 @@ import { Notice } from '../../components/Notice.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import type { NeedsItem } from '../overview/needs.ts';
 import { isEarlierDraft, newerDraft } from './logic.ts';
+import { SuspectActions } from './SuspectActions.tsx';
+import { SUSPECT } from './suspect.i18n.ts';
 import { NOTICES } from './words.i18n.ts';
 
 function NextLink({ projectId, next, className }: { projectId: string; next: NeedsItem; className: string }) {
@@ -65,6 +67,7 @@ export function RecordNotices({
   lean?: boolean;
 }) {
   const t = useMessages(NOTICES);
+  const st = useMessages(SUSPECT);
   const earlier = isEarlierDraft(record, version);
   const earlierReason = useQuery({ ...readinessQuery(projectId, version.id), enabled: earlier }).data?.reasons.find((r) =>
     r.startsWith(`Version ${version.n} is a draft earlier`),
@@ -95,6 +98,19 @@ export function RecordNotices({
         {t.approvedBody}
       </Notice>,
     );
+  // What it rests on changed since this version was written: review it, or say it still holds.
+  if (version.current)
+    for (const s of record.suspect ?? [])
+      items.push(
+        <Notice
+          key={`suspect-${s.link_id}`}
+          tone="warning"
+          title={st.noticeTitle(s.upstream, s.from, s.to)}
+          action={<SuspectActions projectId={projectId} linkId={s.link_id} versionId={s.from_version_id} code={record.code} n={version.n} suspect={s} />}
+        >
+          <span data-suspect={s.upstream}>{st.noticeBody}</span>
+        </Notice>,
+      );
   if (ready)
     items.push(
       <div

@@ -21,6 +21,7 @@ export const TITLES = messages(
           proposal: 'Proposal',
           version: 'Accepted proposal to approve',
           link: 'Link to review',
+          suspect: 'To review after a change',
           classification: 'Classification',
           update: 'Knowledge update',
         }) satisfies Record<Kind, string>
@@ -45,6 +46,8 @@ export const TITLES = messages(
     updateChange: "Knowledge couldn't take in a change",
     proposalFallback: 'A proposal',
     linkTitle: (from: string, to: string) => `${from} is based on ${to}`,
+    suspectTitle: (from: string) => `${from} may be out of date`,
+    suspectReason: (upstream: string, from: number, to: number) => `${upstream} changed: v${from} to v${to}`,
     foundApproved: 'Found by knowledge · with something you approved',
     foundEarlier: 'Found by knowledge · with an earlier version',
     foundByCoherence: (epic: string) => `Found by the coherence review of ${epic}`,
@@ -79,6 +82,7 @@ export const TITLES = messages(
     saidApproved: 'Approved.',
     saidDraftDiscarded: 'Discarded.',
     saidLinkKept: 'Link kept.',
+    saidLinkRevalidated: 'Marked as still valid.',
     saidLinkChanged: 'Link marked as changed.',
     saidLinkObsolete: 'Link marked out of date.',
     saidClassified: 'Classified.',
@@ -95,6 +99,7 @@ export const TITLES = messages(
           proposal: 'Propuesta',
           version: 'Propuesta aceptada por aprobar',
           link: 'Enlace por revisar',
+          suspect: 'Por revisar tras un cambio',
           classification: 'Clasificación',
           update: 'Actualización de conocimiento',
         }) satisfies Record<Kind, string>
@@ -121,6 +126,8 @@ export const TITLES = messages(
     updateChange: 'El conocimiento no pudo incorporar un cambio',
     proposalFallback: 'Una propuesta',
     linkTitle: (from: string, to: string) => `${from} se basa en ${to}`,
+    suspectTitle: (from: string) => `Revisar ${from}`,
+    suspectReason: (upstream: string, from: number, to: number) => `${upstream} cambió: de la v${from} a la v${to}`,
     foundApproved: 'Encontrado por el conocimiento · con algo que aprobaste',
     foundEarlier: 'Encontrado por el conocimiento · con una versión anterior',
     foundByCoherence: (epic: string) => `Lo encontró la revisión de coherencia de ${epic}`,
@@ -155,6 +162,7 @@ export const TITLES = messages(
     saidApproved: 'Aprobada.',
     saidDraftDiscarded: 'Descartada.',
     saidLinkKept: 'Enlace mantenido.',
+    saidLinkRevalidated: 'Marcada como vigente.',
     saidLinkChanged: 'Enlace marcado como cambiado.',
     saidLinkObsolete: 'Enlace marcado como caducado.',
     saidClassified: 'Clasificada.',
@@ -174,6 +182,7 @@ export const ORDER = messages(
           proposals: 'Proposals',
           versions: 'Accepted proposals to approve',
           links: 'Links to review',
+          suspects: 'To review after a change',
           classifications: 'Classifications to review',
           updates: 'Knowledge updates that failed',
         }) satisfies Record<GroupKey, string>
@@ -188,6 +197,7 @@ export const ORDER = messages(
           proposals: 'Propuestas',
           versions: 'Propuestas aceptadas por aprobar',
           links: 'Enlaces por revisar',
+          suspects: 'Por revisar tras un cambio',
           classifications: 'Clasificaciones por revisar',
           updates: 'Actualizaciones de conocimiento fallidas',
         }) satisfies Record<GroupKey, string>
@@ -316,6 +326,8 @@ export const DETAIL = messages(
     linkTitle: (from: string, to: string) => `${from} is based on ${to}`,
     linkNewerLine: (code: string, newer: number) => `${code} now has v${newer}: does the link still hold?`,
     linkChangedLine: 'The version it points to changed: does the link still hold?',
+    suspectLine: (upstream: string, from: number, to: number) =>
+      `It was written against ${upstream} v${from}, which is now v${to}. Review it against the change, or say it still holds.`,
     keepLabel: 'Keep:',
     keepDesc: 'it still holds.',
     changeLabel: 'Mark as changed:',
@@ -356,6 +368,8 @@ export const DETAIL = messages(
     linkTitle: (from: string, to: string) => `${from} se basa en ${to}`,
     linkNewerLine: (code: string, newer: number) => `${code} ya tiene la v${newer}: ¿el enlace sigue en pie?`,
     linkChangedLine: 'La versión a la que apunta cambió: ¿el enlace sigue en pie?',
+    suspectLine: (upstream: string, from: number, to: number) =>
+      `Se escribió sobre ${upstream} v${from}, que ahora es la v${to}. Revísala contra el cambio, o di que sigue vigente.`,
     keepLabel: 'Mantener:',
     keepDesc: 'sigue en pie.',
     changeLabel: 'Marcar como cambiado:',
@@ -413,6 +427,7 @@ export const QUEUE = messages(
           proposals: 'Each opens where it is decided: its record, or its batch.',
           versions: 'Each opens on its record, to approve or discard.',
           links: 'What they point to has a newer version.',
+          suspects: 'What they rest on changed. Review each against the change, or say it still holds.',
           classifications: "DEMIURGO wasn't sure where they go.",
           updates: 'Until they are taken in, the knowledge is behind.',
         }) satisfies Record<GroupKey, string>
@@ -432,6 +447,7 @@ export const QUEUE = messages(
           proposals: 'Cada una se abre donde se decide: su registro o su lote.',
           versions: 'Cada una se abre en su registro, para aprobarla o descartarla.',
           links: 'Lo que señalan tiene una versión más nueva.',
+          suspects: 'Lo que las sostiene cambió. Revisa cada una contra el cambio, o di que sigue vigente.',
           classifications: 'DEMIURGO no tenía claro dónde van.',
           updates: 'Hasta que se incorporan, el conocimiento se queda atrás.',
         }) satisfies Record<GroupKey, string>

@@ -7,9 +7,12 @@ import { Link } from '@tanstack/react-router';
 import type { IncomingLink } from '../../api/types.ts';
 import { Code } from '../../components/Badge.tsx';
 import { EntityState } from '../../components/status.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { relationWord } from '../map/layout.ts';
+import { SUSPECT } from './suspect.i18n.ts';
 
 export function IncomingLinks({ projectId, links }: { projectId: string; links: readonly IncomingLink[] }) {
+  const t = useMessages(SUSPECT);
   const shown = links.filter((l): l is IncomingLink & { relation: NonNullable<IncomingLink['relation']> } => l.relation !== null);
   if (shown.length === 0) return null;
   return (
@@ -31,7 +34,13 @@ export function IncomingLinks({ projectId, links }: { projectId: string; links: 
             <Code>
               {l.from_code} v{l.from_n} · to v{l.to_n}
             </Code>
-            <EntityState entity="link" state={l.state} />
+            {l.suspect ? (
+              <span data-suspect={l.from_code} className="font-medium text-warning-text">
+                {t.basedOn(l.suspect.from, l.suspect.to)} · {t.review}
+              </span>
+            ) : (
+              <EntityState entity="link" state={l.state} />
+            )}
           </span>
         </li>
       ))}

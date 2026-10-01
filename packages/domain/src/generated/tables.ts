@@ -364,6 +364,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Mark a reviewed link as changed."
     },
+    "link.revalidate": {
+      "entity": "link",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Confirm a link still holds against a newer version of what it points to (no content change)."
+    },
     "link.obsolete": {
       "entity": "link",
       "allowed": [
@@ -1590,6 +1598,15 @@ export const TRANSITIONS = {
             "needs_review"
           ],
           "to": "changed"
+        },
+        {
+          "command": "link.revalidate",
+          "from": [
+            "current",
+            "kept",
+            "changed"
+          ],
+          "to": "current"
         },
         {
           "command": "link.obsolete",

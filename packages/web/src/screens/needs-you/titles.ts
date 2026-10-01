@@ -67,6 +67,8 @@ export function needTitle(item: NeedItem, rows: readonly ProductRow[], words: Wo
       return item.version.title;
     case 'link':
       return words.linkTitle(item.link.from_title, item.link.to_title);
+    case 'suspect':
+      return words.suspectTitle(item.suspect.from_title);
     case 'classification':
       return nodeName(item.classification.node_ref, rows);
     case 'update':
@@ -104,6 +106,10 @@ export function needReason(item: NeedItem, ctx: ReasonContext, words: Words = TI
       const to = rowOf(ctx.rows, item.link.to_code);
       const newer = to?.current && to.current > item.link.to_n ? to.current : null;
       return newer ? words.linkNewer(item.link.to_code, newer) : words.linkChanged;
+    }
+    case 'suspect': {
+      const s = item.suspect.suspect;
+      return words.suspectReason(s.upstream, s.from, s.to);
     }
     case 'classification': {
       const c = item.classification;
@@ -171,6 +177,8 @@ export function saidOf(
       return words.saidApproved;
     case 'record_version.discard':
       return words.saidDraftDiscarded;
+    case 'link.revalidate':
+      return words.saidLinkRevalidated;
     case 'link.keep':
       return words.saidLinkKept;
     case 'link.change':
@@ -200,6 +208,8 @@ export function entityOf(item: NeedItem): string {
       return item.version.id;
     case 'link':
       return item.link.id;
+    case 'suspect':
+      return item.suspect.link_id;
     case 'classification':
       return item.classification.id;
     case 'update':

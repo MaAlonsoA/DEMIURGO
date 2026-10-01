@@ -23,6 +23,7 @@ import {
   epistemicOfProposal,
   epistemicOfVersion,
   readiness,
+  suspectOf,
   relationOf,
   behaviorSteps,
 } from '@demiurgo/domain';
@@ -33,6 +34,7 @@ import { approvedDesignSystem, designSystemSpecOf, latestScreensOfFeature, missi
 import { threadDraft } from './draft.ts';
 import { githubConfig } from '../github/client.ts';
 import { taskViewOfRecord } from './task-view.ts';
+import { currentVersions, suspectRecords } from './impact.ts';
 import { inceptionOf } from './inception.ts';
 
 /** Records that are not built, so they have no readiness: a decision, and the product definition. */
@@ -124,6 +126,7 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
     .select([
       'links.type',
       'links.state',
+      'links.checked_against',
       'rd.id as recordId',
       'rd.code',
       'rd.type as targetType',
@@ -139,6 +142,20 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
   for (const e of links) {
     if (e.type === 'based_on' && bases.includes(e.targetType as RecordType)) {
       const current = await currentOf(db, e.recordId);
+      // Deterministic impact: this version is current and rests on an older version of its basis.
+      const ownCurrent = await currentOf(db, v.recordId);
+      const suspect = suspectOf(
+        {
+          type: e.type,
+          from: { code: v.code, n: v.n },
+          to: { code: e.code, n: e.n },
+          checkedAgainst: e.checked_against,
+        },
+        new Map([
+          [v.code, ownCurrent ?? 0],
+          [e.code, current ?? 0],
+        ]),
+      );
       basedOn.push({
         code: e.code,
         type: e.targetType,
@@ -146,6 +163,7 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
         versionState: e.targetState,
         current,
         linkState: e.state,
+        ...(suspect ? { suspect } : {}),
         checked: current !== null && current !== e.n ? await knowledgeChecked(db, e.recordId, current) : true,
       });
       continue;
@@ -608,12 +626,14 @@ export async function inbox(db: Db, projectId: string) {
     .where('links.state', '=', 'needs_review')
     .execute();
   const extra = await pendingKnowledge(db, projectId);
+  const suspects = await suspectRecords(db, projectId);
   const total =
     batchItems.reduce((n, l) => n + l.proposals.length, 0) +
     questions.length +
     open.length +
     drafts.length +
     links.length +
+    suspects.length +
     extra.total;
   return {
     total,
@@ -636,6 +656,8 @@ export async function inbox(db: Db, projectId: string) {
       }),
     ),
     links_under_review: links.map((e) => ({ ...e, epistemic_status: 'pending' as const })),
+    // Records whose basis has a newer approved version since they were written (suspect links).
+    suspect_records: suspects,
     ...extra.sections,
   };
 }
@@ -818,6 +840,10 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
       : {}),
     versions: detail,
     incoming: await incomingLinks(db, projectId, r.id, r.type),
+    // What it rests on has a newer approved version since this one was written (suspect links): review it.
+    suspect: (await suspectRecords(db, projectId))
+      .filter((x) => x.from_code === r.code)
+      .map(({ link_id, upstream_title, from_version_id, suspect }) => ({ link_id, upstream_title, from_version_id, ...suspect })),
   };
 }
 
@@ -1056,7 +1082,9 @@ async function incomingLinks(db: Db, projectId: string, recordId: string, record
       'links.id',
       'links.type',
       'links.state',
+      'links.checked_against',
       'fr.id as from_record',
+      't.id as to_version_id',
       'fr.code as from_code',
       'fr.type as from_type',
       'f.n as from_n',
@@ -1079,9 +1107,19 @@ async function incomingLinks(db: Db, projectId: string, recordId: string, record
       .executeTakeFirstOrThrow();
     shown.set(id, (await currentOf(db, id)) ?? latest.n);
   }
+  // Deterministic impact: a link from the other record's current version to an older version of this one.
+  const record = await db.selectFrom('records').select('code').where('id', '=', recordId).executeTakeFirstOrThrow();
+  const current = await currentVersions(db, projectId);
   return rows
     .filter((l) => shown.get(l.from_record) === l.from_n)
-    .map(({ from_record: _r, ...l }) => ({ ...l, relation: relationOf(l.type, l.from_type, recordType) }));
+    .map(({ from_record: _r, to_version_id: _t, checked_against, ...l }) => ({
+      ...l,
+      relation: relationOf(l.type, l.from_type, recordType),
+      suspect: suspectOf(
+        { type: l.type, from: { code: l.from_code, n: l.from_n }, to: { code: record.code, n: l.to_n }, checkedAgainst: checked_against },
+        current,
+      ),
+    }));
 }
 
 /** First paragraph of the first section with content, as plain text: the card's one line. */

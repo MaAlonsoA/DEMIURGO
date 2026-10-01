@@ -13,7 +13,7 @@ export type Home =
   | { to: 'batch'; id: string }
   | { to: 'product' };
 
-export type Homed = Exclude<NeedItem['kind'], 'conflict' | 'link' | 'classification' | 'update'>;
+export type Homed = Exclude<NeedItem['kind'], 'conflict' | 'link' | 'suspect' | 'classification' | 'update'>;
 
 /** The page a thing is decided on, or null when it is still decided here. */
 export function homeOf(item: NeedItem): Home | null {

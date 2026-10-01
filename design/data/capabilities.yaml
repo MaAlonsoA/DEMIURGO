@@ -63,6 +63,7 @@ commands:
   link.flag_review: { entity: link, allowed: [system], decisive: false, description: "Flag a link as pending review." }
   link.keep: { entity: link, allowed: [human], decisive: false, description: "Keep a reviewed link." }
   link.change: { entity: link, allowed: [human], decisive: false, description: "Mark a reviewed link as changed." }
+  link.revalidate: { entity: link, allowed: [human], decisive: false, description: "Confirm a link still holds against a newer version of what it points to (no content change)." }
   link.obsolete: { entity: link, allowed: [human], decisive: false, description: "Mark a reviewed link as obsolete." }
 
   batch.submit: { entity: batch, allowed: [agent_run, agent_external, system], decisive: false, description: "Submit a batch of proposals." }

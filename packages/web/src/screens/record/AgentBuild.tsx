@@ -155,8 +155,8 @@ export function neededComponents(steps: BuildStep[]): string[] {
 export function BuildStepper({ build }: { build: NonNullable<RecordDetail['build']> }) {
   const t = useMessages(AGENT_BUILD);
   const attempt = latestAttempt(build.steps);
-  if (attempt.length === 0 && !build.pr_url) return null;
   const { projectId } = useParams({ strict: false }) as { projectId?: string };
+  if (attempt.length === 0 && !build.pr_url) return null;
   const byStage = new Map<string, BuildStep>();
   for (const s of attempt) byStage.set(s.stage, s);
   const url = build.pr_url ?? build.request?.pr_url ?? null;

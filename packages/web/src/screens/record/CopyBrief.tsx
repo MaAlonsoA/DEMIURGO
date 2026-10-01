@@ -14,13 +14,13 @@ const WORDS = messages(
     copy: 'Copy the brief',
     copied: (code: string) => `Brief of ${code} copied: paste it where it will be built.`,
     failed: 'The brief could not be copied.',
-    hint: 'Ready to build: copy its brief and build it outside (a person, or an agent in the project repository). Then record the evidence of each acceptance criterion.',
+    hint: 'Ready to build: its tasks are built in Build, one pull request each, by an agent when GitHub is connected. To build it elsewhere, copy its brief; then record the evidence of each acceptance criterion.',
   },
   {
     copy: 'Copiar encargo',
     copied: (code: string) => `Encargo de ${code} copiado: pégalo donde se vaya a construir.`,
     failed: 'No se pudo copiar el encargo.',
-    hint: 'Lista para construir: copia su encargo y constrúyela fuera (una persona, o un agente en el repositorio del proyecto). Después apunta la evidencia de cada criterio de aceptación.',
+    hint: 'Lista para construir: sus tareas se construyen en Construir, una pull request cada una, con un agente si GitHub está conectado. Para construirla en otro sitio, copia su encargo; después apunta la evidencia de cada criterio de aceptación.',
   },
 );
 

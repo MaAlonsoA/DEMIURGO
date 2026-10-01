@@ -17,6 +17,7 @@ import {
 } from "@demiurgo/domain";
 import { sql } from "kysely";
 import type { Db } from "../db/connection.ts";
+import { withEffectiveBasis } from "./basis.ts";
 import { githubConfig } from "../github/client.ts";
 import { suspectRecords } from "../queries/impact.ts";
 import { mergedBuildOf, productState } from "../queries/read.ts";
@@ -229,12 +230,15 @@ export async function buildQueue(
     db,
     records.map((r) => r.id),
   );
-  const open = await db
-    .selectFrom("build_requests")
-    .selectAll()
-    .where("project_id", "=", projectId)
-    .where("state", "in", ["requested", "in_review"])
-    .execute();
+  const open = await withEffectiveBasis(
+    db,
+    await db
+      .selectFrom("build_requests")
+      .selectAll()
+      .where("project_id", "=", projectId)
+      .where("state", "in", ["requested", "in_review"])
+      .execute(),
+  );
   const versionIds = open
     .flatMap((o) => [o.task_version_id, o.feature_version_id])
     .filter((x): x is string => !!x);

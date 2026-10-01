@@ -9,6 +9,7 @@ import { ManifestBuilder, inputSource } from '../context/manifest.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
 import { packContentOf } from './drafting.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
+import { effectiveBasis } from '../build/basis.ts';
 import { jevAllowed } from '../classifier/aspect.ts';
 import { loadRepoContext, projectRepoDir } from '../classifier/repo-context.ts';
 import { existingSymbolsSample, readingOrder, triageReview } from '../classifier/review-triage.ts';
@@ -96,6 +97,7 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
     .where('project_id', '=', projectId)
     .executeTakeFirst();
   if (!request) throw new DomainError('not_found', 'The build request does not exist.');
+  Object.assign(request, await effectiveBasis(trx, request.id));
   if (typeof input.diff !== 'string' || input.diff.length === 0) throw new DomainError('validation', 'A review needs the diff of the pull request.');
   if (typeof input.pr_url !== 'string' || input.pr_url.length === 0) throw new DomainError('validation', 'A review needs the URL of the pull request.');
   const task = await trx

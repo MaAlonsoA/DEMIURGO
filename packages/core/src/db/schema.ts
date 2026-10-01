@@ -783,6 +783,17 @@ export type BuildRequestsTable = {
   head_sha: string | null;
 };
 
+export type BuildRequestBasesTable = {
+  id: Generated<string>;
+  build_request_id: string;
+  task_version_id: string;
+  feature_version_id: string | null;
+  brief: string;
+  adopted_by: string;
+  adopted_at: Generated<Timestamp>;
+  attempt: number;
+};
+
 export type BuildStepsTable = {
   id: Generated<string>;
   project_id: string;
@@ -863,6 +874,7 @@ export type DB = {
   build_queue_settings: BuildQueueSettingsTable;
   task_holds: TaskHoldsTable;
   build_requests: BuildRequestsTable;
+  build_request_bases: BuildRequestBasesTable;
   project_commits: ProjectCommitsTable;
   pr_reviews: PrReviewsTable;
   build_steps: BuildStepsTable;

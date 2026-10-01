@@ -2,6 +2,7 @@
 // their readiness, and batches. These are derived functions: nothing is stored (§4 of the plan).
 
 import { sql } from 'kysely';
+import { effectiveTaskVersionSql } from '../build/basis.ts';
 import { taskCoversOf, taskSizeView } from './sizes.ts';
 import {
   AGENT_PROPOSAL_TYPES,
@@ -358,7 +359,7 @@ export async function mergedBuildOf(
 ): Promise<{ id: string; pr_url: string | null; done_at: string | null } | null> {
   const row = await db
     .selectFrom('build_requests')
-    .innerJoin('record_versions', 'record_versions.id', 'build_requests.task_version_id')
+    .innerJoin('record_versions', (join) => join.on('record_versions.id', '=', effectiveTaskVersionSql()))
     .select(['build_requests.id', 'build_requests.pr_url', 'build_requests.done_at'])
     .where('build_requests.task_id', '=', recordId)
     .where('build_requests.state', '=', 'done')
@@ -954,7 +955,7 @@ async function requestsByTask(
   if (taskIds.length === 0) return out;
   const rows = await db
     .selectFrom('build_requests')
-    .leftJoin('record_versions', 'record_versions.id', 'build_requests.task_version_id')
+    .leftJoin('record_versions', (join) => join.on('record_versions.id', '=', effectiveTaskVersionSql()))
     .select(['build_requests.task_id', 'build_requests.state', 'build_requests.pr_url', 'record_versions.n as version_n'])
     .where('build_requests.task_id', 'in', taskIds)
     .orderBy('build_requests.requested_at', 'desc')

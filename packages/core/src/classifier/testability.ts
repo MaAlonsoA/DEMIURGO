@@ -17,6 +17,7 @@
 import { createHash } from 'node:crypto';
 import { TypeSafeClient, choice, noul } from '@typesafe-ai/sdk';
 import type { Db } from '../db/connection.ts';
+import { effectiveTaskVersionSql } from '../build/basis.ts';
 import { implementationOf } from '../queries/read.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
 import { loadTaskDependencies } from '../queries/task-deps.ts';
@@ -296,7 +297,7 @@ export async function loadTestabilityInput(db: Db, projectId: string, recordId: 
 export async function featuresWithMergedTask(db: Db, projectId: string): Promise<Set<string>> {
   const rows = await db
     .selectFrom('build_requests as b')
-    .innerJoin('record_versions as tv', 'tv.id', 'b.task_version_id')
+    .innerJoin('record_versions as tv', (join) => join.on('tv.id', '=', effectiveTaskVersionSql('b')))
     .innerJoin('links', 'links.from_id', 'tv.id')
     .innerJoin('record_versions as fv', 'fv.id', 'links.to_id')
     .innerJoin('records as fr', 'fr.id', 'fv.record_id')

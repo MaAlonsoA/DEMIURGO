@@ -47,6 +47,7 @@ import { executeCommand } from '../bus/bus.ts';
 import { systemInteraction } from '../engine/observe.ts';
 import { engineServices, registerReconciler } from '../engine/registry.ts';
 import { buildRunning } from '../commands/build-steps.ts';
+import { effectiveBasis } from './basis.ts';
 import * as github from '../github/client.ts';
 import { ciStatusOf, redactConfigured } from '../github/client.ts';
 import { parseJunit } from '../commands/evidence.ts';
@@ -235,28 +236,26 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   const q = await s.db
     .selectFrom('build_requests')
     .innerJoin('records', 'records.id', 'build_requests.task_id')
-    .innerJoin('record_versions', 'record_versions.id', 'build_requests.task_version_id')
     .select([
-      'build_requests.brief',
-      'build_requests.task_version_id',
       'build_requests.branch',
       'build_requests.pr_number',
       'build_requests.pr_url',
       'build_requests.head_sha',
       'records.code',
-      'record_versions.title',
     ])
     .where('build_requests.id', '=', r.requestId)
     .executeTakeFirstOrThrow();
+  const basis = await effectiveBasis(s.db, r.requestId);
+  const version = await s.db.selectFrom('record_versions').select('title').where('id', '=', basis.task_version_id).executeTakeFirstOrThrow();
   const repo = await s.db.selectFrom('project_repos').select('dir').where('project_id', '=', r.projectId).executeTakeFirst();
   const root = projectsDir();
   if (!repo || !root) throw new DomainError('not_found', 'The project has no local repository yet.');
   return {
     requestId: r.requestId,
     taskCode: q.code,
-    taskTitle: q.title,
-    brief: q.brief,
-    taskVersionId: q.task_version_id,
+    taskTitle: version.title,
+    brief: basis.brief,
+    taskVersionId: basis.task_version_id,
     branch: q.branch,
     prNumber: q.pr_number,
     prUrl: q.pr_url,
@@ -727,7 +726,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     // The existing tests of the task's criteria, so the builder extends them (test-guard.ts); help, never a gate.
     const { lines: testLines, reuse: testReuse } = await (async (): Promise<{ lines: string[]; reuse: { criterion: string; path: string; title: string; p: number }[] }> => {
       try {
-        const task = await s0.db.selectFrom('build_requests').select(['task_id', 'feature_version_id']).where('id', '=', requestId).executeTakeFirstOrThrow();
+        const task = { ...(await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow()), ...(await effectiveBasis(s0.db, requestId)) };
         const codes = await taskCoversOf(s0.db, task.task_id);
         const tests = await readRepoTests(worktree.path, 'HEAD');
         const lines = existingTestsLines(tests, codes);

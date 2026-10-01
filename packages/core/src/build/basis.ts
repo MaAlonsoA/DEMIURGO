@@ -3,6 +3,7 @@
 // adopts a newer approved version of the task (the ticket was updated) without losing branch or PR.
 
 import { DomainError } from "@demiurgo/domain";
+import { type RawBuilder, sql } from "kysely";
 import type { Db, Tx } from "../db/connection.ts";
 import { composeBrief } from "./queue.ts";
 
@@ -50,4 +51,56 @@ export async function computeRequestBasis(
   const brief = await composeBrief(trx, projectId, task.code, { forBuild: true, codeMap: false });
   const feature = await featureOfTaskVersion(trx, current.id);
   return { taskVersionId: current.id, taskVersionN: current.n, feature, brief };
+}
+
+export type EffectiveBasis = { task_version_id: string; feature_version_id: string | null; brief: string };
+
+/**
+ * The basis an open request is built on: the latest adopted one (build_request_bases, append-only), else
+ * the snapshot taken when it was requested.
+ */
+export async function effectiveBasis(db: Db | Tx, requestId: string): Promise<EffectiveBasis> {
+  const adopted = await db
+    .selectFrom("build_request_bases")
+    .select(["task_version_id", "feature_version_id", "brief"])
+    .where("build_request_id", "=", requestId)
+    .orderBy("adopted_at", "desc")
+    .orderBy("id", "desc")
+    .executeTakeFirst();
+  if (adopted) return adopted;
+  return db
+    .selectFrom("build_requests")
+    .select(["task_version_id", "feature_version_id", "brief"])
+    .where("id", "=", requestId)
+    .executeTakeFirstOrThrow();
+}
+
+/** The same rows with their basis replaced by the effective one (one query for all of them). */
+export async function withEffectiveBasis<T extends { id: string } & EffectiveBasis>(
+  db: Db | Tx,
+  rows: T[],
+): Promise<T[]> {
+  if (rows.length === 0) return rows;
+  const adopted = await db
+    .selectFrom("build_request_bases")
+    .select(["build_request_id", "task_version_id", "feature_version_id", "brief"])
+    .where("build_request_id", "in", rows.map((r) => r.id))
+    .orderBy("adopted_at", "asc")
+    .orderBy("id", "asc")
+    .execute();
+  const latest = new Map(adopted.map((a) => [a.build_request_id, a]));
+  return rows.map((r) => {
+    const a = latest.get(r.id);
+    return a ? { ...r, task_version_id: a.task_version_id, feature_version_id: a.feature_version_id, brief: a.brief } : r;
+  });
+}
+
+/**
+ * SQL for the task version a request is effectively built on (latest adopted, else the snapshot), for
+ * joins over `build_requests` (aliased `alias`, default `build_requests`).
+ */
+export function effectiveTaskVersionSql(alias = "build_requests"): RawBuilder<string> {
+  const a = sql.ref(`${alias}.id`);
+  const v = sql.ref(`${alias}.task_version_id`);
+  return sql<string>`coalesce((select b.task_version_id from build_request_bases b where b.build_request_id = ${a} order by b.adopted_at desc, b.id desc limit 1), ${v})`;
 }

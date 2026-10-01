@@ -727,7 +727,17 @@ async function requestResponseInSpan(
       return 'requested';
     }
     const exploration = await trx.selectFrom('explorations').select('state').where('id', '=', explorationId).executeTakeFirst();
-    if (exploration?.state === 'active') {
+    // A thread's automatic first turn is not needed once the person wrote in it (e.g. «Design the
+    // next one» opens the thread and posts the person's request, which is answered on its own).
+    const firstTurnTaken =
+      input?.thread_opened === true &&
+      (await trx
+        .selectFrom('messages')
+        .select('id')
+        .where('exploration_id', '=', explorationId)
+        .where('author', 'like', 'human:%')
+        .executeTakeFirst()) !== undefined;
+    if (exploration?.state === 'active' && !firstTurnTaken) {
       try {
         await execute({
           command: 'run.request',

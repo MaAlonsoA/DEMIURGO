@@ -8,7 +8,7 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useCommand } from "../../api/commands.ts";
 import { buildQueueQuery, projectsQuery } from "../../api/queries.ts";
-import type { BuildQueue, QueueTask } from "../../api/types.ts";
+import type { BuildQueue, DeliveryMetrics, QueueTask } from "../../api/types.ts";
 import { Code } from "../../components/Badge.tsx";
 import { Button } from "../../components/Button.tsx";
 import { ConfirmDialog } from "../../components/Dialog.tsx";
@@ -508,6 +508,90 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
   );
 }
 
+const fmt = (n: number | null) => (n === null ? "–" : String(n));
+const th = "px-3 py-2 text-xs font-medium text-fg-2 whitespace-nowrap";
+const td = "px-3 py-2 tabular-nums";
+
+function Delivery({ d, t }: { d: DeliveryMetrics; t: Words }) {
+  const a = useMessages(AGENT_BUILD);
+  const s = d.last10;
+  const models = d.by_model_last10;
+  return (
+    <Section id="build-delivery" title={t.delivery} note={t.deliveryHint}>
+      {s.first_pass === null ? (
+        <p className="text-sm text-fg-2">{t.deliveryNone}</p>
+      ) : (
+        <div className="flex flex-col gap-3" data-build-delivery>
+          <p className="text-sm font-medium text-fg tabular-nums" data-delivery-summary>
+            {t.deliverySummary({
+              n: s.tasks,
+              lead: fmt(s.lead_median),
+              builder: fmt(s.builder_median),
+              ci: fmt(s.ci_median),
+              review: fmt(s.review_median),
+              first: s.first_pass.merged_first_try,
+              of: s.first_pass.of,
+            })}
+          </p>
+          {models.length > 0 ? (
+            <div className="flex flex-col gap-0.5 text-sm text-fg-2 tabular-nums" data-delivery-models>
+              <span className="text-xs font-medium text-fg-3">{t.deliveryByModel}</span>
+              {models.map((m) => (
+                <span key={m.model}>
+                  {t.deliveryModelLine({
+                    model: m.model,
+                    n: m.tasks,
+                    lead: fmt(m.lead_median),
+                    builder: fmt(m.builder_median),
+                    ci: fmt(m.ci_median),
+                    review: fmt(m.review_median),
+                  })}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div tabIndex={0} className="overflow-x-auto">
+            <table className="w-full min-w-[520px] border-collapse text-left text-sm">
+              <caption className="sr-only">{t.deliveryCaption}</caption>
+              <thead>
+                <tr className="border-b border-edge-subtle">
+                  <th scope="col" className={th}>{t.colTask}</th>
+                  <th scope="col" className={`${th} text-right`}>{t.colLead}</th>
+                  <th scope="col" className={`${th} text-right`}>{t.colAttempts}</th>
+                  <th scope="col" className={`${th} text-right`}>{t.colBuilder}</th>
+                  <th scope="col" className={`${th} text-right`}>{t.colCi}</th>
+                  <th scope="col" className={`${th} text-right`}>{t.colReview}</th>
+                  <th scope="col" className={th}>{t.colModel}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {d.merged.map((m) => (
+                  <tr key={m.code} className="border-b border-edge-subtle last:border-b-0" data-delivery-task={m.code}>
+                    <th scope="row" className="px-3 py-2 font-normal">
+                      <Code>{m.code}</Code>
+                    </th>
+                    <td className={`${td} text-right`}>{m.lead_minutes}</td>
+                    <td className={`${td} text-right`}>{m.attempts}</td>
+                    <td className={`${td} text-right text-fg-2`}>{m.stage_minutes.builder}</td>
+                    <td className={`${td} text-right text-fg-2`}>{m.stage_minutes.ci}</td>
+                    <td className={`${td} text-right text-fg-2`}>{m.stage_minutes.review}</td>
+                    <td className="px-3 py-2 text-fg-2">{m.model ?? "–"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {d.running.map((r) => (
+        <p key={r.code} className="text-sm text-fg-2 tabular-nums" data-delivery-running={r.code}>
+          {t.deliveryRunning(r.code, Math.round(r.elapsed_minutes), a[`s_${r.stage}` as keyof typeof a] as string)}
+        </p>
+      ))}
+    </Section>
+  );
+}
+
 export function BuildScreen() {
   const t = useMessages(BUILD);
   const projectId = useProjectId();
@@ -599,6 +683,8 @@ export function BuildScreen() {
                 </ol>
               )}
             </Section>
+
+            {q.delivery ? <Delivery d={q.delivery} t={t} /> : null}
 
             {(q.held ?? []).length > 0 ? (
               <Section id="build-held" title={t.held((q.held ?? []).length)} note={t.heldNote}>

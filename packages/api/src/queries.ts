@@ -40,6 +40,7 @@ import {
   projectGlossary,
   productDefinition,
   buildQueue,
+  projectDeliveryMetrics,
   autoStatus,
   composeBrief,
   coherenceStatus,
@@ -234,7 +235,11 @@ registerQueries([
     respond: async ({ services, params }) => {
       const projectId = uuid(params.projectId, 'project');
       const queue = await buildQueue(services.db, projectId);
-      return { ...queue, auto: await autoStatus(services.db, projectId, queue) };
+      return {
+        ...queue,
+        auto: await autoStatus(services.db, projectId, queue),
+        delivery: await projectDeliveryMetrics(services.db, projectId),
+      };
     },
   },
   {

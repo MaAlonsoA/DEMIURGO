@@ -4,6 +4,23 @@ import { messages } from '../../i18n/define.ts';
 
 export const BUILD = messages(
   {
+    delivery: 'Delivery',
+    deliveryHint: 'DORA: lead time for changes and change failure rate. Computed from the build steps; minutes.',
+    deliveryNone: 'No task has been merged yet: the metrics appear after the first one.',
+    deliverySummary: (d: { n: number; lead: string; builder: string; ci: string; review: string; first: number; of: number }) =>
+      `Last ${d.n} merged · median time per task ${d.lead} min · builder ${d.builder} · CI ${d.ci} · review ${d.review} · first pass ${d.first} of ${d.of}`,
+    deliveryByModel: 'By model',
+    deliveryModelLine: (m: { model: string; n: number; lead: string; builder: string; ci: string; review: string }) =>
+      `${m.model}: ${m.n} ${m.n === 1 ? 'task' : 'tasks'} · median ${m.lead} min · builder ${m.builder} · CI ${m.ci} · review ${m.review}`,
+    deliveryRunning: (code: string, min: number, stage: string) => `Running: ${code} for ${min} min, at ${stage}.`,
+    deliveryCaption: 'The last merged tasks',
+    colTask: 'Task',
+    colLead: 'Lead time',
+    colAttempts: 'Attempts',
+    colBuilder: 'Builder',
+    colCi: 'CI',
+    colReview: 'Review',
+    colModel: 'Model',
     title: 'Build',
     meta: 'The tasks that can be built now, in build order. Starting a build records the request; then you build it from the brief, or an agent builds it when GitHub is connected.',
     totals: (tasks: number, points: number) =>
@@ -84,6 +101,23 @@ export const BUILD = messages(
     autoManual: (code: string) => `Stopped: ${code} has a pull request you sent to review by hand. Mark it done or withdraw the request.`,
   },
   {
+    delivery: 'Entrega',
+    deliveryHint: 'DORA: tiempo de entrega de los cambios y tasa de fallos de cambio. Se calcula con los pasos de construcción; minutos.',
+    deliveryNone: 'Aún no se ha fusionado ninguna tarea: las métricas aparecen tras la primera.',
+    deliverySummary: (d: { n: number; lead: string; builder: string; ci: string; review: string; first: number; of: number }) =>
+      `Últimas ${d.n} fusionadas · mediana por tarea ${d.lead} min · constructor ${d.builder} · CI ${d.ci} · revisión ${d.review} · a la primera ${d.first} de ${d.of}`,
+    deliveryByModel: 'Por modelo',
+    deliveryModelLine: (m: { model: string; n: number; lead: string; builder: string; ci: string; review: string }) =>
+      `${m.model}: ${m.n} ${m.n === 1 ? 'tarea' : 'tareas'} · mediana ${m.lead} min · constructor ${m.builder} · CI ${m.ci} · revisión ${m.review}`,
+    deliveryRunning: (code: string, min: number, stage: string) => `En curso: ${code} lleva ${min} min, en ${stage}.`,
+    deliveryCaption: 'Las últimas tareas fusionadas',
+    colTask: 'Tarea',
+    colLead: 'Tiempo total',
+    colAttempts: 'Intentos',
+    colBuilder: 'Constructor',
+    colCi: 'CI',
+    colReview: 'Revisión',
+    colModel: 'Modelo',
     title: 'Construir',
     meta: 'Las tareas que se pueden construir ya, en orden de construcción. Empezar una construcción apunta la petición; después la construyes tú con el encargo, o un agente si GitHub está conectado.',
     totals: (tasks: number, points: number) =>

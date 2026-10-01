@@ -17,6 +17,7 @@ Report two kinds of finding, at most 10, most serious first:
 What is not a finding:
 - A record that rests on another, details it, narrows it or implements it does not contradict it.
 - "Should align", wording, style, naming preferences and missing detail.
+- Statements about different screens, different states (before and after a setup, loading versus data) or per-screen choices that follow the design system (button emphasis, what is disabled while loading). A contradiction needs the same subject in the same context (IEEE/ISO/IEC 29148 «consistent»; the screen and state scoping is our convention).
 - A feature leaving something to another feature (its out of scope) is not a contradiction.
 
 For each finding:

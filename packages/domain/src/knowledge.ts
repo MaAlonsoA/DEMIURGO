@@ -83,6 +83,40 @@ export function changeText(change: Change): string {
 }
 
 /**
+ * The screens a screen design names: the ids in its «Screens:» section, written «Day's detail
+ * (day-detail): …». Two screen designs share a screen when they name the same id.
+ */
+export function screenIds(text: string): Set<string> {
+  const start = /^Screens:/m.exec(text);
+  if (!start) return new Set();
+  const rest = text.slice(start.index + start[0].length);
+  const end = /\n[A-Z][A-Za-z ]{2,30}:/.exec(rest);
+  const section = end ? rest.slice(0, end.index) : rest;
+  return new Set([...section.matchAll(/\(([a-z0-9]+(?:-[a-z0-9]+)*)\):/g)].map((m) => m[1] ?? ''));
+}
+
+const featureOf = (g: Graph, ref: string): string | undefined => {
+  const edge = currentEdges(g).find((a) => a.type === 'based_on' && a.from === ref);
+  return edge?.to.split('@')[0];
+};
+
+/**
+ * Screen designs of different features are compared only on what they share: a screen named in
+ * both (e.g. the day's detail). Per-screen choices (button emphasis, a loading state) of different
+ * screens are not statements about the same subject. Convention nuestra, from requirements
+ * consistency checking (IEEE/ISO/IEC 29148 «consistent»: statements about the same thing).
+ * Returns the shared screen ids when the pair is limited to them, or null when it is compared whole.
+ */
+export function sharedScreensBetween(g: Graph, change: Change, other: Node): string[] | null {
+  if (change.main.type !== 'screen_design' || other.type !== 'screen_design') return null;
+  const own = change.edges.find((a) => a.type === 'based_on')?.to.split('@')[0];
+  const theirs = featureOf(g, other.ref);
+  if (own && theirs && own === theirs) return null;
+  const mine = screenIds(change.main.text);
+  return [...screenIds(other.text)].filter((id) => mine.has(id)).sort();
+}
+
+/**
  * Deterministic candidate preselection (§7.3 step 2). Knowledge looks for two things: statements
  * that cannot hold together with the change, and records that describe the same behavior, so
  * their build reuses one implementation. Candidates are the product definition (every record
@@ -139,8 +173,19 @@ export function selectCandidates(g: Graph, change: Change, categories: Readonly<
     }
   }
   for (const n of dependents.values()) chosen.delete(n.ref);
+  // A screen design of another feature is a candidate only for a screen both name.
+  for (const [ref, c] of [...chosen]) {
+    const ids = sharedScreensBetween(g, change, c.node);
+    if (ids === null) continue;
+    if (ids.length === 0) chosen.delete(ref);
+    else chosen.set(ref, { ...c, reason: `shared screen ${ids.join(', ')} of another feature` });
+  }
   const rest = [...chosen.values()].sort((a, b) => b.weight - a.weight || (a.node.ref < b.node.ref ? -1 : 1)).slice(0, MAX_CANDIDATES);
   const resting = [...dependents.values()]
+    .filter((n) => {
+      const ids = sharedScreensBetween(g, change, n);
+      return ids === null || ids.length > 0;
+    })
     .sort((a, b) => (a.ref < b.ref ? -1 : 1))
     .map((node) => ({ node, reason: 'rests on the version it replaces' }));
   return [...resting, ...rest]
@@ -154,7 +199,7 @@ export function selectCandidates(g: Graph, change: Change, categories: Readonly<
 }
 
 /** Version of the question knowledge asks about a change: part of the cache key. */
-export const CHANGE_CONTRACT = 'conflict-quotes-1';
+export const CHANGE_CONTRACT = 'conflict-quotes-2';
 
 export function hashVerdictsInput(classifier: string, change: Change, candidates: readonly Candidate[]): string {
   return fingerprint({

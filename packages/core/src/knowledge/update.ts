@@ -448,6 +448,51 @@ type ReviewProposal = {
 };
 
 /**
+ * Whether a person already dismissed («Keep it as it is») a review between these same two record
+ * versions, in either direction: it is not raised again unless one of them gets a new version.
+ */
+async function dismissedPair(
+  trx: Tx,
+  projectId: string,
+  changeVersionId: string | null | undefined,
+  code: string,
+  n: number,
+): Promise<boolean> {
+  if (!changeVersionId) return false;
+  const change = await trx
+    .selectFrom('record_versions')
+    .innerJoin('records', 'records.id', 'record_versions.record_id')
+    .select(['records.code', 'record_versions.n'])
+    .where('record_versions.id', '=', changeVersionId)
+    .executeTakeFirst();
+  if (!change) return false;
+  const rejected = await trx
+    .selectFrom('proposals')
+    .select(['payload'])
+    .where('project_id', '=', projectId)
+    .where('type', '=', 'review')
+    .where('state', '=', 'rejected')
+    .where('resolved_by', 'like', 'human:%')
+    .where(sql<boolean>`payload->'record'->>'code' in (${code}, ${change.code})`)
+    .execute();
+  for (const { payload } of rejected) {
+    const p = payload as { record?: { code?: string; version?: number }; change?: { id?: string } };
+    if (!p.record?.code || !p.change?.id) continue;
+    const prior = await trx
+      .selectFrom('record_versions')
+      .innerJoin('records', 'records.id', 'record_versions.record_id')
+      .select(['records.code', 'record_versions.n'])
+      .where('record_versions.id', '=', p.change.id)
+      .executeTakeFirst();
+    if (!prior) continue;
+    const same = (a: { code: string; n: number }, b: { code: string; n: number }) => a.code === b.code && a.n === b.n;
+    const was = { code: p.record.code, n: p.record.version ?? -1 };
+    if ((same(was, { code, n }) && same(prior, change)) || (same(was, change) && same(prior, { code, n }))) return true;
+  }
+  return false;
+}
+
+/**
  * Review proposals for the person. The record is located via the node's origin (the
  * version that projected it), never by parsing its ref.
  */
@@ -484,6 +529,7 @@ async function prepareReviews(
       continue;
     }
     if (v.recordId === changed) continue;
+    if (await dismissedPair(trx, projectId, d.change.main.origin.id, v.code, v.n)) continue;
     proposals.push({
       type: 'review',
       payload: {

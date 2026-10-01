@@ -40,9 +40,26 @@ export {
 export {
   BUILDER_LABEL,
   builderArguments,
+  setupArguments,
+  type SetupSpec,
   buildReportSchema,
   runBuilder,
   type BuildReport,
   type BuilderResult,
   type BuilderSpec,
 } from './builder.ts';
+export {
+  projectNetworkName,
+  projectSlug,
+  pnpmStoreVolumeName,
+  databaseName,
+  sweepDatabases,
+  removeProjectEnvironment,
+  prepareEnvironment,
+  teardownEnvironment,
+  serviceArguments,
+  type DockerExec,
+  type PrepareInput,
+  type PrepareResult,
+  type PreparedEnvironment,
+} from './environment.ts';

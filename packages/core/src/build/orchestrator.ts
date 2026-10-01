@@ -3,7 +3,11 @@
 // CI is green). One DBOS workflow per attempt, one step per stage; every stage leaves its build_step
 // (started, ok, failed, waiting or changes_requested) through the `build_step.record` command:
 //
-//   repo → worktree → builder → commit → design → push → pr → status → ci → evidence → review → publish → merge
+//   repo → worktree → environment → builder → commit → design → push → pr → status → ci → evidence → review → publish → merge
+//
+// `environment` prepares the task's environment like the project's CI does (dependencies from the lockfile,
+// a database of the project's long-lived CI server, isolated for this build, with its migrations, browsers; see environment.ts) before the agent starts,
+// so the agent only does the task. If it fails, the attempt fails with its reason and the agent never runs.
 //
 // `design` is the deterministic design-system guard (packages/domain/src/design-guard.ts): with an
 // approved design system in the worktree's design/design-system/, violations fail the attempt before
@@ -41,11 +45,13 @@ import { classifyBuilderFailure, failureExcerpt } from './failure.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
 import { projectsDir } from '../repo/repo.ts';
 import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/builder.ts';
+import { databaseName, prepareEnvironment, projectSlug, teardownEnvironment } from '../runner/environment.ts';
+import { environmentFromCi } from './environment.ts';
 import type { Services } from '../services.ts';
 import { commitAll, commitFiles, hostPathOf, prepareWorktree, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 const BUILD = system('build', '1');
 const REVIEW_STATUS = 'demiurgo/review';
@@ -74,6 +80,9 @@ export type BuildDeps = {
   github: GithubApi;
   config: () => github.GithubConfig | null;
   runBuilder: typeof runBuilder;
+  /** Prepares the CI-like environment before the builder and removes it afterwards (the tests replace both). */
+  prepareEnvironment: typeof prepareEnvironment;
+  teardownEnvironment: typeof teardownEnvironment;
   /** Durable sleep between polls. */
   sleep: (ms: number) => Promise<void>;
   /** Pause between polls of CI, the reviewer and the merge (5 s: our convention, so a result shows within seconds). */
@@ -98,6 +107,8 @@ const defaults = (): BuildDeps => ({
   github,
   config: () => github.githubConfig(),
   runBuilder,
+  prepareEnvironment,
+  teardownEnvironment,
   sleep: (ms) => DBOS.sleepms(ms),
   pollMs: 5_000,
   ciTimeoutMs: 2 * 3_600_000,
@@ -120,13 +131,15 @@ export function resetBuildDeps(): void {
 
 /** The abort controller of each running builder, by build request (a request has one build at a time). */
 const builders = new Map<string, AbortController>();
+/** The project slug of each build with a prepared environment, so a withdrawal can drop its database. */
+const environments = new Map<string, string>();
 
 export const buildWorkflowId = (buildRequestId: string, attempt: number): string => `build:${buildRequestId}:${attempt}`;
 
 /** Automatic retries after a plain builder failure (our convention: one, like a flaky CLI start). */
 const BUILDER_AUTO_RETRIES = 1;
 
-type Stage = 'repo' | 'worktree' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
+type Stage = 'repo' | 'worktree' | 'environment' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
 type Outcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested';
 
 type Run = { projectId: string; requestId: string; attempt: number };
@@ -475,6 +488,55 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   if (!tree.ok) return stop('worktree', tree.outcome);
   const worktree = tree.value;
 
+  // environment: what CI would have before the tests run, prepared here so the agent only does the task
+  let prepared: { network: string; storeVolume: string; env: Record<string, string> } | null = null;
+  const slug = projectSlug(basename(info.repoDir));
+  if (!resume) {
+    const environment = await stage(r, 'environment', async () => {
+      const ciText = await readWorktreeFile(worktree.path, '.github/workflows/ci.yml');
+      const ci = ciText === null ? null : environmentFromCi(ciText);
+      if (!ci) {
+        return { value: null, detail: { note: ciText === null ? 'The project has no CI workflow yet: the builder starts without a prepared environment.' : 'The CI workflow has no `ci` job DEMIURGO understands: the builder starts without a prepared environment.' } };
+      }
+      const control = new AbortController();
+      builders.set(requestId, control);
+      environments.set(requestId, slug);
+      try {
+        const open = await s0.db
+          .selectFrom('build_requests')
+          .select('id')
+          .where('project_id', '=', projectId)
+          .where('state', 'in', ['requested', 'in_review'])
+          .execute();
+        const result = await d.prepareEnvironment({
+          slug,
+          id: requestId,
+          ci,
+          worktreeHostPath: hostPathOf(worktree.path),
+          keepDatabases: open.map((x) => databaseName(x.id)),
+          signal: control.signal,
+        });
+        if (!result.ok) return { outcome: 'failed' as const, detail: { error: result.reason, failed_step: result.failedStep } };
+        return {
+          value: { network: result.network, storeVolume: result.storeVolume, env: result.env },
+          detail: {
+            services: result.services.map((x) => ({ name: x.name, image: x.image, action: x.action })),
+            databases: result.databases,
+            variables: Object.keys(result.env).sort(),
+            steps: result.steps,
+          },
+        };
+      } finally {
+        if (builders.get(requestId) === control) builders.delete(requestId);
+      }
+    });
+    if (!environment.ok) {
+      await plain('environment-teardown', () => d.teardownEnvironment(slug, requestId));
+      return stop('environment', environment.outcome);
+    }
+    prepared = environment.value;
+  }
+
   // builder
   const built = resume
     ? await stage(r, 'builder', async () => ({
@@ -502,10 +564,13 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
         prompt: promptOf(agent.body, info.brief, attempt, feedback, designSystem),
         maxTimeMs: Math.min(agent.timeLimitSeconds * 1000, BUILDER_MAX_TIME_MS),
         limits: { cpus: 2, memoryMb: 4096, pids: 512 },
+        ...(prepared ? { network: prepared.network, storeVolume: prepared.storeVolume, env: prepared.env } : {}),
       },
       { worktreePath: worktree.path, signal: control.signal, containerName: `demiurgo-build-${requestId}` },
-    ).finally(() => {
+    ).finally(async () => {
       if (builders.get(requestId) === control) builders.delete(requestId);
+      // Success, failure, timeout or withdrawal: the build's database goes with the attempt.
+      if (prepared) await d.teardownEnvironment(slug, requestId).catch(() => undefined);
     });
     // The report is DEMIURGO's, not the project's: it never enters the commit.
     await rm(join(worktree.path, '.demiurgo'), { recursive: true, force: true });
@@ -534,6 +599,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     }
     return { value: { report: result.report }, detail };
   });
+  // The builder step tears the environment down itself; this covers a builder that failed before it ran.
+  if (prepared) await plain('environment-teardown', () => d.teardownEnvironment(slug, requestId));
   if (!built.ok) {
     // A plain failure (the CLI exited with an error, nothing more specific) gets one automatic retry before
     // it stops; a usage limit, a login problem or a timeout would only fail again (our convention).
@@ -911,6 +978,8 @@ export async function startBuildWorkflow(requestId: string, projectId: string, a
 export async function cancelBuildWorkflow(requestId: string, attempt: number): Promise<void> {
   builders.get(requestId)?.abort();
   await DBOS.cancelWorkflow(buildWorkflowId(requestId, attempt)).catch(() => undefined);
+  const slug = environments.get(requestId);
+  if (slug) await deps.teardownEnvironment(slug, requestId).catch(() => undefined);
 }
 
 /** Waits for the result of an attempt (tests). */

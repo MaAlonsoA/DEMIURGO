@@ -119,6 +119,15 @@ beforeAll(async () => {
   execFileSync('git', ['init', '--bare', '-q', '-b', 'main', remote]);
   git(repoDir, 'remote', 'add', 'origin', remote);
   git(repoDir, 'push', '-q', 'origin', 'main');
+  // The project's CI: the orchestrator prepares its environment before the builder (faked below, no docker).
+  mkdirSync(join(repoDir, '.github', 'workflows'), { recursive: true });
+  writeFileSync(
+    join(repoDir, '.github', 'workflows', 'ci.yml'),
+    'jobs:\n  ci:\n    services:\n      postgres:\n        image: postgres:17\n        ports: [\'5432:5432\']\n    env:\n      DATABASE_URL: postgres://postgres@localhost:5432/t\n    steps:\n      - run: pnpm install --frozen-lockfile\n      - run: pnpm db:migrate\n',
+  );
+  git(repoDir, 'add', '.github');
+  git(repoDir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'ci');
+  git(repoDir, 'push', '-q', 'origin', 'main');
 });
 
 afterAll(() => {
@@ -135,7 +144,7 @@ const junit = (failing: boolean) =>
 const diffWith = () =>
   `diff --git a/tests/x.test.ts b/tests/x.test.ts\n+++ b/tests/x.test.ts\n${codes.map((c) => `+it('${c} does what the criterion says', () => {});`).join('\n')}\n`;
 
-type Calls = { statuses: { state: string; sha: string; context: string }[]; autoMerge: string[]; merges: number; reviews: number; opened: number; polls: { ci: number; merge: number }; prompts: string[] };
+type Calls = { statuses: { state: string; sha: string; context: string }[]; autoMerge: string[]; merges: number; reviews: number; opened: number; polls: { ci: number; merge: number }; prompts: string[]; teardowns: number; prepared: { slug: string; id: string; keep: string[]; install: string | undefined; env: Record<string, string> }[]; builderSpecs: { network?: string; storeVolume?: string; env?: Record<string, string> }[] };
 let calls: Calls;
 let builderRuns = 0;
 
@@ -153,11 +162,11 @@ function writeDesign(dir: string, violating: boolean): void {
   );
 }
 
-function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean; auto?: number; greenAfterRuns?: number; extraCiRun?: (poll: number) => { status: string; conclusion: string | null } }): Partial<BuildDeps> {
+function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean; auto?: number; greenAfterRuns?: number; extraCiRun?: (poll: number) => { status: string; conclusion: string | null } }): Partial<BuildDeps> {
   const base = builderRuns;
   // With greenAfterRuns, CI is red until the builder has run that many times, then green.
   const conclusionNow = (): 'success' | 'failure' => (opts.greenAfterRuns !== undefined && builderRuns - base >= opts.greenAfterRuns ? 'success' : opts.ciConclusion);
-  calls = { statuses: [], autoMerge: [], merges: 0, reviews: 0, opened: 0, polls: { ci: 0, merge: 0 }, prompts: [] };
+  calls = { statuses: [], autoMerge: [], merges: 0, reviews: 0, opened: 0, polls: { ci: 0, merge: 0 }, prompts: [], teardowns: 0, prepared: [], builderSpecs: [] };
   const github = {
     ensureProjectRepo: async () => ({ owner: 'acme', repo: 'recipes', url: 'https://github.com/acme/recipes', protection: opts.protection ?? 'github' }),
     // A real push, to the local bare remote.
@@ -216,7 +225,16 @@ function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating'
     ciTimeoutMs: 10_000,
     mergeTimeoutMs: 10_000,
     reviewTimeoutMs: 20_000,
+    prepareEnvironment: async (input) => {
+      calls.prepared.push({ slug: input.slug, id: input.id, keep: input.keepDatabases ?? [], install: input.ci.install, env: input.ci.env });
+      if (opts.environment === 'failing') return { ok: false, reason: 'Postgres did not become ready in 60 s: boom', failedStep: 'ready postgres' };
+      return { ok: true, network: `demiurgo-env-${input.slug}`, storeVolume: `demiurgo-env-${input.slug}-pnpm-store`, env: { DATABASE_URL: 'postgres://postgres@postgres:5432/b_x' }, services: [{ name: 'postgres', image: 'postgres:17', container: 'c', action: 'running' }], databases: ['b_x'], steps: [] };
+    },
+    teardownEnvironment: async () => {
+      calls.teardowns++;
+    },
     runBuilder: async (spec, options) => {
+      calls.builderSpecs.push({ network: spec.network, storeVolume: spec.storeVolume, env: spec.env });
       calls.prompts.push(spec.prompt);
       const dir = options?.worktreePath ?? '';
       mkdirSync(join(dir, 'src'), { recursive: true });
@@ -345,6 +363,36 @@ describe('build.start', () => {
     expect(detail.build?.steps?.at(-1)).toMatchObject({ attempt: 1, stage: 'merge', outcome: 'ok' });
     expect(detail.build?.review).toMatchObject({ verdict: 'approve' });
     expect(detail.build?.pr_url).toBe('https://github.com/acme/recipes/pull/7');
+  });
+
+  it('prepares the CI environment before the builder, hands it to the builder and tears it down', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success' }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('done');
+    const rows = await steps(requestId);
+    expect(rows.findIndex((s) => s.stage === 'environment' && s.outcome === 'ok')).toBeLessThan(rows.findIndex((s) => s.stage === 'builder' && s.outcome === 'started'));
+    expect(rows.find((s) => s.stage === 'environment' && s.outcome === 'ok')?.detail).toMatchObject({ services: [{ name: 'postgres', image: 'postgres:17', action: 'running' }], databases: ['b_x'], variables: ['DATABASE_URL'] });
+    const slug = calls.prepared[0]!.slug;
+    expect(slug).toMatch(/^[a-z0-9-]+$/);
+    expect(calls.prepared).toEqual([{ slug, id: requestId, keep: expect.arrayContaining([expect.stringMatching(/^b_[0-9a-f]{12}$/)]), install: 'pnpm install --frozen-lockfile', env: { DATABASE_URL: 'postgres://postgres@localhost:5432/t' } }]);
+    expect(calls.builderSpecs).toEqual([{ network: `demiurgo-env-${slug}`, storeVolume: `demiurgo-env-${slug}-pnpm-store`, env: { DATABASE_URL: 'postgres://postgres@postgres:5432/b_x' } }]);
+    expect(calls.teardowns).toBeGreaterThan(0);
+  });
+
+  it('an environment that cannot be prepared fails the attempt with its reason before the builder runs', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', environment: 'failing' }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('failed:environment');
+    const rows = await steps(requestId);
+    expect(rows.find((s) => s.stage === 'environment' && s.outcome === 'failed')?.detail).toMatchObject({ error: 'Postgres did not become ready in 60 s: boom', failed_step: 'ready postgres' });
+    expect(rows.some((s) => s.stage === 'builder')).toBe(false);
+    expect(calls.builderSpecs).toEqual([]);
+    expect(calls.prompts).toEqual([]);
+    expect(calls.teardowns).toBe(1);
+    // The failed request stays open; this one is not built again.
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('id', '=', requestId).execute();
   });
 
   it('a red CI: the status is failure, nothing merges and the request stays in review', async () => {

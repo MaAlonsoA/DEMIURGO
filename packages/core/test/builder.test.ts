@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type BuilderSpec, builderArguments } from '../src/runner/builder.ts';
+import { type BuilderSpec, builderArguments, setupArguments } from '../src/runner/builder.ts';
 import { MAX_COMMITTED_FILE_BYTES, branchName, commitAll, writeExcludes, diffStat, hostPathOf, prepareWorktree, removeWorktree } from '../src/build/workspace.ts';
 
 const spec: BuilderSpec = {
@@ -54,6 +54,25 @@ describe('builderArguments', () => {
     expect(args).toContain('--read-only');
     expect(args).toContain('--cap-drop');
     expect(() => builderArguments({ ...spec, gitDir: { ...gitDir, hostPath: '/a:/b' } }, 'n', {})).toThrow();
+  });
+
+  it('joins the build network with the prepared environment, and refuses variables that change how the container starts', () => {
+    const args = builderArguments({ ...spec, network: 'demiurgo-env-p', storeVolume: 'demiurgo-env-p-pnpm-store', env: { DATABASE_URL: 'postgres://postgres@postgres:5432/db' } }, 'demiurgo-build-r1', {});
+    expect(args.join(' ')).toContain('--network demiurgo-env-p');
+    expect(args).toContain('type=volume,source=demiurgo-env-p-pnpm-store,target=/pnpm-store');
+    expect(args).toContain('DATABASE_URL=postgres://postgres@postgres:5432/db');
+    expect(args).toContain('--read-only');
+    expect(() => builderArguments({ ...spec, env: { NODE_OPTIONS: '--require x' } }, 'n', {})).toThrow();
+    expect(() => builderArguments({ ...spec, network: 'a b' }, 'n', {})).toThrow();
+  });
+
+  it('runs a setup command with the same hardened profile and no sign-in', () => {
+    const args = setupArguments({ worktreeHostPath: spec.worktreeHostPath, command: 'pnpm install', network: 'demiurgo-env-p', storeVolume: 'demiurgo-env-p-pnpm-store', env: { A: '1' }, limits: spec.limits }, 'setup-1', {});
+    expect(args.join(' ')).toContain('--cap-drop ALL');
+    expect(args.join(' ')).toContain('--network demiurgo-env-p');
+    expect(args.filter((_, i) => args[i - 1] === '--mount')).toEqual([`type=bind,source=${spec.worktreeHostPath},target=/workspace`, 'type=volume,source=demiurgo_pw-browsers,target=/ms-playwright', 'type=volume,source=demiurgo-env-p-pnpm-store,target=/pnpm-store']);
+    expect(args).toContain('npm_config_store_dir=/pnpm-store');
+    expect(args.slice(-3)).toEqual(['sh', '-c', 'set -eu; pnpm install']);
   });
 
   it('builds the codex command and honours the overrides', () => {

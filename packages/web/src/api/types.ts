@@ -464,7 +464,7 @@ export type Inbox = {
 export type CriterionState = 'verified' | 'failing' | 'in_pr' | 'no_evidence' | 'check_by_hand' | 'not_started';
 export type TaskBuildState = 'to_do' | 'requested' | 'in_pr' | 'merged' | 'failing';
 
-export type BuildStage = 'repo' | 'worktree' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
+export type BuildStage = 'repo' | 'worktree' | 'environment' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
 export type BuildOutcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested' | 'cancelled';
 export type BuildStep = { attempt: number; stage: BuildStage; outcome: BuildOutcome; detail: unknown; at: string };
 
@@ -1191,6 +1191,33 @@ export type QueueTask = {
   stage?: { stage: BuildStage; outcome: BuildOutcome; failure?: { kind: string; excerpt: string | null } } | null;
 };
 
+export type DeliverySummary = {
+  tasks: number;
+  lead_median: number | null;
+  lead_p90: number | null;
+  builder_median: number | null;
+  ci_median: number | null;
+  review_median: number | null;
+  first_pass: { merged_first_try: number; of: number } | null;
+};
+
+/** Delivery metrics computed from the build steps (DORA lead time and change failure rate). */
+export type DeliveryMetrics = {
+  merged: {
+    code: string;
+    merged_at: string;
+    lead_minutes: number;
+    attempts: number;
+    stage_minutes: { builder: number; environment: number; ci: number; review: number };
+    model: string | null;
+  }[];
+  last10: DeliverySummary;
+  all: DeliverySummary;
+  by_model_last10: { model: string; tasks: number; lead_median: number | null; builder_median: number | null; ci_median: number | null; review_median: number | null }[];
+  by_model_all: { model: string; tasks: number; lead_median: number | null; builder_median: number | null; ci_median: number | null; review_median: number | null }[];
+  running: { code: string; elapsed_minutes: number; stage: string; outcome: string; attempt: number }[];
+};
+
 export type BuildQueue = {
   ready: QueueTask[];
   /** Tasks a person put on hold with a reason: the queue skips them. */
@@ -1200,6 +1227,7 @@ export type BuildQueue = {
   built: (QueueTask & { pr_url: string | null; done_at: string | null })[];
   totals: { tasks: number; points: number; unsized: number };
   repository: { path: string | null; branch: string; merge_rule_by_demiurgo?: boolean };
+  delivery?: DeliveryMetrics;
   /** «Build the queue»: the project's flag and what the queue is doing. */
   auto?: {
     on: boolean;

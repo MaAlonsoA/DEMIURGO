@@ -28,6 +28,7 @@ const TRANSCRIPT_TAIL = 20_000;
 const OUTPUT_LIMIT = 4 * 1024 * 1024;
 const REPORT_PATH = '.demiurgo/build-report.json';
 export const PW_BROWSERS_DIR = '/ms-playwright';
+export const PNPM_STORE_DIR = '/pnpm-store';
 const SAFE_VALUE = /^[A-Za-z0-9][A-Za-z0-9_.:/+-]{0,99}$/;
 
 export const buildReportSchema = z.object({
@@ -53,6 +54,12 @@ export type BuilderSpec = {
   prompt: string;
   maxTimeMs: number;
   limits: { cpus: number; memoryMb: number; pids: number };
+  /** The build network where the CI services run (see `prepareEnvironment`); without it, the default bridge. */
+  network?: string;
+  /** The project's pnpm store volume, mounted at /pnpm-store. */
+  storeVolume?: string;
+  /** Variables of the prepared environment (the CI's `DATABASE_URL`, ...). */
+  env?: Record<string, string>;
 };
 
 export type BuilderResult = {
@@ -76,6 +83,99 @@ export type BuilderOptions = {
   worktreePath?: string;
   environment?: Readonly<Record<string, string | undefined>>;
 };
+
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,99}$/;
+const FORBIDDEN_ENV = /^(LD_|DYLD_|NODE_OPTIONS$|PATH$|BASH_ENV$|ENV$|GIT_|CLAUDE|CODEX|ANTHROPIC|OPENAI)/;
+
+/** Checks the prepared environment's variables: plain names and values, none that could change how the container starts. */
+export function environmentVariables(env: Record<string, string> | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env ?? {})) {
+    if (!ENV_NAME.test(key) || FORBIDDEN_ENV.test(key)) throw new Error(`Invalid environment variable name: ${JSON.stringify(key)}.`);
+    if (/[\0\n\r]/.test(value)) throw new Error(`Invalid value for ${key}.`);
+    out[key] = value;
+  }
+  return out;
+}
+
+const storeArguments = (volume: string | undefined): string[] => {
+  if (volume === undefined) return [];
+  if (!NAME_PATTERN.test(volume)) throw new Error(`Invalid volume name: ${JSON.stringify(volume)}.`);
+  return ['--mount', `type=volume,source=${volume},target=${PNPM_STORE_DIR}`];
+};
+
+function networkArguments(network: string | undefined): string[] {
+  if (network === undefined) return [];
+  if (!NAME_PATTERN.test(network)) throw new Error(`Invalid network name: ${JSON.stringify(network)}.`);
+  return ['--network', network];
+}
+
+export type SetupSpec = {
+  worktreeHostPath: string;
+  /** The shell command to run in /workspace (a line of the project's CI). */
+  command: string;
+  network: string;
+  /** The project's pnpm store volume. */
+  storeVolume: string;
+  env: Record<string, string>;
+  limits: { cpus: number; memoryMb: number; pids: number };
+};
+
+/**
+ * `docker run` arguments for a preparation command (install, migrate, browsers): the builder's hardened
+ * profile and mounts (worktree and browsers volume, no sign-in, no .git) on the build network, with the
+ * CI's variables. The project's pnpm store volume is mounted at /pnpm-store.
+ */
+export function setupArguments(spec: SetupSpec, containerName: string, environment: Readonly<Record<string, string | undefined>> = process.env): string[] {
+  if (!NAME_PATTERN.test(containerName)) throw new Error(`Invalid container name: ${JSON.stringify(containerName)}.`);
+  if (!spec.worktreeHostPath.startsWith('/') || /[:,\0\n]/.test(spec.worktreeHostPath)) {
+    throw new Error(`Invalid worktree path: ${JSON.stringify(spec.worktreeHostPath)}.`);
+  }
+  if (!spec.command.trim() || spec.command.includes('\0')) throw new Error('Empty setup command.');
+  const { cpus, memoryMb, pids } = spec.limits;
+  if (!(cpus > 0) || !Number.isInteger(memoryMb) || memoryMb <= 0 || !Number.isInteger(pids) || pids <= 0) throw new Error('Invalid limits.');
+  const uid = environment.DEMIURGO_UID?.trim() || '501';
+  const gid = environment.DEMIURGO_GID?.trim() || uid;
+  if (!/^\d+$/.test(uid) || !/^\d+$/.test(gid)) throw new Error('DEMIURGO_UID and DEMIURGO_GID must be numbers.');
+  const image = environment.DEMIURGO_BUILDER_IMAGE?.trim() || 'demiurgo/app:local';
+  const browsersVolume = environment.DEMIURGO_PW_BROWSERS_VOLUME?.trim() || 'demiurgo_pw-browsers';
+  const home = '/home/demiurgo';
+  const env: Record<string, string> = {
+    ...environmentVariables(spec.env),
+    CI: '1',
+    HOME: home,
+    PLAYWRIGHT_BROWSERS_PATH: PW_BROWSERS_DIR,
+    npm_config_store_dir: PNPM_STORE_DIR,
+    COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
+    LANG: environment.LANG?.trim() || 'C.UTF-8',
+    TZ: environment.TZ?.trim() || 'UTC',
+  };
+  const args = [
+    'run', '--rm',
+    '--name', containerName,
+    '--label', BUILDER_LABEL,
+    '--pull', 'never',
+    '--read-only',
+    '--tmpfs', '/tmp:rw,exec,nosuid,size=2g',
+    '--tmpfs', `${home}:rw,exec,nosuid,size=256m,uid=${uid},gid=${gid}`,
+    '--cap-drop', 'ALL',
+    '--ulimit', 'core=0',
+    '--security-opt', 'no-new-privileges',
+    '--user', `${uid}:${gid}`,
+    '--pids-limit', String(pids),
+    '--memory', `${memoryMb}m`,
+    '--memory-swap', `${memoryMb}m`,
+    '--cpus', String(cpus),
+    '--mount', `type=bind,source=${spec.worktreeHostPath},target=/workspace`,
+    '--mount', `type=volume,source=${browsersVolume},target=${PW_BROWSERS_DIR}`,
+    ...storeArguments(spec.storeVolume),
+    '--workdir', '/workspace',
+    ...networkArguments(spec.network),
+  ];
+  for (const [key, value] of Object.entries(env).sort(([a], [b]) => a.localeCompare(b))) args.push('--env', `${key}=${value}`);
+  args.push(image, 'sh', '-c', `set -eu; ${spec.command}`);
+  return args;
+}
 
 const CLAUDE_TOOLS = 'Read,Edit,Write,Glob,Grep,Bash,WebSearch';
 
@@ -143,8 +243,11 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
   const stateVariable = spec.provider === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME';
   // Copies the sign-in (read-only volume) to a writable place, then runs the CLI in /workspace.
   const script = `set -eu; mkdir -p "${config}"; cp -R /auth/${dir}/. "${config}"/; cd /workspace; exec "$@"`;
+  const extra = environmentVariables(spec.env);
   const env: Record<string, string> = {
+    ...extra,
     CI: '1',
+    ...(spec.storeVolume ? { npm_config_store_dir: PNPM_STORE_DIR } : {}),
     // Read-only git (status, diff, log) must not try to refresh the index in the read-only mount.
     GIT_OPTIONAL_LOCKS: '0',
     HOME: home,
@@ -175,7 +278,9 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
     ...(spec.gitDir ? ['--mount', `type=bind,source=${spec.gitDir.hostPath},target=${spec.gitDir.containerPath},readonly`] : []),
     '--mount', `type=volume,source=${volume},target=/auth,readonly`,
     '--mount', `type=volume,source=${browsersVolume},target=${PW_BROWSERS_DIR}`,
+    ...storeArguments(spec.storeVolume),
     '--workdir', '/workspace',
+    ...networkArguments(spec.network),
   ];
   for (const [key, value] of Object.entries(env).sort(([a], [b]) => a.localeCompare(b))) args.push('--env', `${key}=${value}`);
   args.push(image, 'sh', '-c', script, 'builder', ...cliCommand(spec));

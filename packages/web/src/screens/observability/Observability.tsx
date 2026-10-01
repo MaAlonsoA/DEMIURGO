@@ -30,6 +30,7 @@ import { LinkTabs } from '../../components/Tabs.tsx';
 import { AgentsBlocks, BuildBlocks, DesignBlocks, HarnessBlocks, OverviewTab, ShowData, TABS, type ObsTab } from './views.tsx';
 import { OBSERVABILITY, OBS_VIEW } from './words.i18n.ts';
 import { SectionHelp } from './help.tsx';
+import { LessonsTab } from '../lessons/LessonsTab.tsx';
 
 const th = 'px-3 py-2 text-xs font-medium text-fg-2 whitespace-nowrap';
 const td = 'px-3 py-2 align-top';
@@ -125,6 +126,8 @@ export function ObservabilityScreen() {
               <ShowData title={v.hWorthTitle}><WorthItSection projectId={projectId} /></ShowData>
             </div>
           </div>
+        ) : tab === 'lessons' ? (
+          <LessonsTab projectId={projectId} />
         ) : (
           <div className="flex flex-col divide-y divide-edge">
             <DesignBlocks projectId={projectId} />

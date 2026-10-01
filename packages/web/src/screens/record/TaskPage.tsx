@@ -9,7 +9,7 @@ import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { type ReactNode, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
-import { inboxQuery, readinessQuery, stateQuery, taskDraftQuery } from '../../api/queries.ts';
+import { inboxQuery, readinessQuery, sessionQuery, stateQuery, taskDraftQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { Inbox, ProductState, RecordDetail, RecordVersion, TaskView } from '../../api/types.ts';
 import { AskBox } from '../../components/AskBox.tsx';
@@ -31,6 +31,8 @@ import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { stateWord } from '../../words.ts';
+import { hasDevTools } from '../dev/snapshots.ts';
+import { TaskLessons } from '../lessons/TaskLessons.tsx';
 import { HistoryTab } from '../blueprint/HistoryTab.tsx';
 import { NotFound } from '../not-found/NotFound.tsx';
 import { BuildStepper, ConnectGithubLine } from './AgentBuild.tsx';
@@ -113,6 +115,7 @@ export function TaskPage({
   const tables = useTables();
   const search = useSearch({ strict: false }) as { tab?: string };
   const tab = record && search.tab === 'history' ? 'history' : 'overview';
+  const devTools = hasDevTools(useQuery(sessionQuery).data);
   const readiness = useQuery({ ...readinessQuery(projectId, version?.id ?? ''), enabled: !!version });
   const draftTasks = useDraftTasks(projectId, version?.id ?? '');
   const pendingCodes = pendingProposalBatches(inbox)
@@ -211,6 +214,7 @@ export function TaskPage({
                 </div>
               ) : null}
               <TaskBody projectId={projectId} task={task} record={record} version={version} />
+              {record && devTools ? <TaskLessons projectId={projectId} code={record.code} /> : null}
               {record && version ? (
                 <AskBox
                   key={record.code}

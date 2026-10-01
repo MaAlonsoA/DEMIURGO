@@ -665,7 +665,7 @@ export const HARNESS_VERSIONS = messages(
 export const OBS_VIEW = messages(
   {
     tabsLabel: 'What to observe',
-    tab: (k: string) => ({ overview: 'Overview', build: 'Build', agents: 'Agents & Jev', harness: 'Harness health', design: 'Design' } as Record<string, string>)[k] ?? k,
+    tab: (k: string) => ({ overview: 'Overview', build: 'Build', agents: 'Agents & Jev', harness: 'Harness health', design: 'Design', lessons: 'Lessons learned' } as Record<string, string>)[k] ?? k,
     seeIn: (tab: string) => `See ${tab}`,
     showData: (title: string) => `Show data: ${title}`,
     loadingChart: 'Loading',
@@ -740,7 +740,7 @@ export const OBS_VIEW = messages(
   },
   {
     tabsLabel: 'Qué observar',
-    tab: (k: string) => ({ overview: 'Resumen', build: 'Construcción', agents: 'Agentes y Jev', harness: 'Salud del harness', design: 'Diseño' } as Record<string, string>)[k] ?? k,
+    tab: (k: string) => ({ overview: 'Resumen', build: 'Construcción', agents: 'Agentes y Jev', harness: 'Salud del harness', design: 'Diseño', lessons: 'Lecciones aprendidas' } as Record<string, string>)[k] ?? k,
     seeIn: (tab: string) => `Ver ${tab}`,
     showData: (title: string) => `Mostrar los datos: ${title}`,
     loadingChart: 'Cargando',

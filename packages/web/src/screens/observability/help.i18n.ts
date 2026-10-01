@@ -6,7 +6,7 @@
 
 import { messages } from '../../i18n/define.ts';
 
-export const HELP_TOPICS = ['containment', 'escapes', 'attempts', 'cost', 'rework', 'calibration', 'tests', 'agents', 'jev', 'health', 'checks', 'versions', 'attention', 'worth'] as const;
+export const HELP_TOPICS = ['containment', 'escapes', 'attempts', 'cost', 'rework', 'calibration', 'tests', 'agents', 'jev', 'health', 'checks', 'versions', 'attention', 'worth', 'lessonsClasses', 'lessonsCauses', 'lessonsImprovements', 'lessonsPieces', 'lessonsPlaybooks', 'lessonsTasks'] as const;
 export type HelpTopic = (typeof HELP_TOPICS)[number];
 
 export const OBS_HELP = messages(
@@ -140,6 +140,55 @@ export const OBS_HELP = messages(
       'Lower is better for the same output, and the useful comparison is with the same project earlier on; the harness checks flag a rise of more than 25 % in USD or tokens per task.\nUnits are cost over value; no single number sums them up.',
     worthSource:
       'Unit economics, as the code puts it: «FinOps: total attributed cost over units delivered». The unit «verified criterion» and the person-minutes proxy are convención nuestra.',
+
+    lessonsClassesMeasures:
+      'Which kinds of problem the post-mortems of the tasks name most often, with the attempts, minutes and dollars they cost.',
+    lessonsClassesHow:
+      'Every «what went wrong» entry of the latest post-mortem of each task carries an error class: an escape rule (E01 to E17), a build failure class or an «other» slug. The bars count the entries per class; the table behind adds the tasks, attempts, minutes and dollars the analysis declared.\nOnly the latest post-mortem of each task counts.',
+    lessonsClassesRead:
+      'A long bar is a problem that comes back, which is worth a playbook or a change in the harness. The costs are what the model wrote down from the evidence, so treat them as orders of magnitude.',
+    lessonsClassesSource:
+      'The post-mortem is blameless in the sense of the Google SRE book, «Postmortem Culture»: it looks for causes in the system, not for people. The grouping by class is convención nuestra.',
+    lessonsCausesMeasures:
+      'Where in DEMIURGO the root causes live: rules, prompts, context, graph, Jev, process, engine or environment.',
+    lessonsCausesHow:
+      'Each post-mortem lists its root causes, each with one dimension. The section counts the causes and the improvements per dimension and the tasks that raised them.',
+    lessonsCausesRead:
+      'The dimension with most causes is where a change pays most. «Other» growing means the dimensions do not describe the problems well.',
+    lessonsCausesSource:
+      'The idea of a root cause with evidence follows the Google SRE book, «Postmortem Culture». The list of dimensions is convención nuestra.',
+    lessonsImprovementsMeasures:
+      'The changes the post-mortems propose, ranked by how many tasks raise the same one and by its priority.',
+    lessonsImprovementsHow:
+      'Improvements with the same dimension, target and class are one. Frequency = tasks that raise it. Score = the sum of the weights of its priority (high 3, medium 2, low 1).\nThe change shown is the one of the highest priority.',
+    lessonsImprovementsRead:
+      'Read from the top: a change raised by several tasks is evidence, not an opinion. Each carries the real practice it follows, or says it is our convention.',
+    lessonsImprovementsSource:
+      'The weights 3, 2 and 1 and the ranking are convención nuestra. Every improvement names its own source, written by the post-mortem agent.',
+    lessonsPiecesMeasures:
+      'For every piece of DEMIURGO (agents, skills, guards, stages, Jev questions, context packs, harness pieces and escape rules), how often it worked, contributed to an error or could have prevented one.',
+    lessonsPiecesHow:
+      'Each post-mortem answers a checklist with one verdict per piece. The table adds the verdicts of the latest post-mortem of each task.\nOnly post-mortems made with the newest checklist count, so verdicts of different checklists are never mixed; the tasks left out are said.',
+    lessonsPiecesRead:
+      'Pieces that contribute most to errors come first. «Involved» is the number of tasks where the piece took part; a piece with many «could have prevented» is missing or too weak.',
+    lessonsPiecesSource:
+      'The checklist with a verdict per piece is convención nuestra, in the spirit of the blameless post-mortem of the Google SRE book, «Postmortem Culture».',
+    lessonsPlaybooksMeasures:
+      'One page per error class: what it is, its symptoms, how DEMIURGO detects it, how to prevent it and what to do when it happens.',
+    lessonsPlaybooksHow:
+      'An agent writes the playbook of each class from the post-mortems tagged with it, and a new version is stored when they change. Nothing is deleted: the latest version is shown.',
+    lessonsPlaybooksRead:
+      'Use it as a runbook when the problem appears. A playbook is a proposal for people to read, not a rule that DEMIURGO applies by itself.',
+    lessonsPlaybooksSource:
+      'The playbook follows the idea of a runbook of the Google SRE book, «Being On-Call». The shape of the page is convención nuestra.',
+    lessonsTasksMeasures:
+      'The tasks that have a post-mortem, with how each ended and how many problems, root causes and improvements it found.',
+    lessonsTasksHow:
+      'One row per task with the latest post-mortem: outcome (clean, rework, failed, abandoned or in progress) and the counts of its entries.',
+    lessonsTasksRead:
+      'Open a task to read its whole analysis, including the checklist. Many problems in a clean task means the cost was hidden in retries.',
+    lessonsTasksSource:
+      'The outcomes and the counts are convención nuestra.',
   },
   {
     button: (section: string) => `Ayuda: ${section}`,
@@ -271,5 +320,54 @@ export const OBS_HELP = messages(
       'Menos es mejor para la misma producción, y la comparación útil es con el mismo proyecto antes; los chequeos del harness avisan de una subida de más del 25 % en USD o tokens por tarea.\nLas unidades son coste entre valor; ningún número único las resume.',
     worthSource:
       'Economía por unidad, como lo dice el código: «FinOps: coste total atribuido entre unidades entregadas». La unidad «criterio verificado» y el indicador de minutos de la persona son convención nuestra.',
+
+    lessonsClassesMeasures:
+      'Qué tipos de problema nombran más los análisis de las tareas, con los intentos, minutos y dólares que cuestan.',
+    lessonsClassesHow:
+      'Cada entrada «qué fue mal» del último análisis de cada tarea lleva una clase de error: una regla de fuga (E01 a E17), una clase de fallo de construcción o un «other». Las barras cuentan las entradas por clase; la tabla de detrás suma las tareas, intentos, minutos y dólares que declaró el análisis.\nSolo cuenta el último análisis de cada tarea.',
+    lessonsClassesRead:
+      'Una barra larga es un problema que vuelve, y merece un playbook o un cambio en el harness. Los costes son lo que el modelo anotó a partir de la evidencia: tómalos como órdenes de magnitud.',
+    lessonsClassesSource:
+      'El análisis es sin culpables en el sentido del libro de Google SRE, «Postmortem Culture»: busca causas en el sistema, no en personas. La agrupación por clase es convención nuestra.',
+    lessonsCausesMeasures:
+      'Dónde viven las causas raíz dentro de DEMIURGO: reglas, prompts, contexto, grafo, Jev, proceso, motor o entorno.',
+    lessonsCausesHow:
+      'Cada análisis lista sus causas raíz, cada una con una dimensión. La sección cuenta las causas y las mejoras por dimensión y las tareas que las plantearon.',
+    lessonsCausesRead:
+      'La dimensión con más causas es donde un cambio rinde más. Si «other» crece, las dimensiones no describen bien los problemas.',
+    lessonsCausesSource:
+      'La idea de una causa raíz con evidencia sigue al libro de Google SRE, «Postmortem Culture». La lista de dimensiones es convención nuestra.',
+    lessonsImprovementsMeasures:
+      'Los cambios que proponen los análisis, ordenados por cuántas tareas plantean el mismo y por su prioridad.',
+    lessonsImprovementsHow:
+      'Las mejoras con la misma dimensión, objetivo y clase son una. Frecuencia = tareas que la plantean. Puntuación = suma de los pesos de su prioridad (alta 3, media 2, baja 1).\nEl cambio mostrado es el de mayor prioridad.',
+    lessonsImprovementsRead:
+      'Léelo desde arriba: un cambio que plantean varias tareas es evidencia, no opinión. Cada uno lleva la práctica real que sigue, o dice que es convención nuestra.',
+    lessonsImprovementsSource:
+      'Los pesos 3, 2 y 1 y el orden son convención nuestra. Cada mejora nombra su propia fuente, escrita por el agente del análisis.',
+    lessonsPiecesMeasures:
+      'Para cada pieza de DEMIURGO (agentes, skills, guardas, etapas, preguntas de Jev, packs de contexto, piezas del harness y reglas de fuga), cuántas veces funcionó, contribuyó a un error o pudo evitar uno.',
+    lessonsPiecesHow:
+      'Cada análisis responde una lista de comprobación con un veredicto por pieza. La tabla suma los veredictos del último análisis de cada tarea.\nSolo cuentan los análisis hechos con la lista más reciente, así que nunca se mezclan veredictos de listas distintas; las tareas que quedan fuera se dicen.',
+    lessonsPiecesRead:
+      'Las piezas que más contribuyen a errores van primero. «Intervino» es el número de tareas donde la pieza participó; una pieza con muchos «pudo evitarlo» falta o es demasiado débil.',
+    lessonsPiecesSource:
+      'La lista con un veredicto por pieza es convención nuestra, en el espíritu del análisis sin culpables del libro de Google SRE, «Postmortem Culture».',
+    lessonsPlaybooksMeasures:
+      'Una página por clase de error: qué es, sus síntomas, cómo lo detecta DEMIURGO, cómo prevenirlo y qué hacer cuando ocurre.',
+    lessonsPlaybooksHow:
+      'Un agente escribe el playbook de cada clase a partir de los análisis etiquetados con ella, y se guarda una versión nueva cuando cambian. No se borra nada: se muestra la última versión.',
+    lessonsPlaybooksRead:
+      'Úsalo como guía de actuación cuando aparezca el problema. Un playbook es una propuesta para leer, no una regla que DEMIURGO aplique solo.',
+    lessonsPlaybooksSource:
+      'El playbook sigue la idea de runbook del libro de Google SRE, «Being On-Call». La forma de la página es convención nuestra.',
+    lessonsTasksMeasures:
+      'Las tareas con análisis, con cómo acabó cada una y cuántos problemas, causas raíz y mejoras encontró.',
+    lessonsTasksHow:
+      'Una fila por tarea con su último análisis: resultado (limpia, retrabajo, fallida, abandonada o en curso) y los recuentos de sus entradas.',
+    lessonsTasksRead:
+      'Abre una tarea para leer su análisis entero, con la lista de comprobación. Muchos problemas en una tarea limpia significa que el coste estaba escondido en reintentos.',
+    lessonsTasksSource:
+      'Los resultados y los recuentos son convención nuestra.',
   },
 );

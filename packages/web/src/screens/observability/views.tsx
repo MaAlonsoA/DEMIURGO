@@ -27,7 +27,7 @@ import { ATTENTION, HARNESS_ESCAPES, HARNESS_HEALTH as HARNESS_HEALTH_WORDS, OBS
 
 type Msgs<C> = C extends Catalog<infer E> ? Translation<E> : never;
 
-export const TABS = ['overview', 'build', 'agents', 'harness', 'design'] as const;
+export const TABS = ['overview', 'build', 'agents', 'harness', 'design', 'lessons'] as const;
 export type ObsTab = (typeof TABS)[number];
 
 const summarize = (title: string, rows: { name: string; display: string }[]) => `${title}: ${rows.map((r) => `${r.name} ${r.display}`).join('; ')}`;

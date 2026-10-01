@@ -81,6 +81,8 @@ import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, 
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { type BuilderSession, builderSessionPlan, sessionFilesExist } from './session.ts';
 import { basename, join } from 'node:path';
 import type { DockerExec } from '../runner/environment.ts';
@@ -324,6 +326,32 @@ async function previousSessionPlan(s: Services, requestId: string, attempt: numb
 }
 
 /** The progress notes the builder of an attempt left (ok or failed), or undefined. */
+/** The sha of the latest ok commit step of an earlier attempt of the request, or null. */
+async function previousCommitSha(s: Services, requestId: string, attempt: number): Promise<string | null> {
+  const row = await s.db
+    .selectFrom('build_steps')
+    .select('detail')
+    .where('build_request_id', '=', requestId)
+    .where('attempt', '<', attempt)
+    .where('stage', '=', 'commit')
+    .where('outcome', '=', 'ok')
+    .orderBy('attempt', 'desc')
+    .orderBy('created_at', 'desc')
+    .executeTakeFirst();
+  const sha = (row?.detail as { sha?: unknown } | null | undefined)?.sha;
+  return typeof sha === 'string' && sha ? sha : null;
+}
+
+/** The files changed between two commits of the worktree, or null when git cannot tell (a rewritten branch). */
+async function filesBetween(path: string, from: string, to: string): Promise<string[] | null> {
+  try {
+    const { stdout } = await promisify(execFile)('git', ['-c', 'safe.directory=*', '-C', path, 'diff', '--name-only', from, to], { maxBuffer: 16 * 1024 * 1024 });
+    return stdout.split('\n').filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
 async function previousProgress(s: Services, requestId: string, attempt: number): Promise<string | undefined> {
   const row = await s.db
     .selectFrom('build_steps')
@@ -973,7 +1001,11 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     if (!sha) return { outcome: 'failed' as const, detail: { error: 'The builder changed nothing: there is nothing to commit.' } };
     // The files the branch really changes, for the queue planner (it collides running builds by these, not by the prediction).
     const files = (await changedOnBranch(worktree.path).catch(() => [] as string[])).slice(0, 300);
-    return { value: sha, detail: { sha, ...(files.length > 0 ? { files } : {}), ...(fresh && affected ? { affected_criteria: affected } : {}) }, extra: { head_sha: sha } };
+    // What this attempt itself changed since the previous attempt's commit (the harness post-mortem judges review
+    // comments against it; `files` is the whole branch against main). The first attempt changed the whole branch.
+    const previousSha = r.attempt > 1 ? await previousCommitSha(s0, requestId, r.attempt) : null;
+    const ownFiles = previousSha ? await filesBetween(worktree.path, previousSha, sha) : files;
+    return { value: sha, detail: { sha, ...(files.length > 0 ? { files } : {}), ...(ownFiles ? { own_files: ownFiles.slice(0, 300) } : {}), ...(fresh && affected ? { affected_criteria: affected } : {}) }, extra: { head_sha: sha } };
   });
   if (!committed.ok) return stop('commit', committed.outcome);
   const headSha = committed.value;

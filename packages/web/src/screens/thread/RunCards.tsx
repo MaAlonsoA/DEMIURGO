@@ -92,6 +92,17 @@ export function RunWorking({
   );
 }
 
+/** A request the server holds until knowledge is up to date: it starts by itself, nothing to do. */
+export function QueuedRequest({ action }: { action: string }) {
+  const t = useMessages(RUN_CARDS);
+  return (
+    <p className="inline-flex items-center gap-1.5 text-sm text-info-text" role="status" data-queued-request>
+      <StateIcon kind="working" />
+      <span>{t.queuedRequest(actionWord({ action }))}</span>
+    </p>
+  );
+}
+
 export function RunCard({ projectId, run, display }: { projectId: string; run: RunListItem; display: RunDisplay }) {
   switch (display) {
     case 'working':

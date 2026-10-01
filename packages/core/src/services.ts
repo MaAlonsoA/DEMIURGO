@@ -29,6 +29,8 @@ export type WorkflowEngine = {
   ): Promise<void>;
   /** Whether a deferred run whose key starts with `keyPrefix` is still waiting to be requested. */
   deferredRunPending(keyPrefix: string): Promise<boolean>;
+  /** The run requests of a project still waiting for knowledge (`run:<action>:<scope>:<uuid>` keys). */
+  deferredRunsOf(projectId: string): Promise<{ key: string; createdAt: number }[]>;
 };
 
 /** A run request that waits for knowledge: the same payload as `run.request`, plus who asked. */
@@ -102,6 +104,7 @@ export function inertEngine(): WorkflowEngine & {
       deferred.push(key);
     },
     deferredRunPending: async (prefix) => deferred.some((k) => k.startsWith(prefix)),
+    deferredRunsOf: async () => deferred.map((key) => ({ key, createdAt: 0 })),
     startResponse: async (id) => {
       responses.push(id);
     },

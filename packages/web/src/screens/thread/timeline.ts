@@ -4,7 +4,7 @@
 // finished conversation speaks through its messages. Also: the approved decisions Draft it starts
 // from, and the live progress of a run in words without a second clock.
 
-import type { Message, ProductRow, Question, RunListItem } from '../../api/types.ts';
+import type { Message, ProductRow, QueuedRun, Question, RunListItem } from '../../api/types.ts';
 import { whoOf } from '../../words.ts';
 
 export type RunDisplay = 'working' | 'failed' | 'retried' | 'cancelled' | 'draft' | 'directions';
@@ -13,7 +13,8 @@ export type TimelineItem =
   | { type: 'message'; key: string; at: number; message: Message; by: 'you' | 'agent' | 'automatic' }
   | { type: 'demiurgo'; key: string; at: number; runId: string | null; reply: Message | null; observations: Message[] }
   | { type: 'run'; key: string; at: number; run: RunListItem; display: RunDisplay }
-  | { type: 'question'; key: string; at: number; question: Question };
+  | { type: 'question'; key: string; at: number; question: Question }
+  | { type: 'queued'; key: string; at: number; action: string };
 
 const time = (iso: string | null | undefined): number => (iso ? Date.parse(iso) : 0);
 
@@ -49,6 +50,7 @@ export function buildTimeline(
   messages: readonly Message[],
   runs: readonly RunListItem[],
   questions: readonly Question[] = [],
+  queued: readonly QueuedRun[] = [],
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
   const side = sideRuns(messages);
@@ -82,11 +84,22 @@ export function buildTimeline(
     const at = display === 'working' ? time(run.created_at) : time(run.finished_at ?? run.created_at);
     items.push({ type: 'run', key: `r:${run.id}`, at, run, display });
   }
+  // Requests the server holds until knowledge is up to date: no run exists yet, so they show as waiting.
+  for (const q of queued) items.push({ type: 'queued', key: `w:${q.key}`, at: time(q.created_at), action: q.action });
   // Stable: what happened at the same instant keeps the order above (messages first).
   return items
     .map((item, i) => ({ item, i }))
     .sort((a, b) => a.item.at - b.item.at || a.i - b.i)
     .map(({ item }) => item);
+}
+
+/** The queued requests that belong to a thread: aimed at it, or at the record version it drafts. */
+export function queuedOf(
+  queued: readonly QueuedRun[],
+  thread: { id: string; origin_id: string | null; draft?: { scope: { id: string } } | null },
+): QueuedRun[] {
+  const ids = new Set([thread.id, thread.draft?.scope.id, thread.origin_id].filter((x): x is string => !!x));
+  return queued.filter((q) => ids.has(q.scope_id));
 }
 
 export type Draftable = { versionId: string; code: string; title: string; version: number; bornHere: boolean };

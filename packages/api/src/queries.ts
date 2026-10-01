@@ -90,6 +90,19 @@ export const QUERIES: QueryRoute[] = [
     },
   },
   {
+    // Run requests the server queued (HTTP 202) because knowledge is updating: no run exists yet.
+    path: '/api/projects/:projectId/runs-queued',
+    queryName: 'query.runs',
+    async respond({ services, params }) {
+      const projectId = uuid(params.projectId, 'project');
+      const rows = await services.engine.deferredRunsOf(projectId);
+      return rows.flatMap((r) => {
+        const m = /^run:([a-z_]+):([^:]+):/.exec(r.key);
+        return m ? [{ key: r.key, action: m[1], scope_id: m[2], created_at: new Date(r.createdAt).toISOString() }] : [];
+      });
+    },
+  },
+  {
     path: '/api/projects/:projectId/runs/:runId',
     queryName: 'query.runs',
     async respond({ services, params }) {

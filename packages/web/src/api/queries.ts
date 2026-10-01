@@ -28,6 +28,7 @@ import type {
   RecordDetail,
   RunDetail,
   ReadingTranslation,
+  QueuedRun,
   RunListItem,
   SearchResult,
   Session,
@@ -250,6 +251,14 @@ export const runsQuery = (p: string, filter: { exploration?: string; state?: str
     queryFn: () => get<RunListItem[]>(`${P(p)}/runs${search ? `?${search}` : ''}`),
   });
 };
+
+/** The run requests the server queued (HTTP 202); polled while any waits, since no event says it started. */
+export const queuedRunsQuery = (p: string) =>
+  queryOptions({
+    queryKey: [...keys.runs(p), 'queued'] as const,
+    queryFn: () => get<QueuedRun[]>(`${P(p)}/runs-queued`),
+    refetchInterval: (q) => ((q.state.data?.length ?? 0) > 0 ? 3000 : false),
+  });
 
 export const graphQuery = (p: string) =>
   queryOptions({

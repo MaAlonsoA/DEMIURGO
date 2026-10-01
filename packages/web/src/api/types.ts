@@ -951,6 +951,9 @@ export type SearchResult = {
 };
 
 /** A run in the list (GET …/runs): its thread is its scope, or where its decision was born. */
+/** A run request the server queued while knowledge updates: no run exists yet. */
+export type QueuedRun = { key: string; action: string; scope_id: string; created_at: string };
+
 export type RunListItem = {
   id: string;
   state: string;

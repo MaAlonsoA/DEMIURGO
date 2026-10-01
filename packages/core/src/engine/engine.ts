@@ -944,6 +944,16 @@ export const dbosEngine: WorkflowEngine = {
     });
     return rows.length > 0;
   },
+  async deferredRunsOf(projectId) {
+    const rows = await DBOS.listWorkflows({
+      workflow_id_prefix: 'deferred:run:',
+      status: ['PENDING', 'ENQUEUED'],
+      loadInput: true,
+    });
+    return rows
+      .filter((r) => r.input?.[0] === projectId)
+      .map((r) => ({ key: r.workflowID.slice('deferred:'.length), createdAt: r.createdAt }));
+  },
 };
 
 export type EngineOptions = {

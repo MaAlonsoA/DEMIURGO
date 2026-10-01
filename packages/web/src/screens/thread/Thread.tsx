@@ -17,6 +17,7 @@ import {
   explorationQuery,
   explorationsQuery,
   projectsQuery,
+  queuedRunsQuery,
   runsQuery,
   stagesQuery,
   stateQuery,
@@ -46,7 +47,7 @@ import { DraftsBar } from './DraftsBar.tsx';
 import { ThreadHeader, short } from './Header.tsx';
 import { Sheet, useWide } from './Sheet.tsx';
 import { FirstFeature, StageComplete } from './StageComplete.tsx';
-import { type ThreadDraft, buildTimeline, draftableDecisions, isActive } from './timeline.ts';
+import { type ThreadDraft, buildTimeline, draftableDecisions, isActive, queuedOf } from './timeline.ts';
 import { THREAD } from './words.i18n.ts';
 
 export function ThreadScreen() {
@@ -80,6 +81,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
   const words = useMessages(THREAD);
   const thread = useQuery(explorationQuery(projectId, explorationId));
   const runs = useQuery(runsQuery(projectId, { exploration: explorationId }));
+  const queuedRuns = useQuery(queuedRunsQuery(projectId)).data ?? [];
   const products = useQuery(stateQuery(projectId)).data;
   const stages = useQuery(stagesQuery(projectId)).data;
   const threads = useQuery(explorationsQuery(projectId)).data;
@@ -199,7 +201,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
 
   const active = t.state === 'active';
   const shown = visibleQuestions(t.questions, demiurgoReplied(t.messages));
-  const items = buildTimeline(t.messages, runs.data ?? [], shown);
+  const items = buildTimeline(t.messages, runs.data ?? [], shown, queuedOf(queuedRuns, t));
   const decisions = products ? draftableDecisions(products.decisions, t.id) : undefined;
   const stage = stages?.find((x) => x.exploration_id === t.id && x.state === 'open');
   // Passing only opens the next stage of the same moment; the next moment opens by its own step.

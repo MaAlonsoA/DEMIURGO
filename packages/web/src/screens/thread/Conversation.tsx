@@ -11,7 +11,7 @@ import { ThreadsIcon } from '../../components/icons.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { DemiurgoMessage, PersonMessage } from './Messages.tsx';
 import { QuestionCard } from './QuestionCard.tsx';
-import { RunCard } from './RunCards.tsx';
+import { QueuedRequest, RunCard } from './RunCards.tsx';
 import { type TimelineItem, sideMessages } from './timeline.ts';
 import { CONVERSATION } from './words.i18n.ts';
 
@@ -132,6 +132,7 @@ export function Conversation({
               />
             );
           }
+          if (item.type === 'queued') return <QueuedRequest key={item.key} action={item.action} />;
           if (item.type === 'run') return <RunCard key={item.key} projectId={projectId} run={item.run} display={item.display} />;
           if (item.type === 'demiurgo') {
             const run = item.runId ? runOf.get(item.runId) : undefined;

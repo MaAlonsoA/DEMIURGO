@@ -1229,3 +1229,24 @@ export const TOUCHES = messages(
     footprint: 'de su pull request',
   },
 );
+
+export const CRITERION_LINT = messages(
+  {
+    title: 'Some criteria may be at the wrong verification level',
+    intro:
+      'They are marked automatic, but their text states a property that only the deployed release candidate or real data can show. Mark them release, or approve anyway and say why.',
+    quoted: (code: string, evidence: string) => `${code}: “${evidence}”`,
+    cites: (code: string, cited: string) => `${code} cites ${cited}: check that feature is built before this criterion is checked.`,
+    reasonLabel: 'Why it stands as automatic',
+    reasonHint: 'Kept with the approval. Required to approve with these warnings.',
+  },
+  {
+    title: 'Algunos criterios pueden tener el nivel de verificación equivocado',
+    intro:
+      'Están marcados como automáticos, pero su texto afirma algo que solo el candidato desplegado o datos reales pueden mostrar. Márcalos como release, o aprueba igualmente y di por qué.',
+    quoted: (code: string, evidence: string) => `${code}: «${evidence}»`,
+    cites: (code: string, cited: string) => `${code} cita ${cited}: comprueba que esa funcionalidad esté construida antes de verificar este criterio.`,
+    reasonLabel: 'Por qué se queda como automático',
+    reasonHint: 'Se guarda con la aprobación. Obligatorio para aprobar con estos avisos.',
+  },
+);

@@ -23,6 +23,8 @@ import {
   fingerprint,
   system,
   taskSizeSchema,
+  blockingCriterionFindings,
+  lintCriteria,
 } from '@demiurgo/domain';
 import { z } from 'zod';
 import { advanceBuildQueue } from '../build/auto.ts';
@@ -665,10 +667,43 @@ registerHandlers({
   }),
 
   'record_version.approve': handler({
-    data: z.object({ note: z.string().trim().max(2000).optional() }).strict(),
+    data: z
+      .object({ note: z.string().trim().max(2000).optional(), override_reason: z.string().trim().max(2000).optional() })
+      .strict(),
     async apply(ctx, data, e) {
       const v = e?.row as { id: string; record_id: string; n: number; spec?: unknown };
       const kind = await ctx.trx.selectFrom('records').select('type').where('id', '=', v.record_id).executeTakeFirst();
+      // Definition of Ready (our convention): a feature whose criteria look mis-levelled is not approved
+      // unless the person says why it stands. The reason is kept in the event.
+      let overridden: string[] = [];
+      if (kind?.type === 'fdr') {
+        const rows = await ctx.trx
+          .selectFrom('criteria')
+          .select(['code', 'statement', 'verification', 'check_text', 'given_text', 'when_text', 'then_text'])
+          .where('record_version_id', '=', v.id)
+          .execute();
+        const blocking = blockingCriterionFindings(
+          lintCriteria(
+            rows.map((r) => ({
+              code: r.code,
+              verification: r.verification,
+              statement: r.statement,
+              check: r.check_text,
+              given: r.given_text,
+              when: r.when_text,
+              then: r.then_text,
+            })),
+          ),
+        );
+        if (blocking.length > 0) {
+          if (!data.override_reason)
+            throw new DomainError(
+              'conflict',
+              `Check the verification level before approving: ${blocking.map((f) => `${f.criterion_code} («${f.evidence}»)`).join(', ')} look like they need the deployed release candidate. Mark them release, or approve with a reason.`,
+            );
+          overridden = [...new Set(blocking.map((f) => f.criterion_code))];
+        }
+      }
       if (kind?.type === 'screen_design') await assertScreenDesign(ctx.trx, ctx.projectId, v.spec, true);
       const previous = await ctx.trx
         .selectFrom('record_versions')
@@ -721,7 +756,12 @@ registerHandlers({
       // its questions are all covered: the person's approval is the decision, so they need not hunt
       // for «Pass stage». Stage 2 opens as it does whenever a stage passes.
       if (kind?.type === 'product_definition' && ctx.actor.type === 'human') await passDefinitionStage(ctx);
-      return { entityId: v.id, version: v.n, after: { note: data.note ?? null, supersedes: previous?.n ?? null } };
+      return { entityId: v.id, version: v.n, after: {
+          note: data.note ?? null,
+          supersedes: previous?.n ?? null,
+          ...(overridden.length > 0 ? { override_reason: data.override_reason, overridden_criteria: overridden } : {}),
+        },
+      };
     },
   }),
 

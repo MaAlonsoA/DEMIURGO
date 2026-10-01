@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./tables/schemas": "./src/tables/schemas.ts",
-    "./screen-design": "./src/screen-design.ts"
+    "./screen-design": "./src/screen-design.ts",
+    "./criterion-lint": "./src/criterion-lint.ts"
   },
   "dependencies": {
     "zod": "4.6.5"

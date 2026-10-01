@@ -19,6 +19,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { type ReviewPart, type ReviewPartKey, reviewBanner, reviewParts, reviewStep } from './review.ts';
 import { ChangesSince, baseVersion } from './Changes.tsx';
+import { CriterionLintNotice, useCriterionLint } from './CriterionLint.tsx';
 import { REVIEW } from './words.i18n.ts';
 
 const reducedMotion = (): ScrollBehavior =>
@@ -235,6 +236,7 @@ function ReviewBar({
 }) {
   const t = useMessages(REVIEW);
   const command = useCommand(projectId);
+  const lint = useCriterionLint(record, version);
   const [confirming, setConfirming] = useState(false);
   const [changing, setChanging] = useState(false);
   const ok = useRef<HTMLButtonElement>(null);
@@ -361,7 +363,7 @@ function ReviewBar({
             .mutateAsync({
               command: 'record_version.approve',
               entityId: version.id,
-              data: {},
+              data: lint.data,
             })
             .then(() => {
               setConfirming(false);
@@ -375,7 +377,10 @@ function ReviewBar({
               // The error stays in the dialog (command.error), next to the action.
             })
         }
-      />
+        disabled={lint.missingReason}
+      >
+        <CriterionLintNotice lint={lint} />
+      </ConfirmDialog>
     </section>
   );
 }

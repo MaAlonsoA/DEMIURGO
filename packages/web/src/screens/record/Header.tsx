@@ -35,6 +35,7 @@ import { isEarlierDraft, versionStage } from './logic.ts';
 import { useReturnFocus } from './returnFocus.ts';
 import { VersionPicker } from './VersionPicker.tsx';
 import { StatusWord, type Status } from './Delivery.tsx';
+import { CriterionLintNotice, useCriterionLint } from './CriterionLint.tsx';
 import { DELIVERY, HEADER } from './words.i18n.ts';
 
 type Dialog = null | 'approve' | 'discard';
@@ -111,6 +112,7 @@ export function RecordHeader({
   const client = useQueryClient();
   const actions = useActions('record_version', version.state);
   const command = useCommand(projectId);
+  const lint = useCriterionLint(record, version);
   const [dialog, setDialog] = useState<Dialog>(null);
   const focus = useReturnFocus();
   const earlier = isEarlierDraft(record, version);
@@ -325,8 +327,11 @@ export function RecordHeader({
         pendingLabel={t.approving}
         pending={command.isPending}
         error={dialog === 'approve' ? command.error : null}
-        onConfirm={() => run('record_version.approve', {}, t.approvedAnnounce(version.n), onApproved)}
-      />
+        disabled={lint.missingReason}
+        onConfirm={() => run('record_version.approve', lint.data, t.approvedAnnounce(version.n), onApproved)}
+      >
+        <CriterionLintNotice lint={lint} />
+      </ConfirmDialog>
       <PromptDialog
         open={dialog === 'discard'}
         onOpenChange={close}

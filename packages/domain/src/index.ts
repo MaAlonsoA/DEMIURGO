@@ -13,6 +13,7 @@ export * from './design-system.ts';
 export * from './screen-design.ts';
 export * from './design-guard.ts';
 export * from './public-design-systems.ts';
+export * from './criterion-lint.ts';
 export * from './records.ts';
 export * from './definition.ts';
 export * from './run-schema.ts';

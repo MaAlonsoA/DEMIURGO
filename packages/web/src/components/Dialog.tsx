@@ -86,6 +86,7 @@ export function ConfirmDialog({
   children,
   tone = 'primary',
   cancel,
+  disabled,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -99,6 +100,8 @@ export function ConfirmDialog({
   children?: ReactNode;
   tone?: 'primary' | 'danger';
   cancel?: string;
+  /** The confirm button waits (something is still missing). */
+  disabled?: boolean;
 }) {
   const t = useMessages(DIALOG);
   const returnFocus = useReturnFocus(open);
@@ -120,6 +123,7 @@ export function ConfirmDialog({
             <Button
               variant={tone === 'danger' ? 'danger' : 'primary'}
               pending={pending}
+              disabled={disabled}
               pendingLabel={pendingLabel ?? t.working}
               data-confirm
               onClick={(e) => {

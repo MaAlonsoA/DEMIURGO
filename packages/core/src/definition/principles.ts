@@ -9,6 +9,7 @@ import {
   DEFINITION_STAGE,
   DEFINITION_TITLE,
   type Section,
+  answerItems,
   definitionChangeNote,
   stageDefinition,
 } from '@demiurgo/domain';
@@ -37,13 +38,24 @@ export async function conclusionWithImplies(trx: Db, questionId: string, conclus
     .executeTakeFirst();
   // The product definition composes its sections from the short answers.
   if (!q?.stage || q.stage === DEFINITION_STAGE) return conclusion;
-  // Each measurable goal is also a quality requirement (NFR) with its scenario and measure (decision
-  // of the mission, VISION.md Arranque), so the section keeps only the answer the person chose: the
-  // option's explanation could read as a different commitment (seen: «…rather than prescribing
-  // indefinite retention» after choosing «no automatic expiry»).
   const picked = pickedOptions(conclusion, q.options, q.conversation_option);
   if (!picked) return conclusion;
-  return picked.map((o) => o.answer).join('\n');
+  return pickedWithMeasures(picked);
+}
+
+/**
+ * The picked options as lines: the answer the person chose and, only when what it implies carries a
+ * measure (a number, so a unit or a threshold), that too. A bare «Fast confirmation matters most»
+ * loses the target it was chosen for, while an explanation without figures could read as a different
+ * commitment (seen: «…rather than prescribing indefinite retention» after choosing «no automatic expiry»).
+ */
+export function pickedWithMeasures(picked: readonly Option[]): string {
+  return picked
+    .map((o) => {
+      const implies = o.implies.trim();
+      return /\d/.test(implies) && !o.answer.includes(implies) ? `${o.answer.replace(/[.\s]+$/, '')}: ${implies}` : o.answer;
+    })
+    .join('\n');
 }
 
 /** Proposes the definition's next version with a covered stage's principles. */
@@ -122,9 +134,11 @@ export async function principlesBatch(trx: Db, projectId: string, stageId: strin
       .join('; ');
     return [`${label}: ${answer || 'confirmed without an answer.'}`];
   });
-  const content = lines.join('\n');
+  // One bullet per question: plain lines would run together in one paragraph when read.
+  const content = lines.map((l) => `- ${l}`).join('\n');
   const previous = base.sections as Section[];
-  if (previous.find((s) => s.title === def.principles)?.content.trim() === content) return null;
+  const same = (text: string | undefined) => answerItems(text ?? '').join('\n');
+  if (previous.some((s) => s.title === def.principles && same(s.content) === same(content))) return null;
   const sections = previous.some((s) => s.title === def.principles)
     ? previous.map((s) => (s.title === def.principles ? { title: s.title, content } : s))
     : [...previous, { title: def.principles, content }];

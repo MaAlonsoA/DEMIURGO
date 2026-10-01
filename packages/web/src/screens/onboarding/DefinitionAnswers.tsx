@@ -29,6 +29,7 @@ import { Sheet } from '../thread/Sheet.tsx';
 import { type Answer, blockCalls, initialAnswer, missingAnswers, openItems } from './confirm.ts';
 import { CONFIRM } from './words.i18n.ts';
 import { Quote } from '../../components/Quote.tsx';
+import { hasLine, listItems, toggleLine } from '../../lib/list-answer.ts';
 
 const DEFINITION_STAGE = 'requirements';
 
@@ -236,6 +237,11 @@ function Item({
   const section = d.section(q.stage_key ?? '');
   const corrected = read && answer.text.trim() !== (q.conclusion ?? '').trim();
   const write = (value: string) => onChange({ text: value });
+  // A list question ("name two or three things") adds a suggestion as a line of the answer, or takes it
+  // off again; any other question's suggestion replaces the answer.
+  const multiple = q.multiple === true;
+  const pick = (value: string) => write(multiple ? toggleLine(answer.text, value) : value);
+  const picked = (value: string) => (multiple ? hasLine(answer.text, value) : answer.text === value);
   return (
     <li
       data-trace={`question:${q.id}`}
@@ -278,9 +284,9 @@ function Item({
                     size="sm"
                     variant="secondary"
                     className="border-accent-edge"
-                    aria-pressed={answer.text === q.conversation_option.answer}
+                    aria-pressed={picked(q.conversation_option.answer)}
                     title={q.conversation_option.implies}
-                    onClick={() => write(q.conversation_option?.answer ?? '')}
+                    onClick={() => pick(q.conversation_option?.answer ?? '')}
                     data-conversation-option
                   >
                     <span className="text-xs font-medium text-accent-text">{words.fromConversation}</span>
@@ -292,9 +298,9 @@ function Item({
                     key={o.answer}
                     size="sm"
                     variant="secondary"
-                    aria-pressed={answer.text === o.answer}
+                    aria-pressed={picked(o.answer)}
                     title={o.implies}
-                    onClick={() => write(o.answer)}
+                    onClick={() => pick(o.answer)}
                   >
                     {o.answer}
                   </Button>
@@ -334,9 +340,17 @@ function Item({
           </>
         ) : (
           <>
-            <p className="max-w-prose text-base text-fg" data-answer-text>
-              {answer.text}
-            </p>
+            {multiple && listItems(answer.text).length > 1 ? (
+              <ul className="max-w-prose list-disc pl-5 text-base text-fg" data-answer-text>
+                {listItems(answer.text).map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="max-w-prose text-base text-fg" data-answer-text>
+                {answer.text}
+              </p>
+            )}
             {corrected ? (
               <p className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
                 {t.saved}

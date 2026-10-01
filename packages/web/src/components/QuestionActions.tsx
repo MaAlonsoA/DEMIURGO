@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useCommand } from '../api/commands.ts';
 import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
+import { listItems } from '../lib/list-answer.ts';
 import { type ActionHandler, ActionBar, useAllows } from './actions.tsx';
 import { announce } from './announce.tsx';
 import type { ButtonSize } from './Button.tsx';
@@ -23,6 +24,7 @@ export type QuestionLike = {
   conclusion?: string | null;
   reasoning?: string | null;
   state_reason?: string | null;
+  multiple?: boolean;
 };
 
 type DialogKind = null | 'confirm' | 'answer' | 'change' | 'park' | 'drop' | 'reopen';
@@ -240,13 +242,26 @@ export function QuestionOutcome({
 }) {
   const t = useMessages(QUESTION_ACTIONS);
   const shown = (key: string, value: string) => (reading ? reading.text(key, value) : value);
-  if (q.state === 'confirmed' && q.conclusion)
-    return (
+  if (q.state === 'confirmed' && q.conclusion) {
+    const answer = shown('conclusion', q.conclusion);
+    const items = q.multiple || answer.includes('\n') ? listItems(answer) : [];
+    // A list answer reads as separate items, not as one run-on sentence.
+    return items.length > 1 ? (
+      <div className={cn('text-sm text-fg-2', className)}>
+        <span className="font-medium text-fg">{t.answerLabel}</span>
+        <ul className="list-disc pl-5">
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    ) : (
       <p className={cn('text-sm text-fg-2', className)}>
         <span className="font-medium text-fg">{t.answerLabel}</span>
-        {shown('conclusion', q.conclusion)}
+        {answer}
       </p>
     );
+  }
   if (q.state === 'inferred' && q.conclusion)
     return (
       <div className={cn('flex flex-col gap-0.5 text-sm text-fg-2', className)}>

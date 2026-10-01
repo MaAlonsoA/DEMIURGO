@@ -4,6 +4,7 @@
 // changes are new versions, each with what changed and why. Pure.
 
 import { VERSION_LIMITS, type Section } from './records.ts';
+import { stageQuestionMultiple } from './stages.ts';
 
 /** The stage whose answers make the definition. */
 export const DEFINITION_STAGE = 'requirements';
@@ -47,6 +48,28 @@ export type DefinitionSource = {
 
 export type ComposedDefinition = { title: string; sections: Section[]; sources: DefinitionSource[] };
 
+const BULLET = /^\s*(?:[-*\u2022]\s+)/;
+
+/**
+ * The items of a list answer: one per line, or joined with « · » as a multiple choice joins its picks
+ * (the thread's separator). A leading bullet mark is dropped. Empty lines are ignored.
+ */
+export function answerItems(text: string): string[] {
+  return text
+    .split(/\n| \u00b7 /)
+    .map((l) => l.replace(BULLET, '').trim())
+    .filter(Boolean);
+}
+
+/**
+ * A list answer as a Markdown bullet list, so each item reads on its own line (a plain newline would
+ * collapse into one sentence). One item stays as written: it is not a list.
+ */
+export function answerBullets(text: string): string {
+  const items = answerItems(text);
+  return items.length < 2 ? text.trim() : items.map((i) => `- ${i}`).join('\n');
+}
+
 /** A section whose question the project never had (its stage opened before the question existed). */
 export const NOT_ASKED = 'Not asked when this stage opened.';
 
@@ -66,7 +89,10 @@ export function composeDefinition(questions: readonly DefinitionQuestion[]): Com
       continue;
     }
     if (q.state === 'confirmed') {
-      sections.push({ title: s.title, content: q.conclusion?.trim() || 'Confirmed without an answer.' });
+      const answer = q.conclusion?.trim();
+      // A list question keeps its items apart: one bullet each, never run together in one sentence.
+      const content = answer ? (stageQuestionMultiple(DEFINITION_STAGE, s.key) ? answerBullets(answer) : answer) : 'Confirmed without an answer.';
+      sections.push({ title: s.title, content });
       sources.push({ section: s.title, key: s.key, question_id: q.id, state: 'confirmed' });
     } else if (q.state === 'discarded') {
       const reason = q.state_reason?.trim();
@@ -79,8 +105,10 @@ export function composeDefinition(questions: readonly DefinitionQuestion[]): Com
 
 /** The titles of the sections whose content differs between two versions, in the next one's order. */
 export function definitionChanges(previous: readonly Section[], next: readonly Section[]): string[] {
-  const before = new Map(previous.map((s) => [s.title, s.content.trim()]));
-  const changed = next.filter((s) => before.get(s.title) !== s.content.trim()).map((s) => s.title);
+  // Compared by items, so a list written as plain lines and the same list as bullets are the same text.
+  const same = (s: string) => answerItems(s).join('\n');
+  const before = new Map(previous.map((s) => [s.title, same(s.content)]));
+  const changed = next.filter((s) => before.get(s.title) !== same(s.content)).map((s) => s.title);
   const removed = previous.filter((s) => !next.some((n) => n.title === s.title)).map((s) => s.title);
   return [...changed, ...removed];
 }

@@ -7,6 +7,8 @@ import {
   DEFINITION_SECTIONS,
   type DefinitionQuestion,
   NOT_ASKED,
+  answerBullets,
+  answerItems,
   changeReasons,
   composeDefinition,
   definitionChangeNote,
@@ -143,5 +145,26 @@ describe('the person’s words a quote rests on', () => {
     ];
     expect(findQuote('todo se hace desde la web', messages)).toEqual({ message_id: 'b', quote: 'Todo se hace desde la web.' });
     expect(findQuote('nada de esto', messages)).toBeNull();
+  });
+});
+
+describe('list answers in the definition', () => {
+  const list = 'Know how many books I read\nSee the count each month';
+  const withAnswer = (key: string, conclusion: string) => everyAnswer().map((q) => (q.key === key ? { ...q, conclusion } : q));
+
+  it('keeps the items of a list question as separate bullets', () => {
+    const d = composeDefinition(withAnswer('outcomes', list));
+    expect(d?.sections.find((s) => s.title === 'Outcomes')?.content).toBe('- Know how many books I read\n- See the count each month');
+    expect(answerBullets('A · B')).toBe('- A\n- B');
+    expect(answerItems('- A\n* B\n\n')).toEqual(['A', 'B']);
+  });
+  it('leaves a single item and a single-answer question as written', () => {
+    expect(composeDefinition(withAnswer('outcomes', 'Only one.'))?.sections[1]?.content).toBe('Only one.');
+    expect(composeDefinition(withAnswer('purpose', list))?.sections[0]?.content).toBe(list);
+  });
+  it('does not call a section changed when only its list formatting differs', () => {
+    const plain = [{ title: 'Outcomes', content: list }];
+    const bullets = [{ title: 'Outcomes', content: answerBullets(list) }];
+    expect(definitionChanges(plain, bullets)).toEqual([]);
   });
 });

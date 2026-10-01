@@ -163,7 +163,7 @@ type Summary = {
   error?: string;
 };
 
-function summarize(lines: readonly string[]): Summary {
+export function summarizeCodexLines(lines: readonly string[]): Summary {
   const s: Summary = {
     input: 0,
     cached: 0,
@@ -202,7 +202,7 @@ function summarize(lines: readonly string[]): Summary {
 
 const from = (reported: boolean, field: string): string => (reported ? `codex:turn.completed.usage.${field}` : 'not_reported');
 
-function usageOf(s: Summary, durationMs: number): Usage {
+export function codexUsageOf(s: Summary, durationMs: number): Usage {
   return {
     inputTokens: s.input,
     outputTokens: s.output,
@@ -382,8 +382,8 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
           .split('\n')
           .map((l) => l.trim())
           .filter(Boolean);
-        const summary = summarize(lines);
-        const usage = usageOf(summary, Date.now() - start);
+        const summary = summarizeCodexLines(lines);
+        const usage = codexUsageOf(summary, Date.now() - start);
         const last = await readFile(files.last, 'utf8').catch(() => '');
         const text = last.trim() || summary.lastMessage?.trim() || '';
         // The raw `-o` file is kept whole, whether or not it validates (§7.6), and the thread id.

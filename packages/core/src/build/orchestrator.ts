@@ -797,6 +797,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       ...(result.reattached ? { reattached: true } : {}),
       duration_ms: result.durationMs,
       transcript_tail_length: result.transcriptTail.length,
+      ...(result.usage ? { usage: result.usage } : {}),
       report: result.report,
       ...(progressText ? { progress: progressText } : {}),
       ...(testReuse.length > 0 ? { test_reuse: testReuse } : {}),

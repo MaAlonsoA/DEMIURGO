@@ -95,7 +95,7 @@ export function lineLength(executable: string, args: readonly string[]): number 
 
 const amount = z.number().optional();
 
-const cliResultSchema = z.looseObject({
+export const cliResultSchema = z.looseObject({
   type: z.literal('result'),
   subtype: z.string().optional(),
   is_error: z.boolean().optional(),
@@ -142,7 +142,7 @@ function locateResult(value: unknown): { result: Record<string, unknown>; initia
 
 const reported = (value: unknown, field: string): string => (value === undefined ? 'not_reported' : `claude:${field}`);
 
-function usageOf(r: CliResult, measuredDurationMs: number, detailed: boolean): Usage {
+export function claudeUsageOf(r: CliResult, measuredDurationMs: number, detailed: boolean): Usage {
   const u = r.usage ?? {};
   const basic: Usage = {
     // Includes input tokens read from or written to the cache.
@@ -224,7 +224,7 @@ export function normalizeClaudeOutput(
     };
   }
   const r = parsed.data;
-  const usage = usageOf(r, measuredDurationMs, options.detailed ?? true);
+  const usage = claudeUsageOf(r, measuredDurationMs, options.detailed ?? true);
   const model = observedModel(r, located.initialModel) ?? requestedModel;
   if (r.is_error === true || end.code !== 0) {
     const apiState = typeof r.api_error_status === 'number' ? ` (HTTP ${r.api_error_status})` : '';

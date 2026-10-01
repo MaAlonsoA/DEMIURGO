@@ -9,8 +9,9 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { FailureKind } from '@demiurgo/domain';
+import type { FailureKind, Usage } from '@demiurgo/domain';
 import { z } from 'zod';
+import { usageCollector } from './builder-usage.ts';
 import { CLAUDE_TOKEN_VARIABLE, type LoginCheck, checkClaudeLogin, claudeOauthToken } from './claude-login.ts';
 import {
   DEAD_DAEMON_PATTERN,
@@ -80,6 +81,8 @@ export type BuilderResult = {
   stderrTail?: string;
   report: BuildReport | null;
   container: string;
+  /** Tokens and cost the CLI's whole stream reported (same shape as `ai_runs.usage`); absent when it reported none. */
+  usage?: Usage;
   /** The agent session this run used or started, when the spec asked for one. */
   sessionId?: string;
   /** True when the container was already there (an API restart replayed the step) and this call collected it instead of starting one. */
@@ -421,6 +424,7 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
   const waited = attach ? dockerCapture(binary, ['wait', name], environment) : undefined;
 
   const output = collector(OUTPUT_LIMIT);
+  const usageSeen = usageCollector(spec.provider);
   const errors = collector(64 * 1024);
   let stopReason: 'timeout' | 'cancelled' | undefined;
   let startupError: Error | undefined;
@@ -464,6 +468,7 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
     options.signal?.addEventListener('abort', onAbort, { once: true });
     child.stdout?.on('data', (t: Buffer) => {
       output.add(t);
+      usageSeen.add(t.toString('utf8'));
       if (spec.provider === 'codex' && spec.session?.mode === 'fresh' && threadId === undefined && head.length < 65_536) {
         head += t.toString('utf8');
         threadId = THREAD_STARTED.exec(head)?.[1];
@@ -490,6 +495,7 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
   const stderr = errors.text();
   const stdout = output.text();
   const sessionId = spec.session ? (spec.provider === 'codex' && spec.session.mode === 'fresh' ? threadId : spec.session.id) : undefined;
+  const usage = usageSeen.usage(Math.round(performance.now() - start));
   const base = {
     exitCode: code,
     durationMs: Math.round(performance.now() - start),
@@ -497,6 +503,7 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
     stderrTail: stderr.slice(-4000),
     report: await readReport(worktree),
     container: name,
+    ...(usage ? { usage } : {}),
     ...(sessionId ? { sessionId } : {}),
   };
   if (plan === 'collect_and_remove') await runDockerCommand(binary, ['rm', '-f', name], environment);

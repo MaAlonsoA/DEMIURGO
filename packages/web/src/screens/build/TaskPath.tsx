@@ -393,6 +393,24 @@ function Entered({ attempt, previous, t, stages }: { attempt: TimelineAttempt; p
           </ul>
         </Row>
       ) : null}
+      {b && (b.told || b.tdd_told.length > 0) ? (
+        <Row label={t.tpToldShow}>
+          <div className="flex flex-col gap-1" data-builder-told>
+            {b.told ? (
+              <details>
+                <summary className="cursor-pointer text-xs text-fg-2">{t.tpToldShow}</summary>
+                <pre className="whitespace-pre-wrap break-words font-code text-xs text-fg-2">{b.told}</pre>
+              </details>
+            ) : null}
+            {b.tdd_told.map((p, i) => (
+              <details key={`${i}-${p.length}`}>
+                <summary className="cursor-pointer text-xs text-fg-2">{t.tpToldLoop(i + 1)}</summary>
+                <pre className="whitespace-pre-wrap break-words font-code text-xs text-fg-2">{p}</pre>
+              </details>
+            ))}
+          </div>
+        </Row>
+      ) : null}
       {b && b.wip_files > 0 ? <Row label={t.tpWip}>{t.tpWipValue(b.wip_files)}</Row> : null}
       <Row label={t.tpFeedback}>
         {prev && previous ? (

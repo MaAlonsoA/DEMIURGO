@@ -425,7 +425,10 @@ function designSection(d: { manifest: DesignManifest; manifestText: string; toke
   ];
 }
 
-function promptOf(
+type PromptParts = { head: string[]; before: string[]; design: string[]; feedback: string[] };
+
+/** The prompt in the order it is sent: head (agent body and brief, or the continuation header), then the sections after the brief. */
+function promptParts(
   body: string,
   brief: string,
   attempt: number,
@@ -434,11 +437,13 @@ function promptOf(
   code: string[] = [],
   resumed = false,
   earlier: string[] = [],
-): string {
+): PromptParts {
   // A continued session already has the brief, the design system and its own notes: it only gets what is new.
-  const lines = resumed
-    ? [`# Continue (attempt ${attempt} on the same branch)`, 'You are continuing your previous session on this task: the brief and your earlier work are in this conversation. Read the new feedback below, fix what it names and keep to the same rules and report format.', ...(code.length > 0 ? ['', ...code] : [])]
-    : [body, '', '# Brief', brief, ...(code.length > 0 ? ['', ...code] : []), ...(earlier.length > 0 ? ['', ...earlier] : []), ...designSection(design)];
+  const head = resumed
+    ? [`# Continue (attempt ${attempt} on the same branch)`, 'You are continuing your previous session on this task: the brief and your earlier work are in this conversation. Read the new feedback below, fix what it names and keep to the same rules and report format.']
+    : [body, '', '# Brief', brief];
+  const before = [...(code.length > 0 ? ['', ...code] : []), ...(!resumed && earlier.length > 0 ? ['', ...earlier] : [])];
+  const lines: string[] = [];
   const progress = resumed ? undefined : f.progress;
   const history = resumed ? [] : (f.history ?? []);
   if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.fixes.length > 0 || f.failing.length > 0 || f.failures.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || progress || history.length > 0 || (f.tdd?.length ?? 0) > 0)) {
@@ -475,8 +480,28 @@ function promptOf(
   } else if (attempt > 1) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`, 'The previous attempt did not merge; check the tests and the review comments on the pull request.');
   }
-  return lines.join('\n');
+  return { head, before, design: resumed ? [] : designSection(design), feedback: lines };
 }
+
+function promptOf(...args: Parameters<typeof promptParts>): string {
+  const p = promptParts(...args);
+  return [...p.head, ...p.before, ...p.design, ...p.feedback].join('\n');
+}
+
+/**
+ * What the builder was told beyond the brief (code to extend, earlier context, feedback), as stored for the person to read.
+ * A continued session has no brief: its whole prompt is returned. The design system section is replaced by a line (it is
+ * the same every attempt and would push the feedback out of the stored text).
+ */
+export function promptExtras(...args: Parameters<typeof promptParts>): string {
+  const p = promptParts(...args);
+  if (args[6]) return [...p.head, ...p.before, ...p.feedback].join('\n');
+  return [...p.before, ...(p.design.length > 0 ? ['', '# Design system (section omitted here: the project design system, unchanged)'] : []), ...p.feedback].join('\n').replace(/^\n+/, '');
+}
+
+const TOLD_MAX = 12000;
+const TDD_TOLD_MAX = 4000;
+const capTold = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max)}\n… (truncated)` : text);
 
 const summaryOf = (report: BuildReport | null): string => report?.summary?.trim() || 'No report from the builder.';
 
@@ -786,6 +811,10 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       }
     })();
     const feedback: Feedback = { ...feedbackBase, history: earlierContext.history };
+    const promptArgs = [agent.body, info.brief, attempt, feedback, designSystem, codeLines, plan.mode === 'resumed', earlierContext.fresh] as const;
+    const builderPrompt = promptOf(...promptArgs);
+    const told = capTold(promptExtras(...promptArgs), TOLD_MAX);
+    const tddTold: string[] = [];
     const first = await d.runBuilder(
       {
         worktreeHostPath: hostPathOf(worktree.path),
@@ -793,7 +822,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
         provider,
         model: resolution.model,
         effort: resolution.effort ?? 'medium',
-        prompt: promptOf(agent.body, info.brief, attempt, feedback, designSystem, codeLines, plan.mode === 'resumed', earlierContext.fresh),
+        prompt: builderPrompt,
         session: { mode: plan.mode, ...(sessionId ? { id: sessionId } : {}), hostDir: hostPathOf(sessionDir) },
         maxTimeMs: Math.min(agent.timeLimitSeconds * 1000, BUILDER_MAX_TIME_MS),
         limits: { cpus: 2, memoryMb: 4096, pids: 512 },
@@ -823,8 +852,9 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
                 ...(d.tddExec ? { exec: d.tddExec } : {}),
                 signal: control.signal,
                 session: first.sessionId ?? sessionId,
-                rerun: (prompt, loop, session) =>
-                  d.runBuilder(
+                rerun: (prompt, loop, session) => {
+                  tddTold.push(capTold(prompt, TDD_TOLD_MAX));
+                  return d.runBuilder(
                     {
                       worktreeHostPath: hostPathOf(worktree.path),
                       gitDir: { hostPath: hostPathOf(join(info.repoDir, '.git')), containerPath: join(info.repoDir, '.git') },
@@ -840,7 +870,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
                       env: prepared.env,
                     },
                     { worktreePath: worktree.path, signal: control.signal, containerName: `demiurgo-build-${requestId}-tdd${loop}` },
-                  ),
+                  );
+                },
               });
             } catch {
               return null;
@@ -884,6 +915,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       ...(code.lines.length > 0 ? { code_to_extend: { commit: code.commit, files: code.files, classifier_id: code.classifier_id, section: codeLines.join('\n') } } : {}),
       ...(wip ? { wip_commit: wip.sha, wip_files: wip.files, ...(wip.pushError ? { wip_push_error: wip.pushError } : {}) } : {}),
       ...(twice ? { timed_out_twice: true, branch: worktree.branch } : {}),
+      told,
+      ...(tddTold.length > 0 ? { tdd_told: tddTold } : {}),
       ...(gate ? { tdd: gate.detail } : {}),
       ...(kind ? { failure_kind: kind, transcript_excerpt: failureExcerpt({ stderr: result.stderrTail, transcript: result.transcriptTail }) } : {}),
     };

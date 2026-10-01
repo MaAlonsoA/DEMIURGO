@@ -1341,6 +1341,8 @@ export type TimelineAttempt = {
     progress: string | null;
     progress_chars: number;
     context: string[];
+    told: string | null;
+    tdd_told: string[];
     notes: string | null;
     tests_written: number | null;
     wip_files: number;

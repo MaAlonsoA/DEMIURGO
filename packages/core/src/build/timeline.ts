@@ -86,6 +86,10 @@ export type TimelineAttempt = {
     progress_chars: number;
     /** The earlier-context sections the builder was given (attempt_history, earlier_builds, sibling_reviews). */
     context: string[];
+    /** Exactly what the builder was told beyond the brief (continuation header or code/earlier context/feedback); null on older attempts. */
+    told: string | null;
+    /** The prompts of the test-driven loops that re-invoked the builder. */
+    tdd_told: string[];
     notes: string | null;
     tests_written: number | null;
     wip_files: number;
@@ -280,6 +284,8 @@ function builderOf(rows: TimelineStepRow[]): TimelineAttempt['builder'] {
     progress: cut(progress, NOTES),
     progress_chars: progress ? progress.length : 0,
     context: Array.isArray(d.context) ? d.context.filter((x): x is string => typeof x === 'string').slice(0, 5) : [],
+    told: typeof d.told === 'string' ? d.told : null,
+    tdd_told: Array.isArray(d.tdd_told) ? d.tdd_told.filter((x): x is string => typeof x === 'string').slice(0, 15) : [],
     notes: cut(report.notes, NOTES),
     tests_written: Array.isArray(report.tests) ? report.tests.length : null,
     wip_files: Array.isArray(d.wip_files) ? d.wip_files.length : 0,

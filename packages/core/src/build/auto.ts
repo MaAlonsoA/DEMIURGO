@@ -24,9 +24,10 @@ export type AutoStopped = {
   /**
    * needs_you: «DEMIURGO tried N times; it needs you»; ended: the last attempt failed or was cancelled;
    * stale: the request is out of date; manual_review: a pull request pasted by hand is waiting;
-   * waiting: the builder hit a transient limit (the subscription's usage limit): the queue is paused, not given up.
+   * waiting: the builder hit a transient limit (the subscription's usage limit): the queue is paused, not given up;
+   * main_red: CI on the base branch failed after DEMIURGO merged `code` (stop the line: nothing new starts).
    */
-  kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting';
+  kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red';
   tried: number | null;
   /** The builder's failure kind (usage_limit, auth, other…) when the last attempt failed in the builder. */
   failure_kind?: string | null;
@@ -43,6 +44,8 @@ export type AutoStatus = {
   /** The task that starts next, when nothing stops the queue. */
   next: string | null;
   stopped: AutoStopped | null;
+  /** Flaky tests the last builds quarantined (they did not block their pull request): someone creates a fix task. Omitted when none. */
+  quarantined?: string[];
 };
 
 export async function queueAutoOn(db: Db | Tx, projectId: string): Promise<boolean> {
@@ -51,6 +54,45 @@ export async function queueAutoOn(db: Db | Tx, projectId: string): Promise<boole
 }
 
 type Start = { code: string; hasRequest: boolean };
+
+/**
+ * Stop the line (Martin Fowler, "Continuous Integration": fix broken builds immediately): the latest CI result on the
+ * base branch of the project (`main` build step, written after each merge) is red. Nothing new starts until the person
+ * has fixed main and touches «Build the queue» (turns it off and on, or changes «at once») after that failure:
+ * only a person's command changes the flag (capability matrix), so the stop is derived from the stored steps.
+ */
+async function mainRed(db: Db, projectId: string): Promise<AutoStopped | null> {
+  const last = await db
+    .selectFrom('build_steps')
+    .innerJoin('build_requests', 'build_requests.id', 'build_steps.build_request_id')
+    .innerJoin('records', 'records.id', 'build_requests.task_id')
+    .select(['build_steps.outcome', 'build_steps.created_at', 'records.code'])
+    .where('build_steps.project_id', '=', projectId)
+    .where('build_steps.stage', '=', 'main')
+    .orderBy('build_steps.created_at', 'desc')
+    .orderBy('build_steps.id', 'desc')
+    .executeTakeFirst();
+  if (!last || last.outcome !== 'failed') return null;
+  const settings = await db.selectFrom('build_queue_settings').select('set_at').where('project_id', '=', projectId).executeTakeFirst();
+  if (settings && new Date(settings.set_at as unknown as Date).getTime() >= new Date(last.created_at as unknown as Date).getTime()) return null;
+  return { code: last.code, kind: 'main_red', tried: null };
+}
+
+/** The flaky tests quarantined by the project's latest builds (see flaky.ts), without repeats. */
+async function quarantinedTests(db: Db, projectId: string): Promise<string[]> {
+  const rows = await db
+    .selectFrom('build_steps')
+    .select('detail')
+    .where('project_id', '=', projectId)
+    .where('stage', '=', 'evidence')
+    .where('outcome', '=', 'ok')
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .limit(20)
+    .execute();
+  const tests = rows.flatMap((x) => (x.detail as { quarantined?: string[] } | null)?.quarantined ?? []);
+  return [...new Set(tests)];
+}
 
 /** One ready task, from the stored state only: it starts, or the queue stops at it. */
 async function taskState(db: Db, t: QueueTask): Promise<{ kind: 'start'; hasRequest: boolean } | { kind: 'stopped'; stopped: AutoStopped }> {
@@ -141,6 +183,9 @@ async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number)
   const running: string[] = [];
   for (const o of open) if (await buildRunning(db, o.id)) running.push(o.code);
   const result: Plan = { running, start: [], stopped: null };
+  // A red main stops the line even while builds run: they finish, and nothing new starts.
+  const red = await mainRed(db, projectId);
+  if (red) return { ...result, stopped: red };
   if (running.length >= limit) return result;
   const index = await loadTaskDependencies(db, projectId);
   const busy = new Set(running);
@@ -168,10 +213,12 @@ async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number)
 export async function autoStatus(db: Db, projectId: string, queue: BuildQueue): Promise<AutoStatus> {
   const on = await queueAutoOn(db, projectId);
   const parallel = await queueParallelOf(db, projectId);
-  if (!on) return { on, parallel, building: null, builds: [], next: null, stopped: null };
+  const quarantined = await quarantinedTests(db, projectId);
+  const flaky = quarantined.length > 0 ? { quarantined } : {};
+  if (!on) return { on, parallel, building: null, builds: [], next: null, stopped: null, ...flaky };
   const p = await plan(db, projectId, queue, parallel);
   const next = p.start[0]?.code ?? (p.running.length ? (queue.ready.find((t) => !p.running.includes(t.code) && t.request === null)?.code ?? null) : null);
-  return { on, parallel, building: p.running[0] ?? null, builds: p.running, next, stopped: p.stopped };
+  return { on, parallel, building: p.running[0] ?? null, builds: p.running, next, stopped: p.stopped, ...flaky };
 }
 
 const tails = new Map<string, Promise<unknown>>();

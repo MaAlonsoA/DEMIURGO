@@ -443,6 +443,8 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
         ? t.autoNeedsYou(s.code, s.tried)
         : s.kind === "waiting"
           ? t.autoWaiting(s.code)
+          : s.kind === "main_red"
+          ? t.autoMainRed(s.code)
           : s.kind === "ended"
           ? t.autoEnded(s.code)
           : s.kind === "stale"
@@ -502,6 +504,11 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
             {status}
           </p>
         )
+      ) : null}
+      {auto.quarantined && auto.quarantined.length > 0 ? (
+        <p className="text-sm text-fg-2" data-quarantined>
+          {t.quarantined(auto.quarantined.join(", "))}
+        </p>
       ) : null}
       {command.error ? <ErrorNotice error={command.error} compact /> : null}
     </section>

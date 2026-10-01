@@ -464,7 +464,7 @@ export type Inbox = {
 export type CriterionState = 'verified' | 'failing' | 'in_pr' | 'no_evidence' | 'check_by_hand' | 'not_started';
 export type TaskBuildState = 'to_do' | 'requested' | 'in_pr' | 'merged' | 'failing';
 
-export type BuildStage = 'repo' | 'worktree' | 'environment' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
+export type BuildStage = 'repo' | 'worktree' | 'environment' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge' | 'main';
 export type BuildOutcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested' | 'cancelled';
 export type BuildStep = { attempt: number; stage: BuildStage; outcome: BuildOutcome; detail: unknown; at: string };
 
@@ -1239,9 +1239,11 @@ export type BuildQueue = {
     next: string | null;
     stopped: {
       code: string;
-      kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting';
+      kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red';
       tried: number | null;
       failure_kind?: string | null;
     } | null;
+    /** Flaky tests the last builds quarantined (they did not block their pull request). */
+    quarantined?: string[];
   };
 };

@@ -98,6 +98,9 @@ export const BUILD = messages(
     autoWaiting: (code: string) =>
       `The queue is waiting: the subscription's usage limit was reached while building ${code}. Build it again after the limit resets and the queue goes on.`,
     autoStale: (code: string) => `Stopped: the request of ${code} is stale. Withdraw it and the queue goes on.`,
+    autoMainRed: (code: string) =>
+      `Stopped: main is red after merging ${code}: fix main before building more. Once it is green, turn «Build the queue» off and on again.`,
+    quarantined: (tests: string) => `Quarantined flaky tests: ${tests}. They did not block their pull request: create a task to fix them.`,
     autoManual: (code: string) => `Stopped: ${code} has a pull request you sent to review by hand. Mark it done or withdraw the request.`,
   },
   {
@@ -195,6 +198,9 @@ export const BUILD = messages(
     autoWaiting: (code: string) =>
       `La cola espera: se alcanzó el límite de uso de la suscripción al construir ${code}. Vuelve a construirla cuando se reinicie el límite y la cola sigue.`,
     autoStale: (code: string) => `Detenida: la petición de ${code} está caducada. Retírala y la cola sigue.`,
+    autoMainRed: (code: string) =>
+      `Detenida: main está en rojo tras fusionar ${code}: arregla main antes de construir más. Cuando esté en verde, apaga y vuelve a encender «Build the queue».`,
+    quarantined: (tests: string) => `Tests inestables en cuarentena: ${tests}. No bloquearon su pull request: crea una tarea para arreglarlos.`,
     autoManual: (code: string) => `Detenida: ${code} tiene una pull request que pasaste a revisión a mano. Márcala hecha o retira la petición.`,
   },
 );

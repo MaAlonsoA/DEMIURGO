@@ -69,6 +69,7 @@ export const AGENT_BUILD = messages(
     s_review: 'Reviewer agent',
     s_publish: 'Review published',
     s_merge: 'Merge',
+    s_main: 'CI on main',
   },
   {
     build: 'Construir con un agente',
@@ -136,5 +137,6 @@ export const AGENT_BUILD = messages(
     s_review: 'Agente revisor',
     s_publish: 'Revisión publicada',
     s_merge: 'Fusión',
+    s_main: 'CI en main',
   },
 );

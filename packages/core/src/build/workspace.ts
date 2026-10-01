@@ -17,7 +17,8 @@ const git = (dir: string, args: string[]) => run('git', ['-c', 'safe.directory=*
 
 export const BUILDER_AUTHOR = 'DEMIURGO builder <builder@demiurgo.local>';
 
-export type Worktree = { path: string; branch: string };
+/** `conflicts`: files of an origin/main merge left in progress for the builder to resolve. */
+export type Worktree = { path: string; branch: string; conflicts?: string[] };
 
 const parseAuthor = (author: string): { name: string; email: string } => {
   const m = /^(.*?)\s*<([^>]+)>$/.exec(author.trim());
@@ -44,23 +45,47 @@ async function branchExists(repoDir: string, ref: string): Promise<boolean> {
 }
 
 /**
- * Merges origin's main into the worktree's branch (a merge commit, like the one the project's main
- * gets before it is pushed), so «Address the review» builds on the code merged meanwhile. A conflict
- * aborts the merge, leaving the branch as it was, and fails the step.
+ * Fast-forwards the worktree's branch to origin's copy of it when GitHub moved it (its «Update branch» merges the
+ * base into the pull request's branch), so a later push stays a fast-forward. Best effort: anything else is left alone.
  */
-async function integrateOriginMain(repoDir: string, worktree: string): Promise<void> {
+async function followRemoteBranch(repoDir: string, worktree: string, branch: string): Promise<void> {
+  try {
+    await runGit(repoDir, ['fetch', 'origin', branch], { network: true });
+    const ahead = Number((await git(worktree, ['rev-list', '--count', 'HEAD..FETCH_HEAD'])).stdout.trim());
+    if (ahead) await git(worktree, ['merge', '--ff-only', 'FETCH_HEAD']);
+  } catch {
+    // no remote copy yet, or the histories diverged: the integration below decides
+  }
+}
+
+const conflictedFiles = async (worktree: string): Promise<string[]> =>
+  (await git(worktree, ['diff', '--name-only', '--diff-filter=U'])).stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+
+/**
+ * Merges origin's main into the worktree's branch (a merge commit, like the one the project's main
+ * gets before it is pushed), so «Address the review» builds on the code merged meanwhile. When the merge
+ * conflicts with files of the branch, it is left in progress with its conflict markers and the files are
+ * returned: the builder resolves them (the next commit concludes the merge). Any other failure aborts the
+ * merge, leaving the branch as it was, and fails the step.
+ */
+async function integrateOriginMain(repoDir: string, worktree: string): Promise<string[]> {
   try {
     await runGit(repoDir, ['fetch', 'origin', 'main'], { network: true });
   } catch (e) {
     // A remote with no main yet: nothing to integrate.
-    if (/couldn't find remote ref/i.test(e instanceof Error ? e.message : String(e))) return;
+    if (/couldn't find remote ref/i.test(e instanceof Error ? e.message : String(e))) return [];
     throw e;
   }
+  // A merge a previous attempt left in progress: its conflicts are still the builder's to resolve.
+  if (await git(worktree, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']).then(() => true, () => false)) return conflictedFiles(worktree);
   const behind = Number((await git(worktree, ['rev-list', '--count', 'HEAD..origin/main'])).stdout.trim());
-  if (!behind) return;
+  if (!behind) return [];
   try {
     await git(worktree, ['-c', 'user.name=DEMIURGO', '-c', 'user.email=demiurgo@demiurgo.local', '-c', 'commit.gpgsign=false', 'merge', '--no-edit', 'origin/main']);
+    return [];
   } catch (e) {
+    const conflicts = await conflictedFiles(worktree);
+    if (conflicts.length > 0) return conflicts;
     await git(worktree, ['merge', '--abort']).catch(() => undefined);
     throw new Error(`Could not merge origin/main into the task branch (the merge was aborted, the branch is unchanged): ${e instanceof Error ? e.message : String(e)}`);
   }
@@ -80,7 +105,11 @@ export async function prepareWorktree(input: { repoDir: string; taskCode: string
   if (input.existingBranch) {
     const branch = input.existingBranch;
     if (existsSync(path)) {
-      if (origin && !input.skipIntegrate) await integrateOriginMain(input.repoDir, path);
+      if (origin && !input.skipIntegrate) {
+        await followRemoteBranch(input.repoDir, path, branch);
+        const conflicts = await integrateOriginMain(input.repoDir, path);
+        return { path, branch, ...(conflicts.length > 0 ? { conflicts } : {}) };
+      }
       return { path, branch };
     }
     await git(input.repoDir, ['worktree', 'prune']);
@@ -91,7 +120,10 @@ export async function prepareWorktree(input: { repoDir: string; taskCode: string
       await git(input.repoDir, ['worktree', 'add', '-b', branch, path, `origin/${branch}`]);
     }
     // A second attempt on the same pull request starts from what main has now (other tasks merged since).
-    if (origin) await integrateOriginMain(input.repoDir, path);
+    if (origin) {
+      const conflicts = await integrateOriginMain(input.repoDir, path);
+      if (conflicts.length > 0) return { path, branch, conflicts };
+    }
     return { path, branch };
   }
   const branch = branchName(input.taskCode, input.buildId);

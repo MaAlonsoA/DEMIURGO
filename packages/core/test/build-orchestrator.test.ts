@@ -144,9 +144,16 @@ const junit = (failing: boolean) =>
 const diffWith = () =>
   `diff --git a/tests/x.test.ts b/tests/x.test.ts\n+++ b/tests/x.test.ts\n${codes.map((c) => `+it('${c} does what the criterion says', () => {});`).join('\n')}\n`;
 
-type Calls = { statuses: { state: string; sha: string; context: string }[]; autoMerge: string[]; merges: number; reviews: number; opened: number; polls: { ci: number; merge: number }; prompts: string[]; teardowns: number; prepared: { slug: string; id: string; keep: string[]; install: string | undefined; env: Record<string, string> }[]; builderSpecs: { network?: string; storeVolume?: string; env?: Record<string, string> }[] };
+type Calls = { updateCalls: number; updated: boolean; statuses: { state: string; sha: string; context: string }[]; autoMerge: string[]; merges: number; reviews: number; opened: number; polls: { ci: number; merge: number }; prompts: string[]; teardowns: number; prepared: { slug: string; id: string; keep: string[]; install: string | undefined; env: Record<string, string> }[]; builderSpecs: { network?: string; storeVolume?: string; env?: Record<string, string> }[] };
 let calls: Calls;
 let builderRuns = 0;
+
+const UPDATED_SHA = 'u'.repeat(40);
+const MAIN_SHA = 'm'.repeat(40);
+const FLAKY_OUTSIDE = 'checkout totals are rounded';
+/** A JUnit run where every criterion of the task passes and a test of no criterion fails (or passes). */
+const withOutside = (outsideFails: boolean) =>
+  `<?xml version="1.0"?><testsuite>${codes.map((c) => `<testcase name="${c} does what the criterion says"/>`).join('')}<testcase name="${FLAKY_OUTSIDE}">${outsideFails ? '<failure message="boom"/>' : ''}</testcase></testsuite>`;
 
 const APPROVED_TOKENS = { color: { bg: { $value: { light: '#ffffff', dark: '#000000' }, $type: 'color' } } };
 
@@ -162,11 +169,11 @@ function writeDesign(dir: string, violating: boolean): void {
   );
 }
 
-function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean; auto?: number; greenAfterRuns?: number; extraCiRun?: (poll: number) => { status: string; conclusion: string | null } }): Partial<BuildDeps> {
+function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean; auto?: number; greenAfterRuns?: number; behind?: boolean; updateConflict?: boolean; updatedCi?: 'failure'; mainConclusion?: 'success' | 'failure'; flaky?: 'outside'; extraCiRun?: (poll: number) => { status: string; conclusion: string | null } }): Partial<BuildDeps> {
   const base = builderRuns;
   // With greenAfterRuns, CI is red until the builder has run that many times, then green.
   const conclusionNow = (): 'success' | 'failure' => (opts.greenAfterRuns !== undefined && builderRuns - base >= opts.greenAfterRuns ? 'success' : opts.ciConclusion);
-  calls = { statuses: [], autoMerge: [], merges: 0, reviews: 0, opened: 0, polls: { ci: 0, merge: 0 }, prompts: [], teardowns: 0, prepared: [], builderSpecs: [] };
+  calls = { updateCalls: 0, updated: false, statuses: [], autoMerge: [], merges: 0, reviews: 0, opened: 0, polls: { ci: 0, merge: 0 }, prompts: [], teardowns: 0, prepared: [], builderSpecs: [] };
   const github = {
     ensureProjectRepo: async () => ({ owner: 'acme', repo: 'recipes', url: 'https://github.com/acme/recipes', protection: opts.protection ?? 'github' }),
     // A real push, to the local bare remote.
@@ -178,7 +185,7 @@ function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failu
     pullRequest: async () => {
       calls.polls.merge++;
       const merged = calls.polls.merge >= 2;
-      return { state: merged ? 'closed' : 'open', merged, mergedAt: merged ? '2026-09-30T10:00:00Z' : null, headSha: 'x', url: 'https://github.com/acme/recipes/pull/7' };
+      return { state: merged ? 'closed' : 'open', merged, mergedAt: merged ? '2026-09-30T10:00:00Z' : null, mergeCommitSha: opts.mainConclusion ? MAIN_SHA : null, headSha: calls.updated ? UPDATED_SHA : 'x', url: 'https://github.com/acme/recipes/pull/7' };
     },
     pullRequestDiff: async () => diffWith(),
     setCommitStatus: async (_c: unknown, _o: string, _r: string, sha: string, s: { context: string; state: string }) => {
@@ -193,7 +200,17 @@ function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failu
     mergePullRequest: async () => {
       calls.merges++;
     },
-    checkRunsFor: async () => {
+    behindBy: async () => (opts.behind && !calls.updated ? 2 : 0),
+    updateBranch: async () => {
+      calls.updateCalls++;
+      if (opts.updateConflict) return { result: 'conflict', message: 'merge conflict between base and head' };
+      calls.updated = true;
+      return { result: 'updated' };
+    },
+    checkRunsFor: async (_c: unknown, _o: string, _r: string, sha: string) => {
+      // The merge commit on main and the head GitHub made when it updated the branch from main.
+      if (sha === MAIN_SHA) return [{ name: 'ci', status: 'completed', conclusion: opts.mainConclusion ?? 'success', detailsUrl: null }];
+      if (sha === UPDATED_SHA) return [{ name: 'ci', status: 'completed', conclusion: opts.updatedCi ?? 'success', detailsUrl: null }];
       calls.polls.ci++;
       // A second run named `ci` on the same SHA (the workflow runs on push and on pull_request).
       if (opts.extraCiRun) {
@@ -209,7 +226,10 @@ function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failu
         ? [{ name: 'ci', status: 'in_progress', conclusion: null, detailsUrl: null }]
         : [{ name: 'ci', status: 'completed', conclusion: conclusionNow(), detailsUrl: null }];
     },
-    junitArtifactFor: async () => {
+    junitArtifactFor: async (_c: unknown, _o: string, _r: string, sha: string) => {
+      if (sha === UPDATED_SHA) return junit(opts.updatedCi === 'failure');
+      // A test outside the task's criteria that failed in one run and passed in the other.
+      if (opts.flaky === 'outside') return withOutside(true) + withOutside(false);
       // The run that failed and the run that passed on the same commit: every test shows once failing, once passing.
       if (opts.extraCiRun?.(Number.MAX_SAFE_INTEGER).conclusion === 'failure') return junit(false) + junit(true);
       return junit(conclusionNow() === 'failure');
@@ -1131,6 +1151,119 @@ describe('Build the queue (opt-in per project)', () => {
       expect(events.at(-1)).toMatchObject({ actor: 'human:ana', after: { parallel: 3 } });
       await cmd('build.queue_auto', { parallel: 1 }, projectId);
     });
+  });
+});
+
+describe('integrate with main before merging, stop the line when main breaks, quarantine flaky tests', () => {
+  beforeEach(async () => {
+    resetBuildDeps();
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('task_id', '=', taskId).where('state', 'in', ['done', 'requested', 'in_review']).execute();
+  });
+
+  it('a branch behind main is updated with it, CI runs again on the new head and only then it merges', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', behind: true }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('done');
+    expect(calls.updateCalls).toBe(1);
+    expect(calls.merges).toBe(1);
+    const rows = await steps(requestId);
+    expect(rows.find((x) => x.stage === 'merge' && x.outcome === 'waiting' && (x.detail as { updated_from_base?: boolean } | null)?.updated_from_base)?.detail).toMatchObject({ updated_from_base: true, head_sha: UPDATED_SHA });
+    expect(rows.filter((x) => x.stage === 'ci' && x.outcome === 'ok').at(-1)?.detail).toMatchObject({ head_sha: UPDATED_SHA, updated_from_base: true });
+    // The required statuses are republished on the head that merges.
+    expect(calls.statuses.filter((x) => x.sha === UPDATED_SHA).map((x) => `${x.context}:${x.state}`).sort()).toEqual(['demiurgo/design:success', 'demiurgo/review:success']);
+    expect((await db().selectFrom('build_requests').select('head_sha').where('id', '=', requestId).executeTakeFirstOrThrow()).head_sha).toBe(UPDATED_SHA);
+  });
+
+  it('a branch that is already up to date is not updated', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo' }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('done');
+    expect(calls.updateCalls).toBe(0);
+  });
+
+  it('a conflict with main stops the attempt with the reason and no merge; the next attempt is DEMIURGO\'s own', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', behind: true, updateConflict: true, auto: 0 }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('changes_requested:merge');
+    expect(calls.merges).toBe(0);
+    const merge = (await steps(requestId)).find((x) => x.stage === 'merge' && x.outcome === 'changes_requested');
+    expect(merge?.detail).toMatchObject({ conflict: true, needs_you: true });
+    expect(JSON.stringify(merge?.detail)).toContain('The branch conflicts with main: merge conflict between base and head');
+  });
+
+  it('with automatic follow-ups, a conflict starts attempt 2 by itself', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', behind: true, updateConflict: true, auto: 1 }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('changes_requested:merge');
+    expect(await finished(requestId, 2)).toBe('changes_requested:merge');
+    const rows = await steps(requestId);
+    expect(rows.find((x) => x.attempt === 1 && x.stage === 'merge')?.detail).toMatchObject({ next_attempt: 2 });
+    expect(rows.find((x) => x.attempt === 2 && x.stage === 'repo' && x.outcome === 'started')?.detail).toMatchObject({ automatic: true });
+  });
+
+  it('red CI on the head updated from main: no merge, stage ci failed, and its failing tests go to the next attempt', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', behind: true, updatedCi: 'failure', auto: 0 }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('failed:ci');
+    expect(calls.merges).toBe(0);
+    const rows = await steps(requestId);
+    expect(rows.filter((x) => x.stage === 'ci' && x.outcome === 'failed').at(-1)?.detail).toMatchObject({ conclusion: 'failure', head_sha: UPDATED_SHA, updated_from_base: true });
+    expect(rows.filter((x) => x.stage === 'evidence' && x.outcome === 'ok').at(-1)?.detail).toMatchObject({ recorded: expect.arrayContaining([expect.objectContaining({ code: codes[0], result: 'fail' })]) });
+  });
+
+  it('main red after the merge: the request is done, the main step records the failure and «Build the queue» stops until the person touches it', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', mainConclusion: 'failure' }));
+    const set = (at: Date) =>
+      sql`insert into build_queue_settings (project_id, auto, parallel, set_by, set_at) values (${projectId}::uuid, true, 1, 'human:ana', ${at.toISOString()}::timestamptz) on conflict (project_id) do update set auto = true, set_at = excluded.set_at`.execute(db());
+    await set(new Date(Date.now() - 60_000));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('done');
+    const main = (await steps(requestId)).find((x) => x.stage === 'main');
+    expect(main).toMatchObject({ outcome: 'failed', detail: { on: 'main', sha: MAIN_SHA, conclusion: 'failure' } });
+    expect(JSON.stringify(main?.detail)).toContain(`CI on main is red after merging ${taskCode}`);
+    const status = async () => autoStatus(db(), projectId, await buildQueue(db(), projectId));
+    expect(await status()).toMatchObject({ on: true, stopped: { code: taskCode, kind: 'main_red' } });
+    // The person fixed main and touched the switch afterwards: the line moves again.
+    await set(new Date(Date.now() + 1_000));
+    expect((await status()).stopped).toBeNull();
+    await db().deleteFrom('build_queue_settings').where('project_id', '=', projectId).execute();
+  });
+
+  it('main green after the merge: the main step is ok and nothing stops', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', mainConclusion: 'success' }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('done');
+    expect((await steps(requestId)).find((x) => x.stage === 'main')).toMatchObject({ outcome: 'ok', detail: { on: 'main', sha: MAIN_SHA } });
+  });
+
+  it('a flaky test outside the task\'s criteria is quarantined: it merges, and the Build screen lists it', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', flaky: 'outside', extraCiRun: () => ({ status: 'completed', conclusion: 'failure' }) }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('done');
+    expect(calls.merges).toBe(1);
+    const rows = await steps(requestId);
+    expect(rows.find((x) => x.stage === 'evidence' && x.outcome === 'ok')?.detail).toMatchObject({ flaky: [FLAKY_OUTSIDE], quarantined: [FLAKY_OUTSIDE] });
+    expect(rows.filter((x) => x.stage === 'ci' && x.outcome === 'ok').at(-1)?.detail).toMatchObject({ raw_conclusion: 'failure', quarantined: [FLAKY_OUTSIDE] });
+    expect(await autoStatus(db(), projectId, await buildQueue(db(), projectId))).toMatchObject({ quarantined: [FLAKY_OUTSIDE] });
+  });
+
+  it('a flaky test that covers one of the task\'s own criteria still blocks: the builder must fix it', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', extraCiRun: () => ({ status: 'completed', conclusion: 'failure' }) }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('changes_requested:merge');
+    expect(calls.merges).toBe(0);
+    const evidence = (await steps(requestId)).find((x) => x.stage === 'evidence' && x.outcome === 'ok');
+    expect(evidence?.detail).toMatchObject({ flaky: expect.arrayContaining([codes[0]]) });
+    expect(evidence?.detail).not.toHaveProperty('quarantined');
   });
 });
 

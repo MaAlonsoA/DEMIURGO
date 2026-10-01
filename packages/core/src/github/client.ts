@@ -281,12 +281,14 @@ export async function pullRequest(
   owner: string,
   repo: string,
   number: number,
-): Promise<{ state: string; merged: boolean; mergedAt: string | null; headSha: string; url: string }> {
+): Promise<{ state: string; merged: boolean; mergedAt: string | null; mergeCommitSha: string | null; headSha: string; url: string }> {
   const { data } = await call(cfg, 'GET', `/repos/${owner}/${repo}/pulls/${number}`);
   return {
     state: data.state,
     merged: Boolean(data.merged),
     mergedAt: data.merged_at ?? null,
+    // For a squash merge, the commit that landed on the base branch.
+    mergeCommitSha: data.merge_commit_sha ?? null,
     headSha: data.head?.sha,
     url: data.html_url,
   };
@@ -389,6 +391,37 @@ export async function enableAutoMerge(cfg: GithubConfig, pullRequestNodeId: stri
 /** Squash-merges a pull request now (branch protection still demands the required checks). */
 export async function mergePullRequest(cfg: GithubConfig, owner: string, repo: string, number: number): Promise<void> {
   await call(cfg, 'PUT', `/repos/${owner}/${repo}/pulls/${number}/merge`, { body: { merge_method: 'squash' } });
+}
+
+/** How many commits the base branch has that the head does not (GitHub compare API: `behind_by`). 0 means up to date. */
+export async function behindBy(cfg: GithubConfig, owner: string, repo: string, base: string, headSha: string): Promise<number> {
+  const { data } = await call(cfg, 'GET', `/repos/${owner}/${repo}/compare/${encodeURIComponent(base)}...${headSha}`);
+  return Number(data?.behind_by ?? 0);
+}
+
+/**
+ * Merges the base branch into the pull request's branch (GitHub REST «Update a pull request branch»). Returns
+ * `updated` (GitHub merges asynchronously: the new head shows on the pull request shortly after), or `conflict`
+ * (422: the branch conflicts with the base, a person or the builder must resolve it).
+ */
+export async function updateBranch(
+  cfg: GithubConfig,
+  owner: string,
+  repo: string,
+  number: number,
+  expectedHeadSha: string,
+): Promise<{ result: 'updated' } | { result: 'conflict'; message: string }> {
+  const { status, data } = await call(cfg, 'PUT', `/repos/${owner}/${repo}/pulls/${number}/update-branch`, {
+    body: { expected_head_sha: expectedHeadSha },
+    okStatuses: [422],
+  });
+  if (status === 422) {
+    const message = redactToken(String(data?.message ?? ''), cfg.token);
+    // 422 also means «expected_head_sha does not match»: only a merge conflict is a conflict.
+    if (!/conflict/i.test(message)) throw new DomainError('validation', `GitHub PUT /repos/${owner}/${repo}/pulls/${number}/update-branch failed (422): ${message}`);
+    return { result: 'conflict', message };
+  }
+  return { result: 'updated' };
 }
 
 export type CheckRun = { name: string; status: string; conclusion: string | null; detailsUrl: string | null };

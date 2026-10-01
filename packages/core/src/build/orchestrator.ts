@@ -14,6 +14,11 @@
 // anything is pushed and come back to the next attempt as feedback. Its commit status
 // `demiurgo/design` is published in `status`, on the pushed head, next to the pending review status.
 //
+// `merge` first integrates with the base (Fowler, "Continuous Integration"): a pull request behind main is updated with it
+// (GitHub's update-branch), CI runs again on the new head and only a green one merges; a conflict sends the next attempt
+// to resolve it. After the merge, CI on main's merge commit is watched (stage `main`): red stops «Build the queue».
+// A flaky test outside the task's criteria is quarantined, not blocking (flaky.ts).
+//
 // A stage that fails stops the attempt. Changes requested (the reviewer's verdict or a red CI) ends it
 // too, and the person can press Build again: the next attempt continues on the same branch and pull
 // request. When CI is red or the reviewer left a blocking comment, DEMIURGO itself starts the next
@@ -40,7 +45,8 @@ import { systemInteraction } from '../engine/observe.ts';
 import { engineServices } from '../engine/registry.ts';
 import * as github from '../github/client.ts';
 import { ciStatusOf, redactConfigured } from '../github/client.ts';
-import { flakyNote } from './flaky.ts';
+import { parseJunit } from '../commands/evidence.ts';
+import { flakyNote, quarantineNote, quarantineOf } from './flaky.ts';
 import { classifyBuilderFailure, failureExcerpt } from './failure.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
 import { projectsDir } from '../repo/repo.ts';
@@ -73,6 +79,8 @@ export type GithubApi = Pick<
   | 'junitArtifactFor'
   | 'closePullRequest'
   | 'deleteBranch'
+  | 'behindBy'
+  | 'updateBranch'
 >;
 
 /** What the flow talks to; the tests replace it (GitHub, the builder container and time). */
@@ -139,7 +147,7 @@ export const buildWorkflowId = (buildRequestId: string, attempt: number): string
 /** Automatic retries after a plain builder failure (our convention: one, like a flaky CLI start). */
 const BUILDER_AUTO_RETRIES = 1;
 
-type Stage = 'repo' | 'worktree' | 'environment' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
+type Stage = 'repo' | 'worktree' | 'environment' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge' | 'main';
 type Outcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested';
 
 type Run = { projectId: string; requestId: string; attempt: number };
@@ -232,9 +240,9 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   };
 }
 
-type Feedback = { blocking: string[]; failing: string[]; design: string[]; flaky: string[]; wip?: { sha: string; files: string[] } };
+type Feedback = { blocking: string[]; failing: string[]; design: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] } };
 
-const NO_FEEDBACK: Feedback = { blocking: [], failing: [], design: [], flaky: [] };
+const NO_FEEDBACK: Feedback = { blocking: [], failing: [], design: [], flaky: [], conflicts: [] };
 
 type BuilderStepDetail = { failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean };
 
@@ -275,7 +283,7 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
     .orderBy('created_at', 'desc')
     .orderBy('id', 'desc')
     .executeTakeFirst();
-  const evidenceDetail = evidence?.detail as { recorded?: { code: string; result: string }[]; flaky?: string[] } | null;
+  const evidenceDetail = evidence?.detail as { recorded?: { code: string; result: string }[]; flaky?: string[]; quarantined?: string[] } | null;
   const recorded = (evidenceDetail?.recorded ?? []).filter((t) => t.result === 'fail');
   const design = await s.db
     .selectFrom('build_steps')
@@ -289,7 +297,7 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
   const violations = design?.outcome === 'failed' ? ((design.detail as { violations?: DesignViolation[] } | null)?.violations ?? []) : [];
   const previous = r.attempt > 1 ? await failedBuilderStep(s, r.requestId, r.attempt - 1) : null;
   const wip = previous?.failure_kind === 'timeout' && previous.wip_commit ? { sha: previous.wip_commit, files: previous.wip_files ?? [] } : undefined;
-  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine), flaky: evidenceDetail?.flaky ?? [], ...(wip ? { wip } : {}) };
+  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine), flaky: (evidenceDetail?.flaky ?? []).filter((c) => !(evidenceDetail?.quarantined ?? []).includes(c)), conflicts: [], ...(wip ? { wip } : {}) };
 }
 
 const violationLine = (v: DesignViolation): string => `${v.path}${v.line ? `:${v.line}` : ''} (rule ${v.rule}): ${v.message}`;
@@ -326,13 +334,19 @@ function promptOf(
   design: { manifest: DesignManifest; manifestText: string; tokensText: string } | null = null,
 ): string {
   const lines = [body, '', '# Brief', brief, ...designSection(design)];
-  if (attempt > 1 && (f.wip || f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.flaky.length > 0)) {
+  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.flaky.length > 0)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
     if (f.wip) {
       lines.push(
         `The previous attempt ran out of time. Its work is committed on this branch (commit ${f.wip.sha.slice(0, 8)}, "WIP"): continue from it instead of starting over.`,
         ...(f.wip.files.length > 0 ? ['Files in that commit:', ...f.wip.files.map((p) => `- ${p}`)] : []),
         "Finish within the time limit by keeping to the task's scope: do only what its criteria ask.",
+      );
+    }
+    if (f.conflicts.length > 0) {
+      lines.push(
+        `The branch conflicts with main: the merge of origin/main into this branch is in progress and these files have conflict markers: ${f.conflicts.join(', ')}.`,
+        'Resolve every conflict (keep what both sides intend), remove all markers, and do not abort or redo the merge. Your changes then conclude it.',
       );
     }
     if (f.blocking.length > 0) lines.push('The reviewer asked for these changes:', ...f.blocking.map((b) => `- ${b}`));
@@ -361,6 +375,46 @@ function bodyOf(report: BuildReport | null, criteria: string[]): string {
 }
 
 type CiResult = { conclusion: string | null };
+type CiWait = { ci: CiResult | null; failure: string | null; kind: 'done' | 'missing' | 'timeout' };
+
+/**
+ * Waits (durable polls) for every `ci` check run of a commit to complete: the one wait the `ci` stage, the merge
+ * stage after an update from the base and the watch of the base branch after a merge all use. `label` names its
+ * steps; `onWaiting` runs once, the first time CI is still pending.
+ */
+async function waitForCi(
+  d: BuildDeps,
+  cfg: github.GithubConfig,
+  owner: string,
+  repoName: string,
+  sha: string,
+  label: string,
+  onWaiting?: () => Promise<void>,
+): Promise<CiWait> {
+  let waited = 0;
+  let announced = false;
+  for (;;) {
+    const poll = await plain(`${label}-poll`, async () => {
+      const checks = await d.github.checkRunsFor(cfg, owner, repoName, sha);
+      // Every run named `ci` on this SHA counts (push and pull_request each yield one): all must complete, none may fail.
+      const { state, conclusion } = ciStatusOf(checks);
+      return { state, conclusion };
+    });
+    if (poll.state === 'done') return { ci: { conclusion: poll.conclusion }, failure: null, kind: 'done' };
+    if (poll.state === 'missing' && waited >= d.ciAppearMs) {
+      return { ci: null, failure: 'The project has no CI check named "ci": the walking skeleton task adds it.', kind: 'missing' };
+    }
+    if (waited >= d.ciTimeoutMs) {
+      return { ci: null, failure: `CI did not finish after ${Math.round(d.ciTimeoutMs / 60_000)} minutes.`, kind: 'timeout' };
+    }
+    if (!announced) {
+      announced = true;
+      if (onWaiting) await onWaiting();
+    }
+    await d.sleep(d.pollMs);
+    waited += d.pollMs;
+  }
+}
 
 /** How many attempts in a row DEMIURGO started by itself since the person's last one. */
 async function automaticAttempts(s: Services, requestId: string): Promise<number> {
@@ -483,7 +537,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   // worktree
   const tree = await stage(r, 'worktree', async () => {
     const w = await prepareWorktree({ repoDir: info.repoDir, taskCode: info.taskCode, buildId: requestId, existingBranch: info.branch, skipIntegrate: resume !== null });
-    return { value: w, detail: { branch: w.branch, reused: Boolean(info.branch) }, extra: { branch: w.branch } };
+    return { value: w, detail: { branch: w.branch, reused: Boolean(info.branch), ...(w.conflicts ? { conflicts: w.conflicts } : {}) }, extra: { branch: w.branch } };
   });
   if (!tree.ok) return stop('worktree', tree.outcome);
   const worktree = tree.value;
@@ -550,7 +604,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const resolution = await resolveEngine(s0.db, s0.providers, { agent: agent.id });
     const problem = resolutionProblem(agent.id, resolution);
     if (problem || resolution.status !== 'ok') throw new DomainError('guard', problem ?? 'The builder has no engine.');
-    const feedback = attempt > 1 ? await feedbackOf(s0, r) : NO_FEEDBACK;
+    const feedback = attempt > 1 ? { ...(await feedbackOf(s0, r)), conflicts: worktree.conflicts ?? [] } : NO_FEEDBACK;
     const designSystem = await designSystemOf(worktree.path).catch(() => null);
     const control = new AbortController();
     builders.set(requestId, control);
@@ -706,65 +760,60 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
 
   // ci
   await plain('ci-start', () => record(r, 'ci', 'started'));
-  let waited = 0;
-  let announced = false;
-  let ci: CiResult | null = null;
-  let ciFailure: string | null = null;
-  for (;;) {
-    const poll = await plain('ci-poll', async () => {
-      const checks = await d.github.checkRunsFor(cfg, owner, repoName, headSha);
-      // Every run named `ci` on this SHA counts (push and pull_request each yield one): all must complete, none may fail.
-      const { state, conclusion } = ciStatusOf(checks);
-      return { state, conclusion };
-    });
-    if (poll.state === 'done') {
-      ci = { conclusion: poll.conclusion };
-      break;
-    }
-    if (poll.state === 'missing' && waited >= d.ciAppearMs) {
-      ciFailure = 'The project has no CI check named "ci": the walking skeleton task adds it.';
-      break;
-    }
-    if (waited >= d.ciTimeoutMs) {
-      ciFailure = `CI did not finish after ${Math.round(d.ciTimeoutMs / 60_000)} minutes.`;
-      break;
-    }
-    if (!announced) {
-      announced = true;
-      await plain('ci-waiting', () => record(r, 'ci', 'waiting', { head_sha: headSha }));
-    }
-    await d.sleep(d.pollMs);
-    waited += d.pollMs;
-  }
+  const waitedCi = await waitForCi(d, cfg, owner, repoName, headSha, 'ci', () => plain('ci-waiting', () => record(r, 'ci', 'waiting', { head_sha: headSha })));
+  const ci = waitedCi.ci;
+  const ciFailure = waitedCi.failure;
   if (!ci) {
     await plain('ci-failed', () => record(r, 'ci', 'failed', { error: ciFailure ?? 'CI did not report.' }));
     return stop('ci', 'failed');
   }
-  const conclusion = ci.conclusion;
+  const rawConclusion = ci.conclusion;
   // The step tells the truth: a CI that did not conclude `success` is `failed`; the flow still goes on
   // to the evidence and the review, because both are worth having when the attempt is rebuilt.
   await plain('ci-done', () =>
-    record(r, 'ci', conclusion === 'success' ? 'ok' : 'failed', { conclusion, head_sha: headSha }),
+    record(r, 'ci', rawConclusion === 'success' ? 'ok' : 'failed', { conclusion: rawConclusion, head_sha: headSha }),
   );
 
-  // evidence
-  const evidence = await stage(r, 'evidence', async () => {
-    const junit = await d.github.junitArtifactFor(cfg, owner, repoName, headSha);
-    if (!junit) return { value: { tests: [] as { code: string; result: 'pass' | 'fail' }[], flaky: [] as string[] }, detail: { note: 'The CI run has no artifact named "junit": no evidence recorded.', recorded: [] } };
+  // evidence (of a head SHA; again after the branch is updated from the base)
+  const gatherEvidence = (sha: string) => stage(r, 'evidence', async () => {
+    const junit = await d.github.junitArtifactFor(cfg, owner, repoName, sha);
+    if (!junit) return { value: { tests: [] as { code: string; result: 'pass' | 'fail' }[], flaky: [] as string[], quarantined: [] as string[], forgiven: false }, detail: { note: 'The CI run has no artifact named "junit": no evidence recorded.', recorded: [] } };
     const taskRow = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow();
+    const covers = await taskCoversOf(s0.db, taskRow.task_id);
     const done = await executeCommand(s0, {
       command: 'evidence.ingest_junit',
       actor: BUILD,
       projectId,
-      data: { junit, pr_url: pull.url, reference: headSha, expected: await taskCoversOf(s0.db, taskRow.task_id) },
+      data: { junit, pr_url: pull.url, reference: sha, expected: covers },
     });
     const result = done.result as { recorded: { code: string; result: 'pass' | 'fail'; tests: number }[]; unknown: string[]; ignored: number; not_run: string[]; flaky: string[] };
+    // A test that failed in every run it ran in is a real failure; only the ones that passed somewhere are flaky.
+    const outcomes = new Map<string, Set<string>>();
+    for (const t of parseJunit(junit)) outcomes.set(t.name, (outcomes.get(t.name) ?? new Set()).add(t.outcome));
+    const stableFailures = [...outcomes.values()].filter((o) => o.has('fail') && !o.has('pass')).length;
+    const quarantine = quarantineOf({ flaky: result.flaky, covers, stableFailures });
     return {
-      value: { tests: result.recorded.map((t) => ({ code: t.code, result: t.result })), flaky: result.flaky },
-      detail: { recorded: result.recorded, unknown: result.unknown, ignored: result.ignored, not_run: result.not_run, flaky: result.flaky },
+      value: { tests: result.recorded.map((t) => ({ code: t.code, result: t.result })), flaky: result.flaky, quarantined: quarantine.quarantined, forgiven: quarantine.forgiven },
+      detail: {
+        recorded: result.recorded,
+        unknown: result.unknown,
+        ignored: result.ignored,
+        not_run: result.not_run,
+        flaky: result.flaky,
+        ...(quarantine.quarantined.length > 0 ? { quarantined: quarantine.quarantined } : {}),
+      },
     };
   });
+  const evidence = await gatherEvidence(headSha);
   if (!evidence.ok) return stop('evidence', evidence.outcome);
+  // Quarantine: a red CI explained only by flaky tests outside this task's criteria does not block this pull request.
+  const quarantined: string[] = rawConclusion !== 'success' && evidence.value.forgiven ? [...evidence.value.quarantined] : [];
+  const conclusion = quarantined.length > 0 ? 'success' : rawConclusion;
+  if (quarantined.length > 0) {
+    await plain('ci-quarantined', () =>
+      record(r, 'ci', 'ok', { conclusion: 'success', raw_conclusion: rawConclusion, head_sha: headSha, quarantined, note: quarantineNote(quarantined) }),
+    );
+  }
 
   // review
   const requested = await stage(
@@ -867,9 +916,11 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   if (!published.ok) return stop('publish', published.outcome);
 
   // merge
-  if (!approved) {
-    const blocking = verdict.comments.filter((c) => c.severity === 'blocking').length;
-    const ciRed = conclusion !== 'success';
+  /**
+   * The attempt ends needing changes (the reviewer's verdict, a red CI, a conflict with main). DEMIURGO starts the next
+   * attempts itself first (up to `autoFollowUps`) and only then leaves it to the person.
+   */
+  const stopForChanges = async (reason: string, opts: { blocking: number; fixable: boolean; extra?: Record<string, unknown> }): Promise<void> => {
     const next = await plain('merge-stop', async () => {
       // The attempts started by DEMIURGO itself since the person's last one (our convention, see autoFollowUps).
       const automatic = await automaticAttempts(s0, requestId);
@@ -880,13 +931,12 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
         .executeTakeFirst();
       // Someone (the person) already started a newer attempt: nothing to follow up.
       const current = Number(latest?.attempt ?? attempt) === attempt;
-      const fixable = ciRed || blocking > 0;
-      const follow = current && fixable && automatic < d.autoFollowUps;
-      const reason = verdict.verdict === 'approve' ? `CI concluded ${conclusion ?? 'without a result'}.` : 'The reviewer asked for changes.';
+      const follow = current && opts.fixable && automatic < d.autoFollowUps;
       await record(r, 'merge', 'changes_requested', {
         reason,
-        blocking,
-        ...(current && fixable && !follow ? { needs_you: true, tried: automatic + 1 } : {}),
+        blocking: opts.blocking,
+        ...(opts.extra ?? {}),
+        ...(current && opts.fixable && !follow ? { needs_you: true, tried: automatic + 1 } : {}),
         ...(follow ? { next_attempt: attempt + 1 } : {}),
       });
       if (!follow) return null;
@@ -897,15 +947,103 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     // Durable and idempotent: the workflow id is the attempt's, so a replay (or a person who pressed the
     // button first and got there before) never starts it twice.
     if (next !== null) await DBOS.startWorkflow(buildWorkflowRegistered, { workflowID: buildWorkflowId(requestId, next) })(projectId, requestId, next);
+  };
+  if (!approved) {
+    const blocking = verdict.comments.filter((c) => c.severity === 'blocking').length;
+    const ciRed = conclusion !== 'success';
+    const reason = verdict.verdict === 'approve' ? `CI concluded ${conclusion ?? 'without a result'}.` : 'The reviewer asked for changes.';
+    await stopForChanges(reason, { blocking, fixable: ciRed || blocking > 0 });
     return stop('merge', 'changes_requested');
+  }
+
+  // Integrate with the base before merging (Martin Fowler, "Continuous Integration": a branch that is green alone can
+  // break once combined with what main got meanwhile; GitHub's "Require branches to be up to date before merging").
+  // A branch behind main is updated with it, and only merges if CI is green on the new head.
+  let mergeSha = headSha;
+  const behind = await plain('merge-behind', async () => {
+    try {
+      return await d.github.behindBy(cfg, owner, repoName, 'main', headSha);
+    } catch {
+      return 0; // cannot tell: GitHub's own merge rule still applies
+    }
+  });
+  if (behind > 0) {
+    const update = await plain('merge-update', async () => {
+      try {
+        return await d.github.updateBranch(cfg, owner, repoName, pull.number, headSha);
+      } catch (e) {
+        return { result: 'error' as const, message: messageOf(e) };
+      }
+    });
+    if (update.result === 'conflict') {
+      await stopForChanges(`The branch conflicts with main: ${update.message}`, { blocking: 0, fixable: true, extra: { conflict: true, behind_by: behind } });
+      return stop('merge', 'changes_requested');
+    }
+    if (update.result === 'error') {
+      await plain('merge-update-failed', () => record(r, 'merge', 'failed', { error: `Could not update the branch with main: ${update.message}` }));
+      return stop('merge', 'failed');
+    }
+    // GitHub updates the branch asynchronously: wait for its new head.
+    let waitedForHead = 0;
+    let newSha: string | null = null;
+    for (;;) {
+      const now = await plain('merge-head-poll', async () => (await d.github.pullRequest(cfg, owner, repoName, pull.number)).headSha);
+      if (now && now !== headSha) {
+        newSha = now;
+        break;
+      }
+      if (waitedForHead >= d.ciAppearMs) break;
+      await d.sleep(d.pollMs);
+      waitedForHead += d.pollMs;
+    }
+    if (!newSha) {
+      await plain('merge-head-failed', () => record(r, 'merge', 'failed', { error: 'GitHub did not update the branch with main.' }));
+      return stop('merge', 'failed');
+    }
+    const updatedSha = newSha;
+    await plain('merge-updated', () => record(r, 'merge', 'waiting', { updated_from_base: true, head_sha: updatedSha, behind_by: behind }, { head_sha: updatedSha }));
+    // The same CI wait as the `ci` stage, on the new head.
+    const again = await waitForCi(d, cfg, owner, repoName, updatedSha, 'merge-ci');
+    if (!again.ci) {
+      await plain('merge-ci-failed', () => record(r, 'ci', 'failed', { error: again.failure ?? 'CI did not report.', head_sha: updatedSha, updated_from_base: true }));
+      return stop('ci', 'failed');
+    }
+    const againConclusion = again.ci.conclusion;
+    let forgiven: string[] = [];
+    if (againConclusion !== 'success') {
+      await plain('merge-ci-red', () => record(r, 'ci', 'failed', { conclusion: againConclusion, head_sha: updatedSha, updated_from_base: true }));
+      // The failing tests go to the next attempt as feedback, like those of any red CI.
+      const redEvidence = await gatherEvidence(updatedSha);
+      if (!redEvidence.ok) return stop('evidence', redEvidence.outcome);
+      if (redEvidence.value.forgiven) forgiven = redEvidence.value.quarantined;
+      else {
+        await stopForChanges(`CI failed after updating the branch with main (${againConclusion ?? 'no result'}).`, { blocking: 0, fixable: true, extra: { updated_from_base: true, head_sha: updatedSha } });
+        return stop('ci', 'failed');
+      }
+    }
+    if (forgiven.length > 0) {
+      await plain('merge-ci-quarantined', () =>
+        record(r, 'ci', 'ok', { conclusion: 'success', raw_conclusion: againConclusion, head_sha: updatedSha, updated_from_base: true, quarantined: forgiven, note: quarantineNote(forgiven) }),
+      );
+      quarantined.push(...forgiven);
+    } else {
+      await plain('merge-ci-ok', () => record(r, 'ci', 'ok', { conclusion: 'success', head_sha: updatedSha, updated_from_base: true }));
+    }
+    // The required statuses belong on the head that merges: the review approved this pull request's own change.
+    await plain('merge-statuses', async () => {
+      await d.github.setCommitStatus(cfg, owner, repoName, updatedSha, { context: REVIEW_STATUS, state: 'success', description: 'The reviewer agent approved and CI is green.', target_url: pull.url });
+      await d.github.setCommitStatus(cfg, owner, repoName, updatedSha, { context: DESIGN_STATUS, state: 'success', description: designNote.charAt(0).toUpperCase() + designNote.slice(1), target_url: pull.url });
+    });
+    mergeSha = updatedSha;
   }
   const armed = await stage(r, 'merge', async () => {
     if (repo.value.protection === 'demiurgo') {
       // GitHub Free private repo: no branch protection or auto-merge, so DEMIURGO applies the same rule itself.
-      const checks = await d.github.checkRunsFor(cfg, owner, repoName, headSha);
+      const checks = await d.github.checkRunsFor(cfg, owner, repoName, mergeSha);
       const ci = ciStatusOf(checks);
       const red: string[] = [];
-      if (ci.state !== 'done' || ci.conclusion !== 'success') {
+      // A red CI explained only by quarantined flaky tests does not block (see quarantineOf).
+      if (ci.state !== 'done' || (ci.conclusion !== 'success' && quarantined.length === 0)) {
         const why = ci.state === 'missing' ? 'missing' : ci.state === 'pending' ? 'still running' : ci.failed.join(', ');
         red.push(`ci (${why}${ci.runs > 1 && ci.failed.length > 0 ? `; ${ci.failed.length} of ${ci.runs} runs failed` : ''})`);
       }
@@ -931,14 +1069,16 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   // The stage above only armed the merge (`waiting`); the merge itself is what ends the attempt.
   let waitedForMerge = 0;
   let mergedAt: string | null = null;
+  let mergedCommit: string | null = null;
   let mergeFailure: string | null = null;
   for (;;) {
     const state = await plain('merge-poll', async () => {
       const p = await d.github.pullRequest(cfg, owner, repoName, pull.number);
-      return { merged: p.merged, closed: p.state === 'closed', mergedAt: p.mergedAt };
+      return { merged: p.merged, closed: p.state === 'closed', mergedAt: p.mergedAt, commit: p.mergeCommitSha ?? null };
     });
     if (state.merged) {
       mergedAt = state.mergedAt ?? 'merged';
+      mergedCommit = state.commit;
       break;
     }
     if (state.closed) {
@@ -957,6 +1097,25 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     return stop('merge', 'failed');
   }
   const mergedTime = mergedAt;
+  // Stop the line when main breaks (Martin Fowler, "Continuous Integration": fix broken builds immediately). The request
+  // is completed only after CI has spoken on the merge commit, so «Build the queue» never starts the next task on a red main.
+  if (mergedCommit) {
+    const onMain = mergedCommit;
+    const main = await waitForCi(d, cfg, owner, repoName, onMain, 'main-ci');
+    if (main.kind === 'done') {
+      const red = main.ci?.conclusion !== 'success';
+      await plain('main-ci-done', () =>
+        record(
+          r,
+          'main',
+          red ? 'failed' : 'ok',
+          red
+            ? { on: 'main', sha: onMain, conclusion: main.ci?.conclusion ?? null, error: `CI on main is red after merging ${info.taskCode}: fix main before building more.` }
+            : { on: 'main', sha: onMain, conclusion: 'success' },
+        ),
+      );
+    }
+  }
   await plain('complete', async () => {
     await executeCommand(s0, { command: 'build_request.complete', actor: BUILD, projectId, entityId: requestId, data: {} });
     await record(r, 'merge', 'ok', { merged_at: mergedTime, pr_url: pull.url });

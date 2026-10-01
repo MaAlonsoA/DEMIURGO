@@ -3,7 +3,8 @@
 // cases behind each scorecard. Derived on read; nothing is stored. The verdict thresholds (0.7 precision, 0.5 recall,
 // at least 10 decisions) are «convención nuestra»: no standard fixes them (scikit-learn defines the measures, not their
 // cuts; TypeSafe's confidence guide says thresholds depend on the cost of being wrong and are tuned on one's own data).
-// They live here, in code, so changing one is a visible change, not a discussion.
+// Precision and recall are computed per rule (finding code), never mixed across the rules of a piece; the piece shows the
+// measures of its main rule and its verdict is the worst verdict of its rules. They live here, in code, so changing one is a visible change, not a discussion.
 
 import { sql } from 'kysely';
 import { queueDecisionRows as storedQueueDecisionRows, type QueueDecisionRow } from '../build/queue-decisions.ts';
@@ -15,6 +16,8 @@ export const MIN_DECISIONS = 10;
 export const PRECISION_HELPS = 0.7;
 export const PRECISION_HURTS = 0.5;
 export const RECALL_HELPS = 0.5;
+/** Share of the harmful false negatives among (FN + TN) of a rule from which it hurts (convención nuestra; needs MIN_DECISIONS of them). */
+export const ESCAPE_RATE_HURTS = 0.2;
 /** Ground truths whose false negatives do harm: a failure on main after the merge (G03) and a later issue (G10). */
 export const HARMFUL_GROUND_TRUTHS: ReadonlySet<string> = new Set(['G03', 'G10']);
 /** Cases listed per piece (convención nuestra); the counts always cover all of them. */
@@ -24,9 +27,10 @@ export type Verdict = 'helps' | 'neutral' | 'hurts' | 'no_data';
 export type FindingClass = 'tp' | 'fp' | 'fn' | 'tn' | 'benefit' | 'cost' | 'info';
 const CLASSES: readonly FindingClass[] = ['tp', 'fp', 'fn', 'tn', 'benefit', 'cost', 'info'];
 
-/** The columns the scorecard reads from a finding. */
+/** The columns the scorecard reads from a finding. `finding` is the rule code; findings without one form a single rule. */
 export type FindingFact = {
   piece: string;
+  finding?: string | null;
   class: FindingClass;
   ground_truth: string | null;
   value: number | null;
@@ -41,12 +45,30 @@ export type ScorecardInput = {
   harmful_fn: boolean;
 };
 
+/** What one rule (finding code) of a piece measured. Precision and recall are never mixed across rules. */
+export type RuleScore = ScorecardInput & {
+  finding: string;
+  /** Classification decisions: TP, FP, FN and TN only (cost, benefit and info rows are not decisions). */
+  n: number;
+  /** TP / (TP + FP); null when TP + FP is 0. */
+  precision: number | null;
+  /** TP / (TP + FN); null when TP + FN is 0. */
+  recall: number | null;
+  /** Harmful FN / (FN + TN judged against G03 or G10): how often what the rule let through did harm; null without such cases. */
+  escape_rate: number | null;
+  verdict: Verdict;
+};
+
 export type Scorecard = ScorecardInput & {
   piece: string;
-  /** Decisions: every finding except `info` (a TP, FP, FN, TN, a benefit or a cost). */
+  /** Classification decisions (TP, FP, FN, TN) of all the rules of the piece. */
   n: number;
+  /** Of the piece's main rule (`main_rule`): the rule with most decisions that has a precision or a recall. */
   precision: number | null;
   recall: number | null;
+  main_rule: string | null;
+  rules: RuleScore[];
+  /** The worst verdict of its rules (and the benefit against the cost where they share a unit). */
   verdict: Verdict;
 };
 
@@ -80,49 +102,83 @@ export type HarnessHealth = {
 
 const emptyCounts = (): Record<FindingClass, number> => ({ tp: 0, fp: 0, fn: 0, tn: 0, benefit: 0, cost: 0, info: 0 });
 
-const sumOf = (m: Record<string, number>): number => Object.values(m).reduce((a, b) => a + b, 0);
+const VERDICT_RANK: Record<Verdict, number> = { hurts: 0, neutral: 1, helps: 2, no_data: 3 };
 
 /**
- * The verdict of §1.2. «sin datos» under 10 decisions. «estorba»: precision < 0.5, or cost without any TP, or a harmful
- * FN while the cost is not zero. «ayuda»: precision ≥ 0.7 and recall ≥ 0.5 (each only when measurable) and, per unit
- * with both benefit and cost, benefit above cost; it needs something measurable to compare. «neutra»: the rest.
+ * The verdict of one rule (§1.2). Decisions are TP, FP, FN and TN only: «sin datos» under 10 of them, or when no measure
+ * has 10 cases behind it (precision needs TP + FP ≥ 10, recall TP + FN ≥ 10, the escape rate, only over G03/G10 cases, FN + TN ≥ 10).
+ * «estorba»: a measured precision < 0.5, or harmful FN above 20 % of FN + TN. «ayuda»: every measured one is fine
+ * (precision ≥ 0.7, recall ≥ 0.5). «neutra»: the rest. Cost never hurts by itself: it is weighed against the benefit
+ * in the units both share (see `scorecardsOf`).
  */
-export function verdictOf(card: ScorecardInput & { n: number; precision: number | null; recall: number | null }): Verdict {
+export function verdictOf(card: { n: number; counts: Record<FindingClass, number>; precision: number | null; recall: number | null; escape_rate?: number | null }): Verdict {
   if (card.n < MIN_DECISIONS) return 'no_data';
-  const costed = sumOf(card.cost) > 0;
-  if ((card.precision !== null && card.precision < PRECISION_HURTS) || (costed && card.counts.tp === 0) || (card.harmful_fn && costed)) return 'hurts';
-  const shared = Object.keys(card.benefit).filter((u) => u in card.cost);
-  const measurable = card.precision !== null || card.recall !== null || shared.length > 0;
-  const precisionOk = card.precision === null || card.precision >= PRECISION_HELPS;
-  const recallOk = card.recall === null || card.recall >= RECALL_HELPS;
-  const balanceOk = shared.every((u) => (card.benefit[u] ?? 0) > (card.cost[u] ?? 0));
-  return measurable && precisionOk && recallOk && balanceOk ? 'helps' : 'neutral';
+  const { tp, fp, fn, tn } = card.counts;
+  const precisionSeen = card.precision !== null && tp + fp >= MIN_DECISIONS;
+  const recallSeen = card.recall !== null && tp + fn >= MIN_DECISIONS;
+  const rateSeen = card.escape_rate !== null && card.escape_rate !== undefined && fn + tn >= MIN_DECISIONS;
+  if (!precisionSeen && !recallSeen && !rateSeen) return 'no_data';
+  if ((precisionSeen && (card.precision as number) < PRECISION_HURTS) || (rateSeen && (card.escape_rate as number) >= ESCAPE_RATE_HURTS)) return 'hurts';
+  const precisionOk = !precisionSeen || (card.precision as number) >= PRECISION_HELPS;
+  const recallOk = !recallSeen || (card.recall as number) >= RECALL_HELPS;
+  return precisionOk && recallOk ? 'helps' : 'neutral';
 }
 
-/** Scorecards (without cases), one per piece, ordered by piece code. Pure. */
+const tally = (list: readonly FindingFact[]) => {
+  const counts = emptyCounts();
+  const benefit: Record<string, number> = {};
+  const cost: Record<string, number> = {};
+  let harmful = false;
+  let harmfulFn = 0;
+  let harmfulPool = 0; // FN and TN judged against a ground truth where a miss does harm (G03, G10)
+  for (const f of list) {
+    counts[f.class] += 1;
+    const harmfulTruth = f.ground_truth !== null && HARMFUL_GROUND_TRUTHS.has(f.ground_truth);
+    if ((f.class === 'fn' || f.class === 'tn') && harmfulTruth) harmfulPool += 1;
+    if (f.class === 'fn' && harmfulTruth) {
+      harmful = true;
+      harmfulFn += 1;
+    }
+    if ((f.class === 'benefit' || f.class === 'cost') && f.unit !== null && f.value !== null) {
+      const into = f.class === 'benefit' ? benefit : cost;
+      into[f.unit] = (into[f.unit] ?? 0) + f.value;
+    }
+  }
+  const n = counts.tp + counts.fp + counts.fn + counts.tn;
+  const precision = counts.tp + counts.fp > 0 ? counts.tp / (counts.tp + counts.fp) : null;
+  const recall = counts.tp + counts.fn > 0 ? counts.tp / (counts.tp + counts.fn) : null;
+  const escape_rate = harmfulPool > 0 ? harmfulFn / harmfulPool : null;
+  return { counts, benefit, cost, harmful_fn: harmful, n, precision, recall, escape_rate };
+};
+
+const NO_RULE = '(rule)';
+
+/** Scorecards (without cases), one per piece, ordered by piece code. Measures per rule; the piece takes its main rule's. Pure. */
 export function scorecardsOf(facts: readonly FindingFact[]): Scorecard[] {
   const byPiece = new Map<string, FindingFact[]>();
   for (const f of facts) byPiece.set(f.piece, [...(byPiece.get(f.piece) ?? []), f]);
   return [...byPiece.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([piece, list]) => {
-      const counts = emptyCounts();
-      const benefit: Record<string, number> = {};
-      const cost: Record<string, number> = {};
-      let harmful = false;
-      for (const f of list) {
-        counts[f.class] += 1;
-        if (f.class === 'fn' && f.ground_truth !== null && HARMFUL_GROUND_TRUTHS.has(f.ground_truth)) harmful = true;
-        if ((f.class === 'benefit' || f.class === 'cost') && f.unit !== null && f.value !== null) {
-          const into = f.class === 'benefit' ? benefit : cost;
-          into[f.unit] = (into[f.unit] ?? 0) + f.value;
-        }
-      }
-      const n = counts.tp + counts.fp + counts.fn + counts.tn + counts.benefit + counts.cost;
-      const precision = counts.tp + counts.fp > 0 ? counts.tp / (counts.tp + counts.fp) : null;
-      const recall = counts.tp + counts.fn > 0 ? counts.tp / (counts.tp + counts.fn) : null;
-      const base = { counts, benefit, cost, harmful_fn: harmful, n, precision, recall };
-      return { piece, ...base, verdict: verdictOf(base) };
+      const byRule = new Map<string, FindingFact[]>();
+      for (const f of list) byRule.set(f.finding ?? NO_RULE, [...(byRule.get(f.finding ?? NO_RULE) ?? []), f]);
+      const rules = [...byRule.entries()]
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+        .map(([finding, items]): RuleScore => {
+          const t = tally(items);
+          return { finding, ...t, verdict: verdictOf(t) };
+        });
+      const all = tally(list);
+      // The main rule is the classifier with the most decisions: one that has a precision (TP + FP > 0), else one that found
+      // something (TP > 0). A rule with only FN and TN (an escape detector) has neither: its measure is the escape rate.
+      const byN = (a: RuleScore, b: RuleScore) => b.n - a.n;
+      const main = rules.filter((r) => r.counts.tp + r.counts.fp > 0).sort(byN)[0] ?? rules.filter((r) => r.counts.tp > 0).sort(byN)[0] ?? null;
+      const verdicts = rules.map((r) => r.verdict).filter((v) => v !== 'no_data');
+      let verdict: Verdict = verdicts.length === 0 ? 'no_data' : verdicts.reduce((w, v) => (VERDICT_RANK[v] < VERDICT_RANK[w] ? v : w));
+      // Benefit against cost, only in the units both have (never a cost against nothing).
+      const shared = Object.keys(all.benefit).filter((u) => u in all.cost);
+      if (verdict === 'helps' && !shared.every((u) => (all.benefit[u] ?? 0) > (all.cost[u] ?? 0))) verdict = 'neutral';
+      return { piece, counts: all.counts, benefit: all.benefit, cost: all.cost, harmful_fn: all.harmful_fn, n: all.n, precision: main?.precision ?? null, recall: main?.recall ?? null, main_rule: main?.finding ?? null, rules, verdict };
     });
 }
 

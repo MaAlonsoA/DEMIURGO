@@ -18,7 +18,7 @@ import { type HarnessHealthData, HarnessHealthView } from '../../src/screens/obs
 import { selectionFromSearch } from '../../src/screens/build/timelineLogic.ts';
 
 const data: HarnessHealthData = {
-  rules_version: 'pm-1',
+  rules_version: 'pm-2',
   requests: 3,
   pieces: [
     { piece: 'B01', verdict: 'helps', n: 12, precision: 0.75, recall: 0.6, benefit: { ci_runs: 5 }, cost: { ci_runs: 2 }, cases_total: 1, cases: [

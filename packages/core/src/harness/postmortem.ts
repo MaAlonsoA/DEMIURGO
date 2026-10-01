@@ -12,6 +12,7 @@ import type { Db } from '../db/connection.ts';
 import type { Row } from '../db/schema.ts';
 import type { Services } from '../services.ts';
 import { type JudgmentOutcome, deriveOutcomes } from './outcomes.ts';
+import { activeSteps } from './rules/queue.ts';
 import { RULES, RULES_VERSION, type Finding, type Rule } from './rules/index.ts';
 
 export type { Finding, Rule } from './rules/index.ts';
@@ -153,7 +154,8 @@ export async function loadInputs(db: Db, requestId: string): Promise<PostmortemI
 async function loadQueueInputs(db: Db, inputs: PostmortemInputs): Promise<Pick<PostmortemInputs, 'concurrent' | 'queueDecisions' | 'queuePlans' | 'waitedFiles'>> {
   const { request, steps } = inputs;
   const first = steps[0];
-  const last = steps.at(-1);
+  // The window ends at the merge and leaves out `footprint` and `main` steps (written after it, hours later).
+  const last = activeSteps(steps).at(-1);
   // One query: every step of the other requests whose own window overlaps this one's.
   const others = first && last
     ? await sql<Row<'build_steps'> & { code: string; request_state: string }>`
@@ -164,6 +166,7 @@ async function loadQueueInputs(db: Db, inputs: PostmortemInputs): Promise<Pick<P
         where s.build_request_id in (
           select s2.build_request_id from build_steps s2
           where s2.project_id = ${request.project_id} and s2.build_request_id <> ${request.id}
+            and s2.stage not in ('footprint', 'main')
           group by s2.build_request_id
           having min(s2.created_at) <= ${last.created_at} and max(s2.created_at) >= ${first.created_at})
         order by s.created_at, s.id`.execute(db)

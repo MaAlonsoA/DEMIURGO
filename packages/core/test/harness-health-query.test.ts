@@ -31,12 +31,50 @@ describe('verdict by §1.2', () => {
     expect(verdict([...many('tp', 5), ...many('fp', 5), ...many('fn', 2)])).toBe('neutral');
   });
 
-  it('hurts with cost and no TP, or with a harmful FN while the cost is not zero', () => {
-    expect(verdict(many('cost', 10, { unit: 'min', value: 2 }))).toBe('hurts');
-    const harmful = [...many('tp', 9), ...many('fn', 1, { ground_truth: 'G03' }), ...many('cost', 1, { unit: 'min', value: 1 })];
-    expect(verdict(harmful)).toBe('hurts');
-    const harmless = [...many('tp', 9), ...many('fn', 1, { ground_truth: 'G01' }), ...many('cost', 1, { unit: 'min', value: 1 })];
-    expect(verdict(harmless)).toBe('helps');
+  it('cost alone never hurts; a single harmful FN does not hurt below 10 cases; a harmful rate does', () => {
+    // Cost without any TP (B03 of the validation): not a classification, not «hurts».
+    expect(verdict(many('cost', 10, { unit: 'min', value: 2 }))).toBe('no_data');
+    expect(verdict([...many('tn', 20), ...many('cost', 4, { unit: 'min', value: 2 })])).toBe('no_data');
+    // One harmful FN among 23 escape decisions (B17 after the fix): 4 %, not above the rate.
+    const rare = [...many('tn', 22, { ground_truth: 'G03' }), ...many('fn', 1, { ground_truth: 'G03' })];
+    expect(verdict(rare)).toBe('helps'); // only the escape rate is measured, and it is low
+    expect(scorecardsOf(rare)[0]!.rules[0]).toMatchObject({ escape_rate: 1 / 23, verdict: 'helps' });
+    // The same single FN with no sample behind it never hurts.
+    expect(verdict([...many('tn', 3, { ground_truth: 'G03' }), ...many('fn', 1, { ground_truth: 'G03' })])).toBe('no_data');
+    // A harmful rate of 30 % over 10 decisions hurts.
+    expect(verdict([...many('tn', 7, { ground_truth: 'G03' }), ...many('fn', 3, { ground_truth: 'G03' })])).toBe('hurts');
+    // 16 decisions with no harmful ground truth (B02: schema rule, one FN of G13): nothing measured, no verdict
+    expect(verdict([...many('tn', 15, { ground_truth: 'G13' }), ...many('fn', 1, { ground_truth: 'G13' }), fact('tp'), fact('fp')])).toBe('no_data');
+    // A harmless FN (G01) is not an escape.
+    expect(verdict([...many('tp', 9), ...many('fn', 1, { ground_truth: 'G01' }), ...many('cost', 1, { unit: 'min', value: 1 })])).toBe('helps');
+  });
+
+  it('counts only classification decisions in n; benefit, cost and info rows are not decisions', () => {
+    const [card] = scorecardsOf([...many('tp', 3), ...many('benefit', 40, { unit: 'files', value: 1 }), ...many('cost', 40, { unit: 'tokens', value: 1 }), ...many('info', 5)]);
+    expect(card).toMatchObject({ n: 3, verdict: 'no_data' });
+  });
+
+  it('measures per rule, never mixing the rules of a piece (B17: comments and escapes)', () => {
+    const comments = [...many('tp', 9, { finding: 'review.finding_outcome' }), ...many('fp', 1, { finding: 'review.finding_outcome' })];
+    const escapes = [...many('tn', 21, { finding: 'review.escape', ground_truth: 'G03' }), ...many('fn', 1, { finding: 'review.escape', ground_truth: 'G03' })];
+    const cost = many('cost', 30, { finding: 'review.cost', unit: 'tokens', value: 1000 });
+    const [card] = scorecardsOf([...comments, ...escapes, ...cost].map((f) => ({ ...f, piece: 'B17' })));
+    expect(card).toMatchObject({ main_rule: 'review.finding_outcome', precision: 0.9, recall: 1, n: 32, verdict: 'helps' });
+    const escape = card!.rules.find((r) => r.finding === 'review.escape')!;
+    // The escape rule has no TP: its precision and recall are null / 0 of itself, not the comments' 90 %.
+    expect(escape).toMatchObject({ precision: null, n: 22 });
+  });
+
+  it('shows a precision only with TP + FP > 0 and a recall only with TP + FN > 0 (B03 «precision 0 %» was a recall)', () => {
+    const [card] = scorecardsOf(many('fn', 3, { finding: 'queue.parallel_conflict' }).concat(many('tn', 295, { finding: 'queue.parallel_conflict' })));
+    expect(card).toMatchObject({ precision: null, main_rule: null });
+    expect(card!.rules[0]).toMatchObject({ precision: null, recall: 0 });
+  });
+
+  it('the verdict of a piece is its worst rule', () => {
+    const good = many('tp', 12, { finding: 'a.good' });
+    const bad = [...many('tp', 3, { finding: 'a.bad' }), ...many('fp', 9, { finding: 'a.bad' })];
+    expect(verdict([...good, ...bad])).toBe('hurts');
   });
 
   it('needs the benefit to beat the cost in a shared unit', () => {
@@ -49,8 +87,9 @@ describe('verdict by §1.2', () => {
 
   it('sums values per unit and counts per class', () => {
     const [card] = scorecardsOf([fact('benefit', { unit: 'min', value: 3 }), fact('benefit', { unit: 'min', value: 4 }), fact('cost', { unit: 'tokens', value: 100 }), fact('tp'), fact('fn')]);
-    expect(card).toMatchObject({ benefit: { min: 7 }, cost: { tokens: 100 }, counts: { tp: 1, fn: 1, benefit: 2, cost: 1 }, n: 5, precision: 1, recall: 0.5 });
+    expect(card).toMatchObject({ benefit: { min: 7 }, cost: { tokens: 100 }, counts: { tp: 1, fn: 1, benefit: 2, cost: 1 }, n: 2, precision: 1, recall: 0.5 });
     expect(verdictOf({ ...card!, n: 3 })).toBe('no_data');
+    expect(verdictOf({ ...card!, n: 12 })).toBe('no_data'); // 1 positive: no measure has 10 cases behind it
   });
 });
 

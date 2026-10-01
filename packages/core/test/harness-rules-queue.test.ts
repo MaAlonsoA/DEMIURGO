@@ -110,6 +110,54 @@ describe('queue.parallel_conflict', () => {
   });
 });
 
+describe('queue.parallel_conflict: windows, tasks and attribution (pm-2)', () => {
+  const other = (requestId: string, taskCode: string, steps: ConcurrentRequest['steps']): ConcurrentRequest => ({ requestId, taskCode, state: 'done', steps });
+
+  it('footprint and main steps written after the merge do not stretch the window (270 of 295 TN were artefacts)', () => {
+    const early = [...mergedSteps('r0', ['src/a.ts'], { start: 0, end: 40 }), step('r0', 1, 'footprint', 'ok', null, 300), step('r0', 1, 'main', 'ok', null, 310)];
+    // r1 starts at minute 100, long after r0 merged: they never ran together.
+    expect(queueParallelConflict(inputs({ id: 'r1', steps: mergedSteps('r1', ['src/b.ts'], { start: 100, end: 120 }), concurrent: [other('r0', 'TSK-B-001', early)] }))).toEqual([]);
+  });
+  it('never pairs a request with another request of the same task', () => {
+    const list = queueParallelConflict(inputs({ id: 'r1', steps: mergedSteps('r1', ['src/b.ts'], { start: 10, end: 60 }), concurrent: [other('r0', 'TSK-A-001', mergedSteps('r0', ['src/b.ts'], { start: 0, end: 40 }))] }));
+    expect(list).toEqual([]);
+  });
+  it('never pairs a request with itself', () => {
+    expect(queueParallelConflict(inputs({ id: 'r1', steps: mergedSteps('r1', ['a'], { start: 10, end: 60 }), concurrent: [other('r1', 'TSK-B-001', mergedSteps('r1', ['a'], { start: 0, end: 40 }))] }))).toEqual([]);
+  });
+  it('catches the conflict met after the other request merged (TSK-WOR-008 ~ TSK-MEA-032), naming files through the worktree step', () => {
+    const files = ['src/app/page.tsx', 'src/design-system/index.ts'];
+    const merged = mergedSteps('rMEA', files, { start: 0, end: 50 }); // merges at minute 50
+    const mine = [
+      ...mergedSteps('rWOR', files, { start: 10, end: 90 }),
+      step('rWOR', 2, 'merge', 'changes_requested', { conflict: true }, 70), // no conflict_files
+      step('rWOR', 2, 'worktree', 'ok', { conflicts: ['src/design-system/index.ts'] }, 71),
+    ].sort((a, b) => +a.created_at - +b.created_at);
+    const list = queueParallelConflict(inputs({ id: 'rWOR', taskCode: 'TSK-WOR-008', steps: mine, concurrent: [other('rMEA', 'TSK-MEA-032', merged)] }));
+    expect(list.map((f) => f.class)).toEqual(['fn', 'cost']);
+    expect(list[0]).toMatchObject({ subject: 'TSK-WOR-008~TSK-MEA-032' });
+    expect(list[1]).toMatchObject({ unit: 'min', value: 20 }); // from the conflict (70) to the merge (90)
+  });
+  it('a conflict after the other withdrew (no merge) is not that pair\'s', () => {
+    const gone = [step('rX', 1, 'repo', 'started', null, 0), step('rX', 1, 'commit', 'ok', { files: ['src/a.ts'] }, 10), step('rX', 1, 'merge', 'failed', null, 20)];
+    const mine = [...mergedSteps('rY', ['src/a.ts'], { start: 5, end: 90 }), step('rY', 1, 'worktree', 'ok', { conflicts: ['src/a.ts'] }, 60)].sort((a, b) => +a.created_at - +b.created_at);
+    expect(queueParallelConflict(inputs({ id: 'rY', steps: mine, concurrent: [other('rX', 'TSK-B-001', gone)] })).map((f) => f.class)).toEqual(['tn']);
+  });
+  it('a conflict step is attributed to one pair only: the request merged most recently before it', () => {
+    const f = ['src/shared.ts'];
+    const early = other('r0', 'TSK-B-001', mergedSteps('r0', f, { start: 0, end: 30 }));
+    const late = other('r2', 'TSK-C-001', mergedSteps('r2', f, { start: 5, end: 50 }));
+    const mine = [...mergedSteps('r1', f, { start: 10, end: 90 }), step('r1', 1, 'worktree', 'ok', { conflicts: f }, 60)].sort((a, b) => +a.created_at - +b.created_at);
+    const list = queueParallelConflict(inputs({ id: 'r1', steps: mine, concurrent: [early, late] }));
+    const fns = list.filter((x) => x.class === 'fn');
+    const costs = list.filter((x) => x.class === 'cost');
+    expect(fns).toHaveLength(1);
+    expect(fns[0]!.subject).toBe('TSK-A-001~TSK-C-001');
+    expect(costs).toHaveLength(1); // the cost of the conflict is counted once
+    expect(list.filter((x) => x.class === 'tn').map((x) => x.subject)).toEqual(['TSK-A-001~TSK-B-001']);
+  });
+});
+
 describe('queue.slot_idle', () => {
   const plan = (minute: number, over: Partial<QueuePlanRow> = {}): QueuePlanRow => ({ id: uid('plan'), decided_at: at(minute), parallel_limit: 3, running: ['TSK-X-001'], started: [], stopped_kind: null, ...over });
 

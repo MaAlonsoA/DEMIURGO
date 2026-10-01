@@ -37,8 +37,8 @@ describe('scoreOrder', () => {
 
 describe('files.prediction', () => {
   it('reports the Jev and the deterministic order as benefit findings', () => {
-    // Real: two files in Jev's top 2, one new file (unpredictable), a test and a lockfile (both excluded).
-    const list = run(['src/a.ts', 'src/b.ts', 'src/new.ts', 'src/a.test.ts', 'pnpm-lock.yaml']);
+    // Real: two files in Jev's top 2, one file of the PR not in the list, a test and a lockfile (both excluded).
+    const list = run(['src/a.ts', 'src/b.ts', 'src/other.ts', 'src/a.test.ts', 'pnpm-lock.yaml']);
     expect(list).toHaveLength(2);
     expect(list.every((f) => f.class === 'benefit' && f.unit === 'files' && f.ground_truth === 'G01')).toBe(true);
     const jev = by(list, 'jev');
@@ -56,6 +56,18 @@ describe('files.prediction', () => {
   it('reads the footprint stored as a JSON string (old format) when there is no commit list', () => {
     const i = inputs({ id: 'r3', steps: mergedSteps('r3', ['src/a.ts'], { footprintAsString: true }).filter((s) => s.stage !== 'commit'), codeOpinions: candidates as never[] });
     expect(by(filesPrediction(i), 'jev').value).toBe(1);
+  });
+  it('judges the FIRST attempt: files the PR itself created in an earlier attempt are not hits of a later one (TSK-WOR-008)', () => {
+    // Attempt 1 offered a and b (existing files); the builder created src/new.ts; attempt 2 now sees it and offers it first.
+    const opinions = [op('src/new.ts', 0.99, 1, 0.9, 2), op('src/a.ts', 0.5, 2, 0.5, 2), op('src/a.ts', 0.5, 1, 0.9, 1), op('src/b.ts', 0.4, 2, 0.8, 1)];
+    const i = inputs({ id: 'r4', steps: mergedSteps('r4', ['src/a.ts', 'src/b.ts', 'src/new.ts'], { added: ['src/new.ts'] }), codeOpinions: opinions as never[] });
+    const jev = by(filesPrediction(i), 'jev');
+    expect(jev.attempt).toBe(1);
+    expect(jev.evidence).toMatchObject({ actual: 2, hits: 2, hit_paths: ['src/a.ts', 'src/b.ts'] });
+  });
+  it('files created by the merged PR are not part of the real files to predict', () => {
+    const i = inputs({ id: 'r5', steps: mergedSteps('r5', ['src/a.ts', 'src/created.ts'], { added: ['src/created.ts'] }), codeOpinions: [op('src/created.ts', 1, 1, 0.9), op('src/a.ts', 0.5, 2, 0.5)] as never[] });
+    expect(by(filesPrediction(i), 'jev').evidence).toMatchObject({ actual: 1, hits: 1 });
   });
   it('marks a technical task as info and does not judge it', () => {
     const list = run(['src/a.ts'], { technical: true });

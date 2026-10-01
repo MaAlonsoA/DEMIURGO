@@ -7,7 +7,7 @@
 import { isTestFile } from '../../build/flow.ts';
 import { isReusableFile } from '../../build/footprint.ts';
 import type { Finding, Rule } from './index.ts';
-import { realFilesOf } from './common.ts';
+import { objectOf, realFilesOf } from './common.ts';
 
 /** k of recall@k: the number of files the queue takes (`PREDICTED_FILES` in build/predicted-files.ts, not imported to keep the rules light). */
 const PREDICTED_FILES = 10;
@@ -34,15 +34,29 @@ export function scoreOrder(order: readonly string[], actual: ReadonlySet<string>
 const byRank = (a: Opinion, b: Opinion) => a.rank - b.rank || (a.path < b.path ? -1 : 1);
 const byScore = (a: Opinion, b: Opinion) => b.deterministic_score - a.deterministic_score || (a.path < b.path ? -1 : 1);
 
+/** Files the merged pull request created (footprint status `added`): «Code to extend» can only offer files that exist. */
+function addedFilesOf(steps: readonly { stage: string; outcome: string; detail: unknown }[]): Set<string> {
+  const merge = steps.filter((s) => s.stage === 'merge' && s.outcome === 'ok').at(-1);
+  const files = merge ? objectOf(objectOf(merge.detail).footprint).files : undefined;
+  const added = new Set<string>();
+  if (!Array.isArray(files)) return added;
+  for (const f of files) {
+    const o = objectOf(f);
+    if (o.status === 'added' && typeof o.path === 'string') added.add(o.path);
+  }
+  return added;
+}
+
 export const filesPrediction: Rule = (inputs) => {
   if (inputs.request.state !== 'done') return [];
   const real = realFilesOf(inputs.steps);
   if (!real) return [];
-  const actual = new Set(real.filter((f) => isReusableFile(f) && !isTestFile(f)));
+  const created = addedFilesOf(inputs.steps);
+  const actual = new Set(real.filter((f) => isReusableFile(f) && !isTestFile(f) && !created.has(f)));
   if (actual.size === 0) return [];
-  // The merged attempt: the one whose merge step is ok; else the latest attempt that has opinions.
-  const merged = inputs.steps.filter((s) => s.stage === 'merge' && s.outcome === 'ok').at(-1)?.attempt;
-  const attempt = merged !== undefined && inputs.codeOpinions.some((o) => o.attempt === merged) ? merged : Math.max(0, ...inputs.codeOpinions.map((o) => o.attempt));
+  // The FIRST attempt with opinions: the prediction the queue planned with. A later attempt already sees the files the
+  // builder created in earlier ones («Code to extend» reads the branch), which would count as hits (information leak).
+  const attempt = inputs.codeOpinions.length === 0 ? 0 : Math.min(...inputs.codeOpinions.map((o) => o.attempt));
   const opinions = inputs.codeOpinions.filter((o) => o.attempt === attempt && isReusableFile(o.path) && !isTestFile(o.path));
   if (opinions.length === 0) return [];
   const technical = inputs.request.feature_version_id === null;

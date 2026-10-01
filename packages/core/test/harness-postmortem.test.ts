@@ -106,7 +106,7 @@ describe('harness post-mortems', () => {
     expect(await runPostmortem(s, id, 'pm-test-2', [extra, extra])).toMatchObject({ status: 'recorded', findings: 2 });
     const rows = await s.db.selectFrom('harness_postmortems').select(['rules_version', 'findings', 'outcome']).where('build_request_id', '=', id).orderBy('rules_version').execute();
     expect(rows).toEqual([
-      { rules_version: 'pm-1', findings: 1, outcome: 'withdrawn' },
+      { rules_version: 'pm-2', findings: 1, outcome: 'withdrawn' },
       { rules_version: 'pm-test-2', findings: 2, outcome: 'withdrawn' },
     ]);
   });

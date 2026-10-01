@@ -73,13 +73,19 @@ export const queueSkipVsFootprint: Rule = (inputs) => {
 
 type StepRow = ConcurrentRequest['steps'][number];
 
-/** A step that records a real conflict, with the conflicting files when it names them (G02). */
-function conflictOf(step: StepRow): { files: string[] } | null {
+/** A step that records a real conflict, with the conflicting files when it names them (G02). `steps` are the steps of the same request. */
+function conflictOf(step: StepRow, steps: readonly StepRow[]): { files: string[] } | null {
   const d = objectOf(step.detail);
   const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
   if (step.stage === 'worktree' && list(d.conflicts).length > 0) return { files: list(d.conflicts) };
   if (step.stage === 'commit' && step.outcome === 'failed' && list(d.conflicts).length > 0) return { files: list(d.conflicts) };
-  if (step.stage === 'merge' && step.outcome === 'changes_requested' && d.conflict === true) return { files: list(d.conflict_files) };
+  if (step.stage === 'merge' && step.outcome === 'changes_requested' && d.conflict === true) {
+    // The merge step does not always name the files: the `worktree` step that follows it does (it rebases onto main).
+    const named = list(d.conflict_files);
+    if (named.length > 0) return { files: named };
+    const next = steps.find((x) => x.stage === 'worktree' && ms(x.created_at) >= ms(step.created_at) && list(objectOf(x.detail).conflicts).length > 0);
+    return { files: next ? list(objectOf(next.detail).conflicts) : [] };
+  }
   if (step.stage === 'merge' && step.outcome === 'waiting' && d.recheck === true && (d.reason === 'conflict' || d.reason === 'same_file')) return { files: list(d.shared_files) };
   return null;
 }
@@ -94,49 +100,86 @@ const migrationNumbers = (files: readonly string[]): Map<string, string> => {
   return out;
 };
 
+/**
+ * The steps that make a request «run»: from its first step to its merge (or its last step when it never merged),
+ * without `footprint` and `main`, which are written after the merge (some hours later) and would stretch the window.
+ */
+export function activeSteps<T extends { stage: string; outcome: string }>(steps: readonly T[]): T[] {
+  const live = steps.filter((s) => s.stage !== 'footprint' && s.stage !== 'main');
+  const merged = live.findIndex((s) => s.stage === 'merge' && s.outcome === 'ok');
+  return merged >= 0 ? live.slice(0, merged + 1) : live;
+}
+
 const windowOf = (steps: readonly { created_at: unknown }[]): [number, number] | null => (steps.length === 0 ? null : [ms(steps[0]!.created_at), ms(steps.at(-1)!.created_at)]);
 
+type Party = { requestId: string; taskCode: string; steps: StepRow[]; active: StepRow[]; window: [number, number]; files: string[] | null; mergedAt: number | null };
+
+const partyOf = (requestId: string, taskCode: string, steps: StepRow[]): Party | null => {
+  const active = activeSteps(steps);
+  const window = windowOf(active);
+  if (!window) return null;
+  const merge = active.find((s) => s.stage === 'merge' && s.outcome === 'ok');
+  return { requestId, taskCode, steps, active, window, files: realFilesOf(steps), mergedAt: merge ? ms(merge.created_at) : null };
+};
+
 export const queueParallelConflict: Rule = (inputs) => {
-  const mineSteps = inputs.steps;
-  const mine = windowOf(mineSteps);
-  if (!mine) return [];
-  const myFiles = realFilesOf(mineSteps);
+  const me = partyOf(inputs.request.id, inputs.taskCode, inputs.steps);
+  if (!me) return [];
+  const others = (inputs.concurrent ?? [])
+    .filter((o) => o.requestId !== inputs.request.id && o.taskCode !== inputs.taskCode) // a request is never paired with itself or with its task's other requests
+    .map((o) => partyOf(o.requestId, o.taskCode, o.steps))
+    .filter((o): o is Party => o !== null);
+  const everyone = [me, ...others];
   const out: Finding[] = [];
-  for (const other of inputs.concurrent ?? []) {
-    const theirs = windowOf(other.steps);
-    if (!theirs) continue;
+  for (const other of others) {
+    const theirs = other.window;
     // The pair is judged once, by the post-mortem of the request that started later.
-    if (mine[0] < theirs[0] || (mine[0] === theirs[0] && inputs.request.id < other.requestId)) continue;
-    const from = Math.max(mine[0], theirs[0]);
-    const to = Math.min(mine[1], theirs[1]);
+    if (me.window[0] < theirs[0] || (me.window[0] === theirs[0] && inputs.request.id < other.requestId)) continue;
+    const from = Math.max(me.window[0], theirs[0]);
+    const to = Math.min(me.window[1], theirs[1]);
     if (from > to) continue;
-    const theirFiles = realFilesOf(other.steps);
-    const both = myFiles && theirFiles ? shared(myFiles, theirFiles) : [];
+    const both = me.files && other.files ? shared(me.files, other.files) : [];
     const subject = `${inputs.taskCode}~${other.taskCode}`;
 
-    // Conflicts met by either request while both were running.
-    const hits = [
-      ...mineSteps.map((s) => ({ s, owner: inputs.request.id, rest: theirFiles, c: conflictOf(s) })),
-      ...other.steps.map((s) => ({ s, owner: other.requestId, rest: myFiles, c: conflictOf(s) })),
-    ].filter((h) => h.c && ms(h.s.created_at) >= from && ms(h.s.created_at) <= to);
-    const attributed = hits.filter((h) => h.c!.files.length > 0 ? h.rest !== null && shared(h.c!.files, h.rest).length > 0 : both.length > 0);
+    // A conflict step belongs to ONE pair: the request that merged most recently before it, among the running ones, whose files
+    // cross the conflict's. The step of a request is met while it runs, or after the other merged (git sees the conflict with main).
+    const hits = [me, other].flatMap((owner) => {
+      const counterpart = owner === me ? other : me;
+      return owner.active.flatMap((s) => {
+        const c = conflictOf(s, owner.steps);
+        if (!c) return [];
+        const t = ms(s.created_at);
+        const inOverlap = t >= from && t <= to;
+        const afterMerge = counterpart.mergedAt !== null && counterpart.mergedAt <= t && t >= from;
+        if (!inOverlap && !afterMerge) return [];
+        return [{ s, owner, counterpart, c }];
+      });
+    });
+    const attributed = hits.filter((h) => {
+      const crosses = (p: Party): boolean => (h.c.files.length > 0 ? p.files !== null && shared(h.c.files, p.files).length > 0 : both.length > 0);
+      if (!crosses(h.counterpart)) return false;
+      const t = ms(h.s.created_at);
+      const rivals = everyone.filter((p) => p !== h.owner && p.window[0] <= t && crosses(p));
+      const merged = rivals.filter((p) => p.mergedAt !== null && p.mergedAt <= t).sort((a, b) => (b.mergedAt as number) - (a.mergedAt as number) || (a.requestId < b.requestId ? -1 : 1));
+      const winner = merged[0] ?? [...rivals].sort((a, b) => (a.requestId < b.requestId ? -1 : 1))[0];
+      return winner === h.counterpart;
+    });
 
     // The latent conflict git cannot see: two migrations with the same number.
-    const mineNumbers = migrationNumbers(myFiles ?? []);
-    const latent = [...migrationNumbers(theirFiles ?? [])].filter(([n, path]) => mineNumbers.has(n) && mineNumbers.get(n) !== path).map(([n]) => n);
+    const mineNumbers = migrationNumbers(me.files ?? []);
+    const latent = [...migrationNumbers(other.files ?? [])].filter(([n, path]) => mineNumbers.has(n) && mineNumbers.get(n) !== path).map(([n]) => n);
 
     const overlap = { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
     if (attributed.length > 0 || latent.length > 0) {
       const evidence = { requests: [inputs.request.id, other.requestId], overlap, conflict_steps: attributed.map((h) => h.s.id), shared_files: both, migration_numbers: latent };
       out.push({ piece: 'B03', finding: 'queue.parallel_conflict', class: 'fn', ground_truth: 'G02', subject, evidence });
       if (attributed.length > 0) {
-        // Latency of the conflict: from its first step to the merge of the request that met it (or its last step).
+        // Latency of the conflict: from its first step to the merge of the request that met it (or its last step). One per pair.
         const first = attributed.reduce((a, b) => (ms(a.s.created_at) <= ms(b.s.created_at) ? a : b));
-        const steps = first.owner === inputs.request.id ? mineSteps : other.steps;
-        const end = steps.filter((s) => s.stage === 'merge' && s.outcome === 'ok').at(-1) ?? steps.at(-1)!;
+        const end = first.owner.active.filter((s) => s.stage === 'merge' && s.outcome === 'ok').at(-1) ?? first.owner.active.at(-1)!;
         out.push({ piece: 'B03', finding: 'queue.parallel_conflict', class: 'cost', ground_truth: 'G02', value: minutesBetween(first.s.created_at, end.created_at), unit: 'min', subject, evidence });
       }
-    } else if (hits.length === 0 || (myFiles && theirFiles)) {
+    } else if (hits.length === 0 || (me.files && other.files)) {
       out.push({ piece: 'B03', finding: 'queue.parallel_conflict', class: 'tn', ground_truth: 'G02', subject, evidence: { requests: [inputs.request.id, other.requestId], overlap, shared_files: both } });
     }
   }

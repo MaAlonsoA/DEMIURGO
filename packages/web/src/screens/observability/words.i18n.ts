@@ -268,6 +268,9 @@ export const HARNESS_HEALTH = messages(
     colCost: 'Cost',
     colPrecision: 'Precision',
     colRecall: 'Recall',
+    colRule: 'Rule',
+    colEscapeRate: 'Harmful escapes',
+    rulesCaption: (piece: string) => `Measures per rule of ${piece}`,
     verdict: (k: string) =>
       ({ helps: 'Helps', neutral: 'Neutral', hurts: 'Gets in the way', no_data: 'No data' } as Record<string, string>)[k] ?? k,
     unit: (k: string) =>
@@ -303,6 +306,9 @@ export const HARNESS_HEALTH = messages(
     colCost: 'Coste',
     colPrecision: 'Precisión',
     colRecall: 'Recobro',
+    colRule: 'Regla',
+    colEscapeRate: 'Fugas dañinas',
+    rulesCaption: (piece: string) => `Medidas por regla de ${piece}`,
     verdict: (k: string) =>
       ({ helps: 'Ayuda', neutral: 'Neutra', hurts: 'Estorba', no_data: 'Sin datos' } as Record<string, string>)[k] ?? k,
     unit: (k: string) =>

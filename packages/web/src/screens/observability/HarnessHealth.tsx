@@ -28,6 +28,15 @@ export type HarnessCase = {
   task_code: string;
   pr_url: string | null;
 };
+/** What one rule of a piece measured; precision and recall are never mixed across rules. */
+export type HarnessRule = {
+  finding: string;
+  verdict: 'helps' | 'neutral' | 'hurts' | 'no_data';
+  n: number;
+  precision: number | null;
+  recall: number | null;
+  escape_rate: number | null;
+};
 export type HarnessPiece = {
   piece: string;
   /** English name from the inventory (core harness/pieces.ts); null when the piece has none. */
@@ -36,6 +45,9 @@ export type HarnessPiece = {
   n: number;
   precision: number | null;
   recall: number | null;
+  /** The rule whose precision and recall the row shows. */
+  main_rule?: string | null;
+  rules?: HarnessRule[];
   benefit: Record<string, number>;
   cost: Record<string, number>;
   cases: HarnessCase[];
@@ -77,8 +89,35 @@ const verdictClass = (v: HarnessPiece['verdict']) => (v === 'hurts' ? 'text-dang
 function CasesTable({ projectId, piece }: { projectId: string; piece: HarnessPiece }) {
   const t = useMessages(HARNESS_HEALTH);
   const locale = useSafeLocale();
+  const rules = piece.rules ?? [];
   return (
     <div className="flex flex-col gap-2 py-2">
+      {rules.length > 1 ? (
+        <Table
+          caption={t.rulesCaption(piece.piece)}
+          head={
+            <>
+              <th scope="col" className={th}>{t.colRule}</th>
+              <th scope="col" className={th}>{t.colVerdict}</th>
+              <th scope="col" className={numTh}>{t.colN}</th>
+              <th scope="col" className={numTh}>{t.colPrecision}</th>
+              <th scope="col" className={numTh}>{t.colRecall}</th>
+              <th scope="col" className={numTh}>{t.colEscapeRate}</th>
+            </>
+          }
+        >
+          {rules.map((r) => (
+            <tr key={r.finding} data-rule={r.finding} data-verdict={r.verdict}>
+              <td className={`${td} break-words font-mono text-xs text-fg`}>{r.finding}{r.finding === piece.main_rule ? ' *' : ''}</td>
+              <td className={`${td} ${verdictClass(r.verdict)}`}>{t.verdict(r.verdict)}</td>
+              <td className={numTd}>{num(locale, r.n, 0)}</td>
+              <td className={numTd}>{shareText(locale, r.precision)}</td>
+              <td className={numTd}>{shareText(locale, r.recall)}</td>
+              <td className={numTd}>{shareText(locale, r.escape_rate)}</td>
+            </tr>
+          ))}
+        </Table>
+      ) : null}
       <Table
         caption={t.casesCaption(piece.piece)}
         head={

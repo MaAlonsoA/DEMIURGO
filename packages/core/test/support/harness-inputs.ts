@@ -15,10 +15,10 @@ export function step(requestId: string, attempt: number, stage: string, outcome:
 }
 
 /** A merged request: repo started at minute 0, commit and merge steps with the given real files. */
-export function mergedSteps(requestId: string, files: string[], opts: { start?: number; end?: number; footprintAsString?: boolean } = {}): Step[] {
+export function mergedSteps(requestId: string, files: string[], opts: { start?: number; end?: number; footprintAsString?: boolean; added?: string[] } = {}): Step[] {
   const start = opts.start ?? 0;
   const end = opts.end ?? start + 20;
-  const footprint = { merge_commit: 'abc', files: files.map((path) => ({ path, additions: 1, deletions: 0, status: 'added' })) };
+  const footprint = { merge_commit: 'abc', files: files.map((path) => ({ path, additions: 1, deletions: 0, status: opts.added?.includes(path) ? 'added' : 'modified' })) };
   return [
     step(requestId, 1, 'repo', 'started', null, start),
     step(requestId, 1, 'commit', 'ok', { files }, start + 10),

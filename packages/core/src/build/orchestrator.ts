@@ -1475,17 +1475,23 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const onMain = mergedCommit;
     const main = await waitForCi(d, cfg, owner, repoName, onMain, 'main-ci');
     if (main.kind === 'done') {
-      const red = main.ci?.conclusion !== 'success';
-      await plain('main-ci-done', () =>
-        record(
+      await plain('main-ci-done', async () => {
+        const conclusion = main.ci?.conclusion ?? null;
+        // A run on main cancelled because a newer commit landed (GitHub Actions `concurrency` with cancel-in-progress)
+        // is not red: the newer commit's run checks main, and its own merge records it.
+        const superseded = conclusion === 'cancelled' && (await d.github.behindBy(cfg, owner, repoName, 'main', onMain).catch(() => 0)) > 0;
+        const red = conclusion !== 'success' && !superseded;
+        await record(
           r,
           'main',
           red ? 'failed' : 'ok',
           red
-            ? { on: 'main', sha: onMain, conclusion: main.ci?.conclusion ?? null, error: `CI on main is red after merging ${info.taskCode}: fix main before building more.` }
-            : { on: 'main', sha: onMain, conclusion: 'success' },
-        ),
-      );
+            ? { on: 'main', sha: onMain, conclusion, error: `CI on main is red after merging ${info.taskCode}: fix main before building more.` }
+            : superseded
+              ? { on: 'main', sha: onMain, conclusion, superseded: true }
+              : { on: 'main', sha: onMain, conclusion: 'success' },
+        );
+      });
     }
   }
   await plain('cleanup', async () => {

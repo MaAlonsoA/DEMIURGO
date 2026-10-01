@@ -14,6 +14,10 @@ import { useNow } from './Time.tsx';
 
 export const LATE_AFTER_MS = 60_000;
 export const STALLED_AFTER_MS = 90_000;
+/** Without history, a model that goes quiet this long (no events, no new tokens) reads as Stalled (convention nuestra). */
+export const STALLED_NO_HISTORY_MS = 300_000;
+/** With history, Stalled also needs the run to be over this many times the typical p80 duration (convention nuestra). */
+export const STALLED_MARGIN = 2;
 /** Without history, a token counter that has not moved for this long reads as «Writing the result…» (convention nuestra). */
 export const WRITING_QUIET_MS = 20_000;
 /** Slack over the typical p80 duration before «Taking longer than usual» and Stalled (convention nuestra: 50 %). */
@@ -99,7 +103,14 @@ export function runView(
       locale === 'es'
         ? `Tarda más de lo habitual (suele tardar unos ${min} min)`
         : `Taking longer than usual (usually about ${min} min)`;
-    if (silent > STALLED_AFTER_MS && (typical === null || slow))
+    const quietSince = lastTokenMove ?? Math.max(since, started);
+    const tokensQuiet = now - quietSince;
+    // Thinking is not stalling: while events or tokens keep arriving the run is working. Stalled needs
+    // both to be quiet, and either the typical duration far exceeded or, without history, a long silence.
+    const stalled =
+      Math.min(silent, tokensQuiet) > (typical === null ? STALLED_NO_HISTORY_MS : STALLED_AFTER_MS) &&
+      (typical === null || elapsed > typical.p80_s * 1000 * STALLED_MARGIN);
+    if (stalled)
       return {
         kind: 'stalled',
         word: w.stalled,
@@ -113,7 +124,6 @@ export function runView(
         usually,
         writing: null,
       };
-    const quietSince = lastTokenMove ?? Math.max(since, started);
     const writing =
       typical && elapsed < typical.p80_s * 1000 && now - quietSince > WRITING_QUIET_MS
         ? locale === 'es'

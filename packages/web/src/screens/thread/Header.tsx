@@ -29,6 +29,7 @@ import { cn } from '../../lib/cn.ts';
 import { hasMoreThanTitle, threadTitle } from '../../lib/thread-title.ts';
 import { shortDate } from '../../lib/time.ts';
 import { whoOf } from '../../words.ts';
+import { demiurgoReplied, isOpenQuestion, visibleQuestions } from './answers.ts';
 import { HEADER } from './words.i18n.ts';
 
 /** The aspects the person's messages are about, most talked about first (Jev, when it is fairly sure). */
@@ -85,6 +86,7 @@ export function ThreadHeader({
   const title = threadTitle(purpose);
   const showFull = hasMoreThanTitle(purpose);
   const clamp = useClamp(purpose);
+  const shown = visibleQuestions(t.questions, demiurgoReplied(t.messages));
   const open = (d: Dialog) => {
     command.reset();
     setDialog(d);
@@ -164,7 +166,7 @@ export function ThreadHeader({
           </>
         }
       >
-        {stage ? <StageProgress stage={stage} /> : null}
+        {stage ? <StageProgress stage={stage} held={t.questions.filter((q) => isOpenQuestion(q) && q.stage_id === stage.id && !shown.includes(q)).length} /> : null}
         <PurposeHistory projectId={projectId} explorationId={t.id} />
         {!dialog && command.error ? <ErrorNotice error={command.error} /> : null}
         {t.state === 'concluded' && t.state_reason ? (
@@ -235,8 +237,10 @@ function useClamp(text: string) {
 }
 
 /** The design stage this thread carries: its title and how many of its questions are answered. */
-function StageProgress({ stage }: { stage: StageRow }) {
+/** `held` questions of the stage are not on screen yet: they count when they come up. */
+function StageProgress({ stage, held }: { stage: StageRow; held: number }) {
   const words = useMessages(HEADER);
+  const total = Math.max(stage.covered, stage.total - held);
   return (
     <div data-thread-stage={stage.key} className="flex max-w-md flex-col gap-1.5">
       <span className="inline-flex items-center gap-1.5 text-sm text-fg-2">
@@ -244,7 +248,7 @@ function StageProgress({ stage }: { stage: StageRow }) {
         {words.designStage}
         <span className="font-medium text-fg">{stage.title}</span>
       </span>
-      <Meter value={stage.covered} max={stage.total} label={words.answeredOf(stage.covered, stage.total)} />
+      <Meter value={stage.covered} max={total} label={words.answeredOf(stage.covered, total)} />
     </div>
   );
 }

@@ -7,9 +7,12 @@
 
 import { singleTargetCode } from '../record/PendingProposals.tsx';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useId, useState } from 'react';
-import { batchQuery, explorationsQuery } from '../../api/queries.ts';
+import { runCommand } from '../../api/commands.ts';
+import { ApiError } from '../../api/client.ts';
+import { batchQuery, explorationsQuery, keys } from '../../api/queries.ts';
 import type { ExplorationDetail, Message, Proposal } from '../../api/types.ts';
 import { Button } from '../../components/Button.tsx';
 import { ArrowRightIcon, CheckIcon, ForkIcon, PackageIcon } from '../../components/icons.tsx';
@@ -90,6 +93,7 @@ export function DemiurgoMessage({
   model,
   batchId,
   canFork,
+  superseded = false,
 }: {
   projectId: string;
   thread: ExplorationDetail;
@@ -98,6 +102,8 @@ export function DemiurgoMessage({
   model: string | null;
   batchId: string | null;
   canFork: boolean;
+  /** A later DEMIURGO reply exists: its open unknowns and hypotheses no longer read as current. */
+  superseded?: boolean;
 }) {
   const t = useMessages(MESSAGES);
   const headId = useId();
@@ -124,7 +130,7 @@ export function DemiurgoMessage({
       {more.map((m) => (
         <ReadMessage key={m.id} projectId={projectId} message={m} />
       ))}
-      {observed.length > 0 ? <Observations projectId={projectId} items={observed} divided={!!reply || more.length > 0} /> : null}
+      {observed.length > 0 ? <Observations projectId={projectId} items={observed} divided={!!reply || more.length > 0} superseded={superseded} /> : null}
       {batchId ? <Proposed projectId={projectId} batchId={batchId} /> : null}
       {canFork ? (
         <div className="flex justify-end border-t border-edge-subtle pt-2">
@@ -165,31 +171,47 @@ function ReadMessage({ projectId, message: m }: { projectId: string; message: Me
 }
 
 /** What DEMIURGO observed: each one Proposed (a claim or a hypothesis) or Unknown, in words. */
-export function Observations({ projectId, items, divided = true }: { projectId: string; items: Message[]; divided?: boolean }) {
+export function Observations({
+  projectId,
+  items,
+  divided = true,
+  superseded = false,
+}: {
+  projectId: string;
+  items: Message[];
+  divided?: boolean;
+  superseded?: boolean;
+}) {
   const t = useMessages(MESSAGES);
   return (
     <div className={cn('flex flex-col gap-2', divided && 'border-t border-edge-subtle pt-3')}>
       <h3 className="text-sm font-medium text-fg-2">{t.whatItObserved}</h3>
       <ul className="flex flex-col gap-2">
         {items.map((o) => (
-          <Observation key={o.id} projectId={projectId} observation={o} />
+          <Observation key={o.id} projectId={projectId} observation={o} superseded={superseded && o.kind !== 'claim'} />
         ))}
       </ul>
     </div>
   );
 }
 
-function Observation({ projectId, observation: o }: { projectId: string; observation: Message }) {
+function Observation({ projectId, observation: o, superseded }: { projectId: string; observation: Message; superseded: boolean }) {
+  const t = useMessages(MESSAGES);
   const reading = useReading(projectId, 'message', o.id);
   const w = OBSERVATION_WORDS[o.kind ?? 'unknown'] ?? {
     word: 'Unknown',
     mark: 'unknown' as const,
   };
   return (
-    <li data-observation={o.kind} className="flex flex-wrap items-start gap-x-2 gap-y-1 text-base">
+    <li
+      data-observation={o.kind}
+      data-superseded={superseded || undefined}
+      className={cn('flex flex-wrap items-start gap-x-2 gap-y-1 text-base', superseded && 'opacity-70')}
+    >
       <StatusBadge kind={w.mark === 'unknown' ? 'unknown' : 'proposed'} className="mt-0.5" />
       {w.mark !== 'unknown' ? <span className="mt-px text-sm text-fg-3">{w.word}</span> : null}
-      <span className="min-w-0 flex-1 basis-60 text-fg">{reading.text('body', o.body)}</span>
+      {superseded ? <span className="mt-px text-sm text-fg-3">{t.laterSettled}</span> : null}
+      <span className={cn('min-w-0 flex-1 basis-60', superseded ? 'text-fg-2' : 'text-fg')}>{reading.text('body', o.body)}</span>
       {reading.mark ? <span className="basis-full">{reading.mark}</span> : null}
     </li>
   );
@@ -288,6 +310,34 @@ function ForkSuggestion({ projectId, proposal: p }: { projectId: string; proposa
   const purpose = purposeOf(p);
   const choice = drafts?.forks[p.id];
   const labelId = useId();
+  const client = useQueryClient();
+  const navigate = useNavigate();
+  const [opening, setOpening] = useState(false);
+  const [openError, setOpenError] = useState<unknown>(null);
+
+  // «Explore separately» acts at once: it accepts the suggestion (which opens the thread) and goes there.
+  const exploreNow = async () => {
+    if (opening) return;
+    setOpening(true);
+    setOpenError(null);
+    try {
+      try {
+        await runCommand(projectId, { command: 'proposal.accept', entityId: p.id, data: {} });
+      } catch (error) {
+        // Already resolved elsewhere (409): the thread may exist, so look for it.
+        if (!(error instanceof ApiError && error.status === 409)) throw error;
+      }
+      drafts?.setFork(p.id, null);
+      await client.invalidateQueries({ queryKey: keys.project(projectId) });
+      const list = await client.fetchQuery({ ...explorationsQuery(projectId), staleTime: 0 });
+      const child = list.find((x) => x.origin_type === 'proposal' && x.origin_id === p.id);
+      if (child) await navigate({ to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: child.id } });
+    } catch (error) {
+      setOpenError(error);
+    } finally {
+      setOpening(false);
+    }
+  };
 
   if (p.state !== 'pending') {
     const opened = p.state === 'accepted' || p.state === 'accepted_edited';
@@ -313,13 +363,13 @@ function ForkSuggestion({ projectId, proposal: p }: { projectId: string; proposa
     );
   }
 
-  const toggle = (c: 'explore' | 'keep') => drafts?.setFork(p.id, choice === c ? null : c);
+  const toggle = (c: 'explore' | 'keep') => (c === 'explore' ? void exploreNow() : drafts?.setFork(p.id, choice === c ? null : c));
   const option = (c: 'explore' | 'keep', label: string) => (
     <Button
       size="sm"
       variant="secondary"
       aria-pressed={choice === c}
-      disabled={!drafts}
+      disabled={!drafts || opening}
       icon={choice === c ? <CheckIcon size={13} /> : undefined}
       onClick={() => toggle(c)}
       className="aria-pressed:border-accent aria-pressed:bg-accent-soft aria-pressed:text-accent-text"
@@ -344,8 +394,9 @@ function ForkSuggestion({ projectId, proposal: p }: { projectId: string; proposa
       <div className="flex flex-wrap items-center gap-2 pl-6">
         {option('explore', t.exploreSeparately)}
         {option('keep', t.keepItHere)}
-        {choice ? <span className="ml-auto text-sm font-medium text-accent-text">{t.notSentYet}</span> : null}
+        {choice === 'keep' ? <span className="ml-auto text-sm font-medium text-accent-text">{t.notSentYet}</span> : null}
       </div>
+      {openError ? <ErrorNotice error={openError} compact focus={false} className="ml-6 text-sm" /> : null}
     </div>
   );
 }

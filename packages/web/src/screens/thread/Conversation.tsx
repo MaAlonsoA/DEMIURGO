@@ -101,6 +101,8 @@ export function Conversation({
     onUnseen(unseen.current);
   }, [items.length, items.at(-1)?.key]);
 
+  // Only the latest DEMIURGO reply's observations read as current.
+  const lastReply = items.findLastIndex((x) => x.type === 'demiurgo' && x.reply !== null);
   return (
     <section aria-labelledby="conversation-title" className="flex flex-col gap-4">
       <h2 id="conversation-title" className="sr-only">
@@ -112,7 +114,7 @@ export function Conversation({
         </EmptyState>
       ) : null}
       <div role="log" aria-label={t.title} aria-relevant="additions" className="flex flex-col gap-4">
-        {items.map((item) => {
+        {items.map((item, index) => {
           if (item.type === 'question') {
             const q = item.question;
             return (
@@ -146,6 +148,7 @@ export function Conversation({
                 model={run?.model ?? null}
                 batchId={run?.action === 'exploration_chat' ? run.batch_id : null}
                 canFork={canFork && active}
+                superseded={index < lastReply}
               />
             );
           }

@@ -47,20 +47,26 @@ describe('files.prediction', () => {
     // Deterministic top 10 by score: c, d, e, f, g, h, i, j, k, l; a and b are not in it.
     expect(by(list, 'deterministic').evidence).toMatchObject({ hits: 0, recall: 0, precision: 0 });
   });
-  it('emits per-file tp/fp/fn rows for the Jev top-k so the piece gets a precision/recall verdict (pm-3)', () => {
+  it('emits per-file tp/fp/fn rows for the Jev strong set (p >= 0.5), not for the whole top 10 (pm-5)', () => {
     const list = run(['src/a.ts', 'src/b.ts', 'src/other.ts']);
     const rows = list.filter((f) => f.finding === 'files.prediction_file');
     expect(rows.filter((f) => f.class === 'tp').map((f) => f.subject)).toEqual(['jev:src/a.ts', 'jev:src/b.ts']);
-    expect(rows.filter((f) => f.class === 'fp')).toHaveLength(8); // top 10 minus the two hits
-    expect(rows.filter((f) => f.class === 'fn').map((f) => f.subject)).toEqual(['jev:src/other.ts']);
+    expect(rows.filter((f) => f.class === 'fp')).toHaveLength(0); // only a (0.9) and b (0.8) have p >= 0.5
+    const fn = rows.filter((f) => f.class === 'fn');
+    expect(fn.map((f) => f.subject)).toEqual(['jev:src/other.ts']);
+    expect(fn[0]!.evidence).toMatchObject({ outside_candidates: true }); // not among the 12 candidates of the map
     expect(rows.every((f) => f.subject!.startsWith('jev:') && f.piece === 'B07')).toBe(true);
     expect(list.filter((f) => f.class === 'benefit')).toHaveLength(2); // the aggregate rows stay
   });
-  it('reports only the deterministic order when Jev did not take part', () => {
-    const none = candidates.map((c) => ({ ...(c as object), jev_p: null }) as never);
-    const list = run(['src/c.ts'], { opinions: none });
-    expect(list.map((f) => f.subject)).toEqual(['deterministic']);
-    expect(list[0]!.evidence).toMatchObject({ hits: 1 });
+  it('marks a miss that was a candidate but low as inside the candidates, and reports R-precision and recall@10 (pm-5)', () => {
+    // c is a candidate with p 0.1: a real file Jev lowered, not one the map missed. Actual = {a, c}: R = 2, top 2 = a, b.
+    const list = run(['src/a.ts', 'src/c.ts']);
+    const fn = list.filter((f) => f.finding === 'files.prediction_file' && f.class === 'fn');
+    expect(fn.map((f) => [f.subject, (f.evidence as { outside_candidates: boolean }).outside_candidates])).toEqual([['jev:src/c.ts', false]]);
+    const jev = by(list.filter((f) => f.finding === 'files.prediction'), 'jev');
+    expect(jev.evidence).toMatchObject({ r_precision: 0.5, recall: 1, strong_size: 2, strong_hits: 1, strong_precision: 0.5, strong_recall: 0.5, outside_candidates: [] });
+    expect(list.find((f) => f.finding === 'files.r_precision' && f.subject === 'jev')).toMatchObject({ class: 'info', value: 0.5 });
+    expect(list.find((f) => f.finding === 'files.recall_at_k' && f.subject === 'jev')).toMatchObject({ class: 'info', value: 1 });
   });
   it('reads the footprint stored as a JSON string (old format) when there is no commit list', () => {
     const i = inputs({ id: 'r3', steps: mergedSteps('r3', ['src/a.ts'], { footprintAsString: true }).filter((s) => s.stage !== 'commit'), codeOpinions: candidates as never[] });

@@ -224,3 +224,52 @@ export const queueSlotIdle: Rule = (inputs) => {
     ]);
 };
 
+
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * B04 `queue.testability_wait`: minutes this task was ready and held for a testability decision (`wait_testability`: a
+ * criterion that needs the real deployment or an unbuilt feature) while a build slot stood free. The cost of the gate;
+ * whether the hold was right is judged elsewhere (judgment outcomes). Each plan counts until the next plan, the last
+ * one until the task started (first step). A task never held says nothing.
+ */
+export const queueTestabilityWait: Rule = (inputs) => {
+  const plans = [...(inputs.queuePlans ?? [])].sort((a, b) => ms(a.decided_at) - ms(b.decided_at) || (a.id < b.id ? -1 : 1));
+  const holds = new Map<string, QueueDecisionRow>();
+  for (const d of inputs.queueDecisions ?? []) if (d.decision === 'wait_testability') holds.set(d.plan_id, d);
+  if (holds.size === 0) return [];
+  const startedAt = inputs.steps[0]?.created_at ?? null;
+  let waited = 0;
+  let freeSlot = 0;
+  let freeBuild = 0;
+  const used: string[] = [];
+  for (let i = 0; i < plans.length; i++) {
+    const plan = plans[i]!;
+    const hold = holds.get(plan.id);
+    if (!hold) continue;
+    const end = plans[i + 1]?.decided_at ?? startedAt;
+    if (end === null) continue;
+    const dt = minutesBetween(plan.decided_at, end);
+    const free = Math.max(0, plan.parallel_limit - plan.running.length - plan.started.length);
+    waited += dt;
+    if (free > 0) {
+      freeSlot += dt;
+      freeBuild += dt * free;
+    }
+    used.push(plan.id);
+  }
+  const round = (n: number) => Math.round(n * 10) / 10;
+  const criteria = [...new Set([...holds.values()].map((d) => d.item).filter((c): c is string => !!c))].sort();
+  return [
+    {
+      piece: 'B04',
+      finding: 'queue.testability_wait',
+      class: 'cost',
+      ground_truth: 'G07',
+      value: round(freeSlot),
+      unit: 'min',
+      subject: inputs.taskCode,
+      evidence: { decisions: [...holds.values()].map((d) => d.id), plans: used, criteria, waited_min: round(waited), free_slot_min: round(freeSlot), free_build_min: round(freeBuild) },
+    },
+  ];
+};

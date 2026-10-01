@@ -15,7 +15,7 @@
 
 import type { Row } from '../../db/schema.ts';
 import type { PostmortemInputs } from '../postmortem.ts';
-import { type Json, asObject, detailOf, numberOf, stepsOf, tokensOf } from './builder-detail.ts';
+import { type Json, asObject, costUsdOf, detailOf, numberOf, stepsOf, tokensOf } from './builder-detail.ts';
 import type { Finding, Rule } from './index.ts';
 
 const PIECE = 'B20';
@@ -97,6 +97,8 @@ export const sessionOutcome: Rule = (inputs) => {
     out.push({ ...base, finding: 'session.outcome', value: minutesOf(a.steps), unit: minutesOf(a.steps) === null ? null : 'min', evidence });
     const tokens = tokensOfSteps(a.steps);
     if (tokens !== null) out.push({ ...base, finding: 'session.outcome_tokens', value: tokens, unit: 'tokens', evidence });
+    const usd = a.steps.map((s) => costUsdOf(detailOf(s).usage)).filter((n): n is number => n !== null);
+    if (usd.length > 0) out.push({ ...base, finding: 'session.outcome_usd', value: Math.round(usd.reduce((x, y) => x + y, 0) * 10_000) / 10_000, unit: 'usd', evidence });
   }
   return out;
 };

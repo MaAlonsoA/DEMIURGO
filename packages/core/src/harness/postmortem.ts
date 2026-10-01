@@ -177,24 +177,38 @@ async function loadQueueInputs(db: Db, inputs: PostmortemInputs): Promise<Pick<P
     entry.steps.push(step as Row<'build_steps'>);
     byRequest.set(step.build_request_id, entry);
   }
+  // The waits of a task belong to the time between «ready» and «started», not to the request: 44 of 57 requests are made by
+  // the queue itself when the task starts, so a window from `requested_at` held nothing (pm-5). The window opens when the
+  // previous request of the task ended (a relaunch or a retry after a withdrawal) and has no floor for the first request:
+  // the decisions only exist since the queue did. It closes at the first step.
+  const previous = await sql<{ ended: Date | string | null }>`
+    select greatest(
+      b.requested_at, coalesce(b.done_at, 'epoch'), coalesce(b.withdrawn_at, 'epoch'),
+      coalesce((select max(s.created_at) from build_steps s where s.build_request_id = b.id and s.stage not in ('footprint', 'main')), 'epoch')) as ended
+    from build_requests b
+    where b.task_id = ${request.task_id} and b.id <> ${request.id} and b.requested_at < ${request.requested_at}
+    order by b.requested_at desc, b.id desc limit 1`.execute(db);
+  const floor = previous.rows[0]?.ended ?? null;
+  const ceiling = first?.created_at ?? request.requested_at;
   const queueDecisions = await optionalRows(
     async () =>
       (
         await sql<QueueDecisionRow>`
           select d.id, d.plan_id, p.decided_at, d.decision, d.item, d.with_task, d.with_source, d.evidence
           from queue_decisions d join queue_plans p on p.id = d.plan_id
-          where d.project_id = ${request.project_id} and d.task_code = ${inputs.taskCode} and p.decided_at >= ${request.requested_at}
-            and p.decided_at <= ${first?.created_at ?? request.requested_at}
+          where d.project_id = ${request.project_id} and d.task_code = ${inputs.taskCode}
+            and p.decided_at <= ${ceiling} and (${floor}::timestamptz is null or p.decided_at >= ${floor}::timestamptz)
           order by p.decided_at, d.id`.execute(db)
       ).rows,
   );
+  // The plans of the same window: from the first decision about the task (or the end of its previous request).
+  const plansFrom = floor ?? queueDecisions[0]?.decided_at ?? request.requested_at;
   const queuePlans = await optionalRows(
     async () =>
       (
         await sql<QueuePlanRow>`
           select id, decided_at, parallel_limit, running, started, stopped_kind from queue_plans
-          where project_id = ${request.project_id} and decided_at >= ${request.requested_at}
-            and decided_at <= ${first?.created_at ?? request.requested_at}
+          where project_id = ${request.project_id} and decided_at >= ${plansFrom} and decided_at <= ${ceiling}
           order by decided_at, id`.execute(db)
       ).rows,
   );

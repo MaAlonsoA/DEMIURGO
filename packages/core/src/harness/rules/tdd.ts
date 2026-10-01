@@ -6,7 +6,7 @@
 
 import type { TddDetail } from '../../build/tdd.ts';
 import type { Rule, Finding } from './index.ts';
-import { type Json, asArray, asObject, detailOf, firstDecisiveCi, numberOf, stepsOf, tokensOf } from './builder-detail.ts';
+import { type Json, asArray, asObject, cachedTokensOf, costUsdOf, detailOf, firstDecisiveCi, numberOf, stepsOf, tokensOf } from './builder-detail.ts';
 import type { PostmortemInputs } from '../postmortem.ts';
 import type { Row } from '../../db/schema.ts';
 
@@ -14,7 +14,7 @@ const PIECE = 'B09';
 /** A red explained by the environment, not by the code (the gate's own notes). */
 const ENVIRONMENT_NOTE = /main did not build|cannot load/i;
 
-type Gate = { step: Row<'build_steps'>; tdd: Partial<TddDetail> & Json };
+export type Gate = { step: Row<'build_steps'>; tdd: Partial<TddDetail> & Json };
 
 /** The last builder step of each attempt that stored a `tdd` object. */
 function gatesOf(inputs: PostmortemInputs): Gate[] {
@@ -44,12 +44,31 @@ function environmental(g: Gate): boolean {
 }
 
 type Caught = { criterion: string; test: string; path: string };
-/** «- RED: <criterion> «<test>» (<path>) passes on main …»: the line of the loop prompt the builder was sent back with (build/orchestrator.ts). */
+/** «- RED: <criterion> «<test>» (<path>) passes on main …»: the line of the feedback the NEXT attempt is sent with (build/tdd.ts `tddFeedbackLines`). */
 const TOLD_CAUGHT = /^- RED: (\S+) «(.*)» \((.*)\) passes on main/gm;
+/** «- <criterion>: `<test>` in <path>»: the line of the loop message under «RED: these tests PASS on main» (build/tdd.ts `tddFeedback`, what `tdd_told` stores). */
+const TOLD_RED_LINE = /^- (\S+): `(.*)` in (.+)$/;
+const RED_HEADER = /^RED: these tests PASS on main/m;
+
+/** The tests a stored loop message names under its RED header (the section ends at the first blank line). Pure. */
+export function redLinesOf(told: string): Caught[] {
+  const out: Caught[] = [];
+  let inRed = false;
+  for (const line of told.split('\n')) {
+    if (/^RED: these tests PASS on main/.test(line)) inRed = true;
+    else if (inRed && line.trim() === '') inRed = false;
+    else if (inRed) {
+      const m = TOLD_RED_LINE.exec(line);
+      if (m) out.push({ criterion: m[1]!, test: m[2]!, path: m[3]!.trim() });
+    }
+  }
+  return out;
+}
 
 /**
  * The criterion tests caught passing on main in this attempt. `tdd.red` only holds the last check, so the earlier loops
- * are recovered from the prompts the builder was sent back with (`tdd_told` of the builder step). Deduplicated.
+ * are recovered from the messages the builder was sent back with (`tdd_told` of the builder step): the loop message
+ * (`redLinesOf`) and the next-attempt feedback format (`TOLD_CAUGHT`). Deduplicated.
  */
 function caughtOf(g: Gate): Caught[] {
   const seen = new Map<string, Caught>();
@@ -57,9 +76,55 @@ function caughtOf(g: Gate): Caught[] {
   for (const told of asArray(detailOf(g.step).tdd_told)) {
     if (typeof told !== 'string') continue;
     for (const m of told.matchAll(TOLD_CAUGHT)) add({ criterion: m[1]!, test: m[2]!, path: m[3]! });
+    for (const c of redLinesOf(told)) add(c);
   }
   for (const r of redOf(g)) if (r.outcome === 'passed') add({ criterion: String(r.criterion), test: String(r.test), path: String(r.path) });
   return [...seen.values()];
+}
+
+/** An error of the test environment, not of the code: a missing database, a refused connection, a missing browser. */
+const ENVIRONMENT_ERROR = /database "[^"]*" does not exist|ECONNREFUSED|connection refused|browserType\.launch|Executable doesn't exist|ENOSPC|EADDRINUSE|too many clients/i;
+
+export type LoopClass = 'own' | 'foreign' | 'environment' | 'green';
+/** What the orchestrator stores per loop (`failure_class`): null means the check came back green. */
+const LOOP_CLASSES: ReadonlySet<string> = new Set(['own', 'foreign', 'environment']);
+
+/** Old rows (no `failure_class`): a loop message whose only GREEN failures are environment errors, with no RED section, is environmental. */
+export function loopClassFromMessage(told: unknown): LoopClass {
+  if (typeof told !== 'string') return 'own';
+  if (RED_HEADER.test(told)) return 'own';
+  const green = told.split('\n').filter((l) => /^- `/.test(l));
+  return green.length > 0 && green.every((l) => ENVIRONMENT_ERROR.test(l)) ? 'environment' : 'own';
+}
+
+export type LoopSplit = { own: number; foreign: number; environment: number; green: number; minutes: { own: number; foreign: number; environment: number }; basis: 'failure_class' | 'message' | 'count' };
+
+/**
+ * Splits the loops of an attempt by who caused them. With `loop_runs[].failure_class` (pm-5 data) the field decides;
+ * `foreign` is a test of another feature and `environment` an error of the test environment: neither is a catch of
+ * the gate. Without the field the stored loop message (`tdd_told`, one per loop) is read for environment errors.
+ */
+export function splitLoops(g: Gate): LoopSplit {
+  const runs = asArray(g.tdd.loop_runs).map(asObject);
+  const told = asArray(detailOf(g.step).tdd_told);
+  const loops = loopsOf(g);
+  const split: LoopSplit = { own: 0, foreign: 0, environment: 0, green: 0, minutes: { own: 0, foreign: 0, environment: 0 }, basis: 'count' };
+  const count = Math.max(loops, runs.length);
+  for (let i = 0; i < count; i++) {
+    const entry = runs.find((r) => numberOf(r.loop) === i + 1) ?? runs[i];
+    let cls: LoopClass;
+    if (entry && 'failure_class' in entry) {
+      split.basis = 'failure_class';
+      cls = entry.failure_class === null ? 'green' : typeof entry.failure_class === 'string' && LOOP_CLASSES.has(entry.failure_class) ? (entry.failure_class as LoopClass) : 'own';
+    } else {
+      cls = loopClassFromMessage(told[i]);
+      if (cls !== 'own' && split.basis === 'count') split.basis = 'message';
+    }
+    split[cls] += 1;
+    const minutes = (numberOf(entry?.duration_ms) ?? 0) / 60_000;
+    if (cls !== 'green') split.minutes[cls] += minutes;
+  }
+  return split;
 }
 
 /** A criterion test failed in CI of this attempt (evidence rows or test runs): the failure the gate should have caught. G05. */
@@ -103,8 +168,17 @@ export const tddGate: Rule = (inputs) => {
     // status passed
     const ci = firstDecisiveCi(inputs, attempt);
     if (loops > 0) {
-      out.push({ ...base, class: 'tp', ground_truth: null, value: loops, unit: 'loops', evidence });
-      if (ci?.green) out.push({ ...base, class: 'benefit', ground_truth: 'G05', value: 1, unit: 'ci_runs', evidence: { ...evidence, ci_step: ci.step.id } });
+      // Only the loops caused by the task's own criteria are catches of the gate; a failing test of another feature or an
+      // environment error is the gate's noise (fp / info with the minutes it cost), never a TP.
+      const split = splitLoops(g);
+      const round = (n: number) => Math.round(n * 100) / 100;
+      const detail = { ...evidence, split: { own: split.own, foreign: split.foreign, environment: split.environment, green: split.green }, basis: split.basis };
+      if (split.own > 0) {
+        out.push({ ...base, class: 'tp', ground_truth: null, value: split.own, unit: 'loops', evidence: { ...detail, minutes: round(split.minutes.own) } });
+        if (ci?.green) out.push({ ...base, class: 'benefit', ground_truth: 'G05', value: 1, unit: 'ci_runs', evidence: { ...detail, ci_step: ci.step.id } });
+      }
+      if (split.foreign > 0) out.push({ ...base, class: 'fp', ground_truth: null, value: split.foreign, unit: 'loops', evidence: { ...detail, why: 'foreign', minutes: round(split.minutes.foreign) } });
+      if (split.environment > 0) out.push({ ...base, class: 'info', ground_truth: null, value: split.environment, unit: 'loops', evidence: { ...detail, why: 'environment', minutes: round(split.minutes.environment) } });
     }
     if (!ci) continue;
     if (!ci.green) {
@@ -138,11 +212,13 @@ export const tddLoopCost: Rule = (inputs) => {
     for (const entry of asArray(g.tdd.loop_runs).map(asObject)) {
       const loop = numberOf(entry.loop);
       if (loop === null) continue;
-      const base = { piece: PIECE, finding: 'tdd.loop_cost', class: 'cost' as const, attempt: g.step.attempt, subject: `loop ${loop}`, evidence: { build_step: g.step.id, loop } };
+      const base = { piece: PIECE, finding: 'tdd.loop_cost', class: 'cost' as const, attempt: g.step.attempt, subject: `loop ${loop}`, evidence: { build_step: g.step.id, loop, failure_class: 'failure_class' in entry ? (entry.failure_class ?? null) : undefined } };
       const ms = numberOf(entry.duration_ms);
       if (ms !== null) out.push({ ...base, value: Math.round((ms / 60_000) * 100) / 100, unit: 'min' });
       const tokens = tokensOf(entry.usage);
-      if (tokens !== null) out.push({ ...base, value: tokens, unit: 'tokens' });
+      if (tokens !== null) out.push({ ...base, value: tokens, unit: 'tokens', evidence: { ...base.evidence, cached_tokens: cachedTokensOf(entry.usage) } });
+      const usd = costUsdOf(entry.usage);
+      if (usd !== null) out.push({ ...base, value: Math.round(usd * 10_000) / 10_000, unit: 'usd' });
     }
   }
   return out;

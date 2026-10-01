@@ -27,13 +27,26 @@ export const detailOf = (s: { detail: unknown }): Json => asObject(s.detail);
 export const numberOf = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
 export const timeOf = (d: unknown): number => (d === null || d === undefined ? 0 : new Date(d as Date | string).getTime());
 
-/** Input plus output tokens of a stored `usage` (same shape as `ai_runs.usage`), or null when it reported none. */
+/**
+ * Non-cached input plus output tokens of a stored `usage` (same shape as `ai_runs.usage`), or null when it reported none.
+ * `inputTokens` already includes the cache reads (Claude: input + cache creation + cache read), and cache reads are
+ * about 96 % of a builder's input and cost a fraction (pm-5, convención nuestra): the cached part is left out of the
+ * unit and kept apart by `cachedTokensOf` for the evidence.
+ */
 export function tokensOf(usage: unknown): number | null {
   const u = asObject(usage);
   const input = numberOf(u.inputTokens);
   const output = numberOf(u.outputTokens);
-  return input === null && output === null ? null : (input ?? 0) + (output ?? 0);
+  if (input === null && output === null) return null;
+  const cached = Math.min(numberOf(u.cachedInputTokens) ?? 0, input ?? 0);
+  return (input ?? 0) - cached + (output ?? 0);
 }
+
+/** Input tokens read from the cache (they are inside `inputTokens`), or null when the usage did not say. */
+export const cachedTokensOf = (usage: unknown): number | null => numberOf(asObject(usage).cachedInputTokens);
+
+/** Dollars the provider declared for the run (`declaredCostUsd`), or null: Codex and OpenCode report `not_reported`. */
+export const costUsdOf = (usage: unknown): number | null => numberOf(asObject(usage).declaredCostUsd);
 
 export const normalPath = (path: string): string => path.replace(/^\.\//, '');
 

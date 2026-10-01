@@ -7,7 +7,7 @@
 
 import type { Row } from '../../db/schema.ts';
 import type { PostmortemInputs } from '../postmortem.ts';
-import { type Json, asArray, asObject, attemptOfReview, commitFiles, detailOf, normalPath, numberOf, stepsOf, timeOf, tokensOf } from './builder-detail.ts';
+import { type Json, asArray, asObject, attemptOfReview, cachedTokensOf, commitFiles, costUsdOf, detailOf, normalPath, numberOf, stepsOf, timeOf, tokensOf } from './builder-detail.ts';
 import type { Finding, Rule } from './index.ts';
 
 /**
@@ -256,7 +256,9 @@ export const reviewCost: Rule = (inputs) => {
     if (!run) continue;
     const base = { piece: 'B17', finding: 'review.cost', class: 'cost' as const, attempt: attemptOfReview(inputs, review), subject: review.verdict, evidence: { pr_review: review.id, run: run.id } };
     const tokens = tokensOf(run.usage);
-    if (tokens !== null) out.push({ ...base, value: tokens, unit: 'tokens' });
+    if (tokens !== null) out.push({ ...base, value: tokens, unit: 'tokens', evidence: { ...base.evidence, cached_tokens: cachedTokensOf(run.usage) } });
+    const usd = costUsdOf(run.usage);
+    if (usd !== null) out.push({ ...base, value: Math.round(usd * 10_000) / 10_000, unit: 'usd' });
     if (run.started_at && run.finished_at) out.push({ ...base, value: Math.round(((timeOf(run.finished_at) - timeOf(run.started_at)) / 60_000) * 100) / 100, unit: 'min' });
   }
   return out;

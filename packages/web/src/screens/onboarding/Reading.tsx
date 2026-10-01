@@ -21,6 +21,7 @@ import { Card } from '../../components/Card.tsx';
 import { ConfirmDialog } from '../../components/Dialog.tsx';
 import { ArrowRightIcon, ChevronRightIcon, RetryIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
+import { KNOWLEDGE_WAIT } from '../../components/words.i18n.ts';
 import { RunStateBadge } from '../../components/runState.tsx';
 import { EntityState, StateIcon, StatusBadge } from '../../components/status.tsx';
 import { Elapsed, RelativeTime, useNow } from '../../components/Time.tsx';
@@ -353,6 +354,7 @@ function StoppedCard({
   compact?: boolean;
 }) {
   const t = useMessages(READING);
+  const w = useMessages(KNOWLEDGE_WAIT);
   const tables = useTables();
   const command = useCommand(projectId);
   const run = reading.run;
@@ -424,7 +426,7 @@ function StoppedCard({
               variant={compact ? 'secondary' : 'primary'}
               data-command="run.request"
               pending={command.isPending}
-              pendingLabel={t.asking}
+              pendingLabel={command.waiting ? w.waiting : t.asking}
               onClick={() =>
                 command.mutate(
                   {

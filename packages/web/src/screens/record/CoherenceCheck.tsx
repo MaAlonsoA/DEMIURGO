@@ -8,6 +8,7 @@ import { Link } from '@tanstack/react-router';
 import { useCommand } from '../../api/commands.ts';
 import { coherenceQuery } from '../../api/queries.ts';
 import { Button } from '../../components/Button.tsx';
+import { KNOWLEDGE_WAIT } from '../../components/words.i18n.ts';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
 import { useMessages } from '../../i18n/define.ts';
@@ -28,6 +29,7 @@ export function CoherenceCheck({
   allDesigned: boolean;
 }) {
   const t = useMessages(COHERENCE);
+  const w = useMessages(KNOWLEDGE_WAIT);
   const locale = useLocale();
   const status = useQuery({
     ...coherenceQuery(projectId, code),
@@ -51,7 +53,7 @@ export function CoherenceCheck({
           variant={allDesigned && !run ? 'primary' : 'secondary'}
           disabled={running}
           pending={command.isPending || running}
-          pendingLabel={t.running}
+          pendingLabel={command.waiting ? w.waiting : t.running}
           onClick={start}
         >
           {t.check}

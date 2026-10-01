@@ -72,7 +72,7 @@ export function TasksTab({ projectId, record, draft }: { projectId: string; reco
       </ol>
       {drafts.length > 0 ? <DraftsDecision projectId={projectId} drafts={drafts} /> : null}
       {uncovered.length > 0 ? <p className="text-sm text-fg-2">{t.uncovered(uncovered.join(', '))}</p> : null}
-      {draft.error ? <ErrorNotice error={draft.error} /> : null}
+      {/* A failed draft request shows under the header's "Draft the tasks" button. */}
       {draft.asked ? <p className="text-sm text-fg-2">{t.draftAsked}</p> : null}
       {writable ? (
         <div>

@@ -25,6 +25,7 @@ import { Button, buttonClass } from '../../components/Button.tsx';
 import { ChevronDownIcon, CloseIcon, DecisionIcon, SendIcon, WandIcon } from '../../components/icons.tsx';
 import { Menu, MenuItem, MenuLabel } from '../../components/Menu.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
+import { KNOWLEDGE_WAIT } from '../../components/words.i18n.ts';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
@@ -79,6 +80,7 @@ export function Composer({
   const t = useMessages(COMPOSER);
   const tables = useTables();
   const command = useCommand(projectId);
+  const w = useMessages(KNOWLEDGE_WAIT);
   const [text, setText] = useState('');
   const [sending, setSending] = useState<Sending | null>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -297,7 +299,7 @@ export function Composer({
                   data-draft-kind={threadDraft.kind}
                   disabled={drafting || !!threadDraft.pending || (busy && sending !== 'draftRecord')}
                   pending={sending === 'draftRecord' || drafting || !!threadDraft.pending}
-                  pendingLabel={t.draftingKind(threadDraft.kind)}
+                  pendingLabel={command.waiting ? w.waiting : t.draftingKind(threadDraft.kind)}
                   onClick={() => draftRecord(threadDraft)}
                 >
                   {t.draftKind(threadDraft.kind)}
@@ -316,7 +318,7 @@ export function Composer({
                 data-command="run.request"
                 disabled={busy && sending !== 'ask'}
                 pending={sending === 'ask'}
-                pendingLabel={t.asking}
+                pendingLabel={command.waiting ? w.waiting : t.asking}
                 onClick={ask}
               >
                 {t.askDemiurgo}

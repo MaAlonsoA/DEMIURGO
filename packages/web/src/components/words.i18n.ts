@@ -263,3 +263,9 @@ export const PREVIEW_VIEWER = messages(
     close: 'Cerrar',
   },
 );
+
+/** A button that asks DEMIURGO for a run while the project's knowledge is still updating. */
+export const KNOWLEDGE_WAIT = messages(
+  { waiting: 'Waiting for knowledge to update…' },
+  { waiting: 'Esperando a que el conocimiento se actualice…' },
+);

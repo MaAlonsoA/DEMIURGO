@@ -38,7 +38,7 @@ describe('scoreOrder', () => {
 describe('files.prediction', () => {
   it('reports the Jev and the deterministic order as benefit findings', () => {
     // Real: two files in Jev's top 2, one file of the PR not in the list, a test and a lockfile (both excluded).
-    const list = run(['src/a.ts', 'src/b.ts', 'src/other.ts', 'src/a.test.ts', 'pnpm-lock.yaml']);
+    const list = run(['src/a.ts', 'src/b.ts', 'src/other.ts', 'src/a.test.ts', 'pnpm-lock.yaml']).filter((f) => f.finding === 'files.prediction');
     expect(list).toHaveLength(2);
     expect(list.every((f) => f.class === 'benefit' && f.unit === 'files' && f.ground_truth === 'G01')).toBe(true);
     const jev = by(list, 'jev');
@@ -46,6 +46,15 @@ describe('files.prediction', () => {
     expect(jev.evidence).toMatchObject({ k: 10, hits: 2, actual: 3, recall: 0.667, precision: 0.2 });
     // Deterministic top 10 by score: c, d, e, f, g, h, i, j, k, l; a and b are not in it.
     expect(by(list, 'deterministic').evidence).toMatchObject({ hits: 0, recall: 0, precision: 0 });
+  });
+  it('emits per-file tp/fp/fn rows for the Jev top-k so the piece gets a precision/recall verdict (pm-3)', () => {
+    const list = run(['src/a.ts', 'src/b.ts', 'src/other.ts']);
+    const rows = list.filter((f) => f.finding === 'files.prediction_file');
+    expect(rows.filter((f) => f.class === 'tp').map((f) => f.subject)).toEqual(['jev:src/a.ts', 'jev:src/b.ts']);
+    expect(rows.filter((f) => f.class === 'fp')).toHaveLength(8); // top 10 minus the two hits
+    expect(rows.filter((f) => f.class === 'fn').map((f) => f.subject)).toEqual(['jev:src/other.ts']);
+    expect(rows.every((f) => f.subject!.startsWith('jev:') && f.piece === 'B07')).toBe(true);
+    expect(list.filter((f) => f.class === 'benefit')).toHaveLength(2); // the aggregate rows stay
   });
   it('reports only the deterministic order when Jev did not take part', () => {
     const none = candidates.map((c) => ({ ...(c as object), jev_p: null }) as never);

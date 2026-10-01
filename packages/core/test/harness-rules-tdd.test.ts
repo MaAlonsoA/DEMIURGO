@@ -23,9 +23,25 @@ describe('tdd.gate', () => {
     const f = tddGate(inputs([builder({ status: 'red', red: [{ outcome: 'passed', criterion: 'AC-X-001-02', test: 't', path: 'a.spec.ts' }, { outcome: 'already_green_on_main', criterion: 'AC-X-001-03' }], green: null, loops: 15, stopped: 'cap' })]));
     expect(f.find((x) => x.class === 'benefit')).toMatchObject({ value: 1, unit: 'tests', subject: 'AC-X-001-02' });
   });
-  it('fp: the red was explained by the environment', () => {
-    const f = tddGate(inputs([builder({ status: 'passed', red: [{ outcome: 'not_run', criterion: 'AC-X-001-01' }], green: null, loops: 1, notes: ['Main did not build'] }), ci('ok')]));
+  it('fp: it ended red and the red was explained by the environment', () => {
+    const f = tddGate(inputs([builder({ status: 'red', red: [{ outcome: 'not_run', criterion: 'AC-X-001-01' }], green: null, loops: 1, stopped: 'cap', notes: ['Main did not build'] })]));
     expect(classes(f)).toEqual(['fp']);
+  });
+  it('not an fp when it passed, even with an environment note: the loops were the green phase (pm-3)', () => {
+    const f = tddGate(inputs([builder({ status: 'passed', red: [{ outcome: 'not_run', criterion: 'AC-X-001-01' }], green: null, loops: 1, notes: ['Main did not build'] }), ci('ok')]));
+    expect(classes(f)).toEqual(['tp', 'benefit']);
+  });
+  it('a compile error of the new test at RED is a legitimate red, not an fp (TSK-PRO-015) (pm-3)', () => {
+    const note = "Main did not build for RED: error TS2305: Module './week-view' has no exported member 'WeekDayDetail'";
+    const f = tddGate(inputs([builder({ status: 'red', red: [{ outcome: 'not_run', criterion: 'AC-X-001-01' }], green: null, loops: 1, stopped: 'cap', notes: [note] })]));
+    expect(classes(f)).toEqual(['info']);
+  });
+  it('tests caught are worth 1 each, earlier loops are recovered from tdd_told, and the ci_runs benefit is 1 (pm-3)', () => {
+    const told = ["- RED: AC-X-001-01 «first» (a.spec.ts) passes on main without the change: make it check the criterion's behaviour."];
+    const s = step(1, 'builder', 'ok', { tdd_told: told, tdd: { status: 'passed', red: [{ outcome: 'passed', criterion: 'AC-X-001-02', test: 'second', path: 'b.spec.ts' }], green: null, loops: 3 } });
+    const f = tddGate(inputs([s, ci('ok')]));
+    expect(f.filter((x) => x.unit === 'tests').map((x) => [x.subject, x.value])).toEqual([['AC-X-001-01', 1], ['AC-X-001-02', 1]]);
+    expect(f.find((x) => x.unit === 'ci_runs' && x.class === 'benefit')!.value).toBe(1);
   });
   it('fn: passed and the CI of the attempt failed in a criterion test', () => {
     const f = tddGate(inputs([builder({ status: 'passed', red: [], green: null, loops: 0 }), ci('failed')], [{ attempt: 1, outcome: 'fail', criterion_code: 'AC-X-001-01' }]));

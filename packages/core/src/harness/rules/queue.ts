@@ -46,6 +46,14 @@ export const queueSkipVsFootprint: Rule = (inputs) => {
   for (const span of waitSpans(inputs.queueDecisions)) {
     const theirs = inputs.waitedFiles?.[span.with_task];
     if (!theirs) continue; // the waited task was never merged: nothing says what it touched
+    if (span.decision === 'wait_feature_busy') {
+      // One feature at a time is a policy (B01), not a collision prediction: it is judged on its own, against the real files of both tasks.
+      const common = shared(mine, theirs);
+      const subject = `${inputs.taskCode}~${span.with_task}`;
+      const evidence = { decisions: span.rows.map((r) => r.id), decision: span.decision, item: span.item, with_task: span.with_task, shared_files: common };
+      out.push({ piece: 'B01', finding: 'queue.feature_busy', class: common.length > 0 ? 'tp' : 'fp', ground_truth: 'G01', subject, evidence });
+      continue;
+    }
     const common =
       span.decision === 'wait_schema'
         ? mine.some(isSchemaFile) && theirs.some(isSchemaFile)

@@ -184,6 +184,7 @@ async function loadQueueInputs(db: Db, inputs: PostmortemInputs): Promise<Pick<P
           select d.id, d.plan_id, p.decided_at, d.decision, d.item, d.with_task, d.with_source, d.evidence
           from queue_decisions d join queue_plans p on p.id = d.plan_id
           where d.project_id = ${request.project_id} and d.task_code = ${inputs.taskCode} and p.decided_at >= ${request.requested_at}
+            and p.decided_at <= ${first?.created_at ?? request.requested_at}
           order by p.decided_at, d.id`.execute(db)
       ).rows,
   );

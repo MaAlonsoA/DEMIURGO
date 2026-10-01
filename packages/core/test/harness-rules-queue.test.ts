@@ -45,6 +45,19 @@ describe('queue.skip_vs_footprint', () => {
     expect(run(['src/a.ts'], undefined)).toEqual([]);
     expect(queueSkipVsFootprint(inputs({ steps: mergedSteps('r', ['a']) }))).toEqual([]);
   });
+  it('wait_feature_busy is its own piece (B01): tp when the real files overlap, fp when not, and never a B03 row (pm-3)', () => {
+    const run = (theirs: string[]) =>
+      queueSkipVsFootprint(
+        inputs({
+          id: 'r1',
+          steps: mergedSteps('r1', ['src/a.ts']),
+          queueDecisions: [decision(0, 'wait_feature_busy', { with_task: 'TSK-B-001' }), decision(5, 'start')],
+          waitedFiles: { 'TSK-B-001': theirs },
+        }),
+      );
+    expect(run(['src/a.ts'])).toMatchObject([{ piece: 'B01', finding: 'queue.feature_busy', class: 'tp', ground_truth: 'G01' }]);
+    expect(run(['src/z.ts'])).toMatchObject([{ piece: 'B01', class: 'fp' }]);
+  });
   it('judges a wait_schema by schema files on both sides', () => {
     const list = queueSkipVsFootprint(
       inputs({

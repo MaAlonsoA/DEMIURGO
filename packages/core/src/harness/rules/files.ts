@@ -84,17 +84,27 @@ export const filesPrediction: Rule = (inputs) => {
       },
     ];
   }
-  return scored.map(
-    (s): Finding => ({
-      piece: 'B07',
-      finding: 'files.prediction',
-      class: 'benefit',
-      ground_truth: 'G01',
-      value: s.hits,
-      unit: 'files',
-      subject: s.name,
-      attempt,
-      evidence: { order: s.name, k: s.k, predicted: s.predicted, actual: s.actual, hits: s.hits, precision: s.precision, recall: s.recall, hit_paths: s.hit_paths, code_opinions: ids },
-    }),
-  );
+  return scored.flatMap((s): Finding[] => {
+    const top = orders.find((o) => o.name === s.name)!.order.slice(0, PREDICTED_FILES);
+    const row = (path: string, cls: 'tp' | 'fp' | 'fn'): Finding => ({ piece: 'B07', finding: 'files.prediction_file', class: cls, ground_truth: 'G01', subject: `${s.name}:${path}`, attempt, evidence: { order: s.name, path, k: s.k, code_opinions: ids } });
+    // Per file, for Jev's ranked top-k only: precision and recall of the piece come from these rows (the aggregate stays below).
+    const perFile =
+      s.name === 'jev'
+        ? [...top.filter((f) => actual.has(f)).sort().map((f) => row(f, 'tp')), ...top.filter((f) => !actual.has(f)).sort().map((f) => row(f, 'fp')), ...[...actual].filter((f) => !top.includes(f)).sort().map((f) => row(f, 'fn'))]
+        : [];
+    return [
+      {
+        piece: 'B07',
+        finding: 'files.prediction',
+        class: 'benefit',
+        ground_truth: 'G01',
+        value: s.hits,
+        unit: 'files',
+        subject: s.name,
+        attempt,
+        evidence: { order: s.name, k: s.k, predicted: s.predicted, actual: s.actual, hits: s.hits, precision: s.precision, recall: s.recall, hit_paths: s.hit_paths, code_opinions: ids },
+      },
+      ...perFile,
+    ];
+  });
 };

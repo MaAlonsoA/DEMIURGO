@@ -106,11 +106,31 @@ describe('harness post-mortems', () => {
     expect(await runPostmortem(s, id, 'pm-test-2', [extra, extra])).toMatchObject({ status: 'recorded', findings: 2 });
     const rows = await s.db.selectFrom('harness_postmortems').select(['rules_version', 'findings', 'outcome']).where('build_request_id', '=', id).orderBy('rules_version').execute();
     expect(rows).toEqual([
-      { rules_version: 'pm-2', findings: 1, outcome: 'withdrawn' },
+      { rules_version: RULES_VERSION, findings: 1, outcome: 'withdrawn' },
       { rules_version: 'pm-test-2', findings: 2, outcome: 'withdrawn' },
     ]);
   });
 
+  it('queue decisions of a request stop at its first step: a later request of the same task does not leak in (pm-3)', async () => {
+    const s = environment().services;
+    const p = await projectWithTask('Bound');
+    const id = await request(p, 'done');
+    const { requested_at } = await s.db.selectFrom('build_requests').select('requested_at').where('id', '=', id).executeTakeFirstOrThrow();
+    const code = (await s.db.selectFrom('records').select('code').where('id', '=', p.recordId).executeTakeFirstOrThrow()).code;
+    const after = (sec: number) => new Date(new Date(requested_at as unknown as string).getTime() + sec * 1000).toISOString();
+    await s.db.insertInto('build_steps').values({ project_id: p.projectId, build_request_id: id, attempt: 1, stage: 'merge', outcome: 'ok', detail: null, created_at: after(10) as never }).execute();
+    for (const sec of [2, 3600]) {
+      const plan = await s.db
+        .insertInto('queue_plans')
+        .values({ project_id: p.projectId, decided_at: after(sec) as never, trigger: 'tick', parallel_limit: 2, running: [], started: [], ready_count: 1, plan_hash: `h${sec}` })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await s.db.insertInto('queue_decisions').values({ project_id: p.projectId, plan_id: plan.id, task_code: code, decision: 'wait_feature_busy', with_task: 'TSK-OTHER-001', with_source: 'actual' }).execute();
+    }
+    const loaded = await loadInputs(s.db, id);
+    expect(loaded.queueDecisions).toHaveLength(1);
+    expect(RULES_VERSION).toBe('pm-3');
+  });
   it('pendingPostmortems finds ended requests without a post-mortem, and not the running ones', async () => {
     const s = environment().services;
     const p = await projectWithTask('Pending');

@@ -296,6 +296,21 @@ export async function changedOnBranch(path: string): Promise<string[]> {
   return [];
 }
 
+/** Files the branch changes against main plus the ones not committed yet (what a commit made now would carry). */
+export async function changedWithPending(path: string): Promise<string[]> {
+  const files = new Set(await changedOnBranch(path));
+  try {
+    const { stdout } = await git(path, ['status', '--porcelain', '-uall']);
+    for (const line of stdout.split('\n')) {
+      const rest = line.slice(3).trim();
+      if (rest) files.add(rest.includes(' -> ') ? rest.split(' -> ')[1]!.replace(/^"|"$/g, '') : rest.replace(/^"|"$/g, ''));
+    }
+  } catch {
+    // the committed files are what we have
+  }
+  return [...files];
+}
+
 /** Files the branch ADDS against main (`git diff --diff-filter=A`); [] when there is no main to compare. */
 export async function addedOnBranch(path: string): Promise<string[]> {
   for (const base of ['refs/remotes/origin/main', 'main']) {

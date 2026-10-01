@@ -62,12 +62,13 @@ import { type OwnershipViolation, checkOwnership, ownershipLine } from './owners
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';
 import { type ReusePair, judgeTestReuse, reuseLines } from '../classifier/test-reuse.ts';
 import { codeToExtend } from './queue.ts';
+import { loadAffectedCriteria, withAffectedTrailer } from './affected-criteria.ts';
 import { checkTestGuard, existingTestsLines, readRepoTests, testGuardFeedback } from './test-guard.ts';
 import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
 import { decideRecheck } from './recheck.ts';
 import { decideGate } from './gate.ts';
 import type { Services } from '../services.ts';
-import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, addedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, changedWithPending, addedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -810,9 +811,13 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     if (conflicted.length > 0) {
       return { outcome: 'failed' as const, detail: { error: `The builder left merge conflicts unresolved in: ${conflicted.join(', ')}.`, conflicts: conflicted } };
     }
-    const sha = (await commitAll(worktree.path, `${info.taskCode}: ${info.taskTitle}`)) ?? (await headWithWork(worktree.path));
+    // The criteria this PR affects, as a trailer so CI runs only their tests on the PR (affected-criteria.ts). Fail safe: none.
+    const taskRow = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirst().catch(() => undefined);
+    const affected = taskRow ? await loadAffectedCriteria(s0.db, projectId, { id: taskRow.task_id, versionId: info.taskVersionId }, await changedWithPending(worktree.path).catch(() => [])) : null;
+    const fresh = await commitAll(worktree.path, withAffectedTrailer(`${info.taskCode}: ${info.taskTitle}`, affected));
+    const sha = fresh ?? (await headWithWork(worktree.path));
     if (!sha) return { outcome: 'failed' as const, detail: { error: 'The builder changed nothing: there is nothing to commit.' } };
-    return { value: sha, detail: { sha }, extra: { head_sha: sha } };
+    return { value: sha, detail: { sha, ...(fresh && affected ? { affected_criteria: affected } : {}) }, extra: { head_sha: sha } };
   });
   if (!committed.ok) return stop('commit', committed.outcome);
   const headSha = committed.value;

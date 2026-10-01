@@ -67,6 +67,7 @@ import { checkTestGuard, existingTestsLines, readRepoTests, testGuardFeedback } 
 import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
 import { decideRecheck } from './recheck.ts';
 import { decideGate } from './gate.ts';
+import { isTransientRunError, REVIEW_MAX_RETRIES, REVIEW_RETRY_BACKOFF_MS } from './review-retry.ts';
 import type { Services } from '../services.ts';
 import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, changedWithPending, addedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
@@ -957,38 +958,44 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       },
     };
   });
-  // review: the pack says CI runs in parallel and is checked by DEMIURGO on its own (the reviewer never judges it)
+  // review: the pack says CI runs in parallel and is checked by DEMIURGO on its own (the reviewer never judges it).
+  // The start is a function so a transient provider failure can request the same review again.
+  const startReview = async (): Promise<string> => {
+    const diff = await d.github.pullRequestDiff(cfg, owner, repoName, pull.number);
+    let waitedForGraph = 0;
+    for (;;) {
+      try {
+        const run = await executeCommand(s0, {
+          command: 'run.request',
+          actor: BUILD,
+          projectId,
+          data: {
+            action: 'pr_review',
+            scope: { type: 'build_request', id: requestId },
+            input: { diff, pr_url: pull.url, ci: { parallel: true } },
+          },
+        });
+        return run.entityId;
+      } catch (e) {
+        // The graph is being updated: the reviewer's context waits for it.
+        if (!isDomainError(e) || e.type !== 'guard' || waitedForGraph >= d.reviewTimeoutMs) throw e;
+        await new Promise((resolve) => setTimeout(resolve, Math.min(d.pollMs, 1000)));
+        waitedForGraph += Math.min(d.pollMs, 1000);
+      }
+    }
+  };
   const requested = await stage(
     r,
     'review',
     async () => {
-      const diff = await d.github.pullRequestDiff(cfg, owner, repoName, pull.number);
-      let waitedForGraph = 0;
-      for (;;) {
-        try {
-          const run = await executeCommand(s0, {
-            command: 'run.request',
-            actor: BUILD,
-            projectId,
-            data: {
-              action: 'pr_review',
-              scope: { type: 'build_request', id: requestId },
-              input: { diff, pr_url: pull.url, ci: { parallel: true } },
-            },
-          });
-          return { value: { runId: run.entityId }, detail: { run_id: run.entityId, ci: 'parallel' }, outcome: 'waiting' as const };
-        } catch (e) {
-          // The graph is being updated: the reviewer's context waits for it.
-          if (!isDomainError(e) || e.type !== 'guard' || waitedForGraph >= d.reviewTimeoutMs) throw e;
-          await new Promise((resolve) => setTimeout(resolve, Math.min(d.pollMs, 1000)));
-          waitedForGraph += Math.min(d.pollMs, 1000);
-        }
-      }
+      const id = await startReview();
+      return { value: { runId: id }, detail: { run_id: id, ci: 'parallel' }, outcome: 'waiting' as const };
     },
     { announce: true },
   );
   if (!requested.ok) return stop('review', requested.outcome);
-  const runId = requested.value.runId;
+  let runId = requested.value.runId;
+  let reviewRetries = 0;
 
   // The parallel wait. Every poll is a durable step (its result is checkpointed), and waiting is counted, not read from a
   // clock, so after a restart the replay returns the same snapshots and decides the same way; the rows (`ci` and `review`
@@ -1025,13 +1032,13 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   for (;;) {
     const snap = await plain('gate-poll', async () => {
       const { state, conclusion: raw } = ciDone ? { state: 'done' as const, conclusion: rawConclusion } : ciStatusOf(await d.github.checkRunsFor(cfg, owner, repoName, headSha));
-      const run = await s0.db.selectFrom('ai_runs').select('state').where('id', '=', runId).executeTakeFirstOrThrow();
+      const run = await s0.db.selectFrom('ai_runs').select(['state', 'error']).where('id', '=', runId).executeTakeFirstOrThrow();
       const ended = !['queued', 'running'].includes(run.state);
       const row = ended
         ? await s0.db.selectFrom('pr_reviews').select(['id', 'verdict', 'summary', 'comments']).where('run_id', '=', runId).executeTakeFirst()
         : undefined;
       const found: Verdict | null = row ? { id: row.id, verdict: row.verdict, summary: row.summary, comments: row.comments as Verdict['comments'] } : null;
-      return { ci: { state, conclusion: raw }, run: run.state, ended, verdict: found };
+      return { ci: { state, conclusion: raw }, run: run.state, ended, verdict: found, error: ended && !found ? (run.error ?? null) : null };
     });
     runState = snap.run;
 
@@ -1056,6 +1063,33 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     // The reviewer spoke (or its run ended without a verdict, or took too long): its row, as soon as it is known.
     if (reviewState === 'pending' && (snap.ended || waited >= d.reviewTimeoutMs)) {
       reviewVerdict = snap.verdict;
+      // A run that ended without a verdict for a passing provider reason is requested again, with backoff and CI left running.
+      if (!reviewVerdict && snap.ended && reviewRetries < REVIEW_MAX_RETRIES && isTransientRunError(snap.error)) {
+        const previousRunId = runId;
+        const retry = reviewRetries + 1;
+        const backoff = REVIEW_RETRY_BACKOFF_MS[reviewRetries] ?? REVIEW_RETRY_BACKOFF_MS[REVIEW_RETRY_BACKOFF_MS.length - 1] ?? 120_000;
+        await d.sleep(backoff);
+        waited += backoff;
+        const again = await plain(`review-retry-${retry}`, async () => {
+          try {
+            const id = await startReview();
+            await record(r, 'review', 'waiting', { retry, previous_run_id: previousRunId, previous_error: redactConfigured(snap.error ?? '').slice(0, 500), run_id: id });
+            return { runId: id, error: null };
+          } catch (e) {
+            return { runId: null, error: messageOf(e) };
+          }
+        });
+        if (again.runId) {
+          reviewRetries = retry;
+          runId = again.runId;
+          runState = 'queued';
+          continue;
+        }
+        await plain(`review-retry-${retry}-failed`, () => record(r, 'review', 'failed', { run_id: previousRunId, error: `Could not request the review again: ${again.error}` }));
+        reviewState = 'failed';
+        gate = decideGate({ ci: 'pending', review: 'failed' });
+        break;
+      }
       if (!reviewVerdict) {
         reviewState = 'failed';
         await plain('review-failed', () =>

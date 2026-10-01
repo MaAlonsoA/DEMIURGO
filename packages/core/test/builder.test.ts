@@ -41,6 +41,31 @@ describe('builderArguments', () => {
     ]);
   });
 
+  it('copies the sign-in without lock files and never carries the token in the arguments', () => {
+    const args = builderArguments(spec, 'demiurgo-build-1', {});
+    const script = args[args.indexOf('-c') + 1];
+    expect(script).toContain("tar -cf - --exclude='*.lock' .");
+    expect(script).not.toContain('cp -R');
+    expect(args).not.toContain('CLAUDE_CODE_OAUTH_TOKEN');
+    const codex = builderArguments({ ...spec, provider: 'codex', model: 'gpt-5' }, 'demiurgo-build-2', { CLAUDE_CODE_OAUTH_TOKEN: 'secret-token-value' });
+    expect(codex[codex.indexOf('-c') + 1]).toContain("--exclude='*.lock'");
+    expect(codex).not.toContain('CLAUDE_CODE_OAUTH_TOKEN');
+  });
+
+  it('with CLAUDE_CODE_OAUTH_TOKEN passes only its name as env and copies no credentials', () => {
+    const args = builderArguments(spec, 'demiurgo-build-1', { CLAUDE_CODE_OAUTH_TOKEN: 'secret-token-value' });
+    expect(args.join(' ')).not.toContain('secret-token-value');
+    const envs = args.filter((_, i) => args[i - 1] === '--env');
+    expect(envs.at(-1)).toBe('CLAUDE_CODE_OAUTH_TOKEN');
+    const script = args[args.indexOf('-c') + 1];
+    expect(script).not.toContain('tar');
+    expect(script).not.toContain('cp -R');
+    expect(script).toContain('.claude.json');
+    expect(script).not.toContain('credentials');
+    const blank = builderArguments(spec, 'demiurgo-build-1', { CLAUDE_CODE_OAUTH_TOKEN: '  ' });
+    expect(blank[blank.indexOf('-c') + 1]).toContain('tar');
+  });
+
   it('mounts the main repo .git read-only for read-only git, and nothing else changes', () => {
     const gitDir = { hostPath: '/Users/x/Development/Demiurgo-projects/proj/.git', containerPath: '/projects/proj/.git' };
     const args = builderArguments({ ...spec, gitDir }, 'demiurgo-build-1', {});

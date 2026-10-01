@@ -67,6 +67,8 @@ services:
       METABASE_ADMIN_PASSWORD: ${METABASE_ADMIN_PASSWORD:?set in .env}
       # Jev (TypeSafe) clasifica el aspecto de mensajes y propuestas, solo con el ADR aprobado.
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      # Token de larga duración de `claude setup-token`: lo usan la API y los constructores de Claude (sin copiar credenciales).
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       DEMIURGO_PROJECTS_DIR: /projects
       DEMIURGO_PROJECTS_HOST_DIR: ${HOME}/Development/Demiurgo-projects
       DEMIURGO_PROJECTS_LABEL: ~/Development/Demiurgo-projects

@@ -4,15 +4,15 @@
 
 import { isQuotaError } from '@demiurgo/domain';
 
-export const BUILD_FAILURE_KINDS = ['usage_limit', 'auth', 'timeout', 'out_of_memory', 'cancelled', 'infra', 'other'] as const;
+export const BUILD_FAILURE_KINDS = ['usage_limit', 'login', 'timeout', 'out_of_memory', 'cancelled', 'infra', 'other'] as const;
 export type BuildFailureKind = (typeof BUILD_FAILURE_KINDS)[number];
 
 /** The excerpt kept in the step: the last characters of what the builder printed (our convention). */
 export const EXCERPT_LENGTH = 1500;
 
 const LIMIT_WORDS = /limit reached|reached (?:your|the) (?:usage )?limit|hit your limit/i;
-const AUTH_WORDS =
-  /not logged in|please run \/login|invalid api key|invalid[ _-]?(?:x-api-key|credentials)|authentication[ _-]?(?:error|failed|required)|unauthori[sz]ed|\b401\b|oauth token (?:has )?expired|credentials? (?:have )?expired|401 unauthorized/i;
+const LOGIN_WORDS =
+  /not logged in|please run \/login|invalid api key|invalid[ _-]?(?:x-api-key|credentials)|authentication[ _-]?(?:error|failed|required)|failed to authenticate|failed to refresh oauth token|oauth session expired|oauth token (?:has )?expired|credentials? (?:have )?expired|access token could not be refreshed|refresh token was already used|log out and sign in again|unauthori[sz]ed|\b401\b/i;
 const OOM_WORDS = /out of memory|\bOOM\b|cannot allocate memory|heap out of memory|JavaScript heap|\bkilled\b/i;
 const TIMEOUT_WORDS = /timed out|timeout|ETIMEDOUT/i;
 
@@ -42,10 +42,11 @@ export function classifyBuilderFailure(input: {
 }): BuildFailureKind {
   if (input.runnerKind === 'cancelled') return 'cancelled';
   if (input.runnerKind === 'timeout') return 'timeout';
+  if (input.runnerKind === 'login') return 'login';
   const text = meaningful(`${input.stderr ?? ''}\n${(input.transcript ?? '').slice(-6000)}`);
   // The quota and auth words win over the exit code: they say why the CLI exited.
   if (isQuotaError(text) || LIMIT_WORDS.test(text)) return 'usage_limit';
-  if (AUTH_WORDS.test(text)) return 'auth';
+  if (LOGIN_WORDS.test(text)) return 'login';
   if (input.exitCode === 137 || OOM_WORDS.test(input.stderr ?? '')) return 'out_of_memory';
   if (input.runnerKind === 'infra') return 'infra';
   if (TIMEOUT_WORDS.test(input.stderr ?? '')) return 'timeout';

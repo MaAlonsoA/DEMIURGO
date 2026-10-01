@@ -28,8 +28,9 @@ export const AGENT_BUILD = messages(
       switch (kind) {
         case 'usage_limit':
           return "Stopped: the subscription's usage limit was reached. Try again after it resets.";
+        case 'login':
         case 'auth':
-          return 'Stopped: the builder could not sign in to its engine. Sign in again, then build again.';
+          return "Stopped: the engine's sign-in expired or is invalid. Run `claude setup-token` and set CLAUDE_CODE_OAUTH_TOKEN (or sign in again), then build again.";
         case 'timeout':
           return timedOutTwiceOn
             ? `The builder ran out of time twice; its work is on branch ${timedOutTwiceOn}. The task may be too big: consider splitting it.`
@@ -96,8 +97,9 @@ export const AGENT_BUILD = messages(
       switch (kind) {
         case 'usage_limit':
           return 'Detenida: se alcanzó el límite de uso de la suscripción. Vuelve a intentarlo cuando se reinicie.';
+        case 'login':
         case 'auth':
-          return 'Detenida: el constructor no pudo iniciar sesión en su motor. Inicia sesión de nuevo y vuelve a construir.';
+          return 'Detenida: el inicio de sesión del motor caducó o no es válido. Ejecuta `claude setup-token` y define CLAUDE_CODE_OAUTH_TOKEN (o inicia sesión de nuevo) y vuelve a construir.';
         case 'timeout':
           return timedOutTwiceOn
             ? `El constructor se quedó sin tiempo dos veces; su trabajo está en la rama ${timedOutTwiceOn}. Puede que la tarea sea demasiado grande: plantéate dividirla.`

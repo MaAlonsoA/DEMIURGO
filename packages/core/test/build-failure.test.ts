@@ -22,8 +22,21 @@ describe('classifyBuilderFailure', () => {
     expect(classifyBuilderFailure({ ...base, transcript: rejected })).toBe('usage_limit');
   });
   it('recognises authentication problems', () => {
-    expect(classifyBuilderFailure({ ...base, stderr: 'Invalid API key · Please run /login' })).toBe('auth');
-    expect(classifyBuilderFailure({ ...base, stderr: 'OAuth token has expired' })).toBe('auth');
+    expect(classifyBuilderFailure({ ...base, stderr: 'Invalid API key · Please run /login' })).toBe('login');
+    expect(classifyBuilderFailure({ ...base, stderr: 'OAuth token has expired' })).toBe('login');
+  });
+  it('classifies a failed OAuth refresh and the Codex equivalents as login, so they are not retried', () => {
+    for (const text of [
+      'Failed to refresh OAuth token: another Claude Code process is refreshing it',
+      'OAuth session expired and could not be refreshed',
+      'Failed to authenticate. API Error: 401',
+      'Invalid API key',
+      'Please run /login',
+      'Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.',
+    ]) {
+      expect(classifyBuilderFailure({ ...base, transcript: text })).toBe('login');
+    }
+    expect(classifyBuilderFailure({ exitCode: null, runnerKind: 'login' })).toBe('login');
   });
   it('recognises out of memory and a kill', () => {
     expect(classifyBuilderFailure({ exitCode: 137 })).toBe('out_of_memory');

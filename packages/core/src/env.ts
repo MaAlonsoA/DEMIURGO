@@ -23,6 +23,9 @@ export const ALLOWED_VARIABLES = [
   // If the Claude Code configuration is not in `~/.claude`, the subscription credentials
   // are wherever this variable points.
   'CLAUDE_CONFIG_DIR',
+  // Long-lived token from `claude setup-token` (https://code.claude.com/docs/en/authentication): headless sign-in
+  // that needs no credentials file and no refresh.
+  'CLAUDE_CODE_OAUTH_TOKEN',
   // Where Codex keeps its ChatGPT sign-in (defaults to `~/.codex`).
   'CODEX_HOME',
 ] as const;
@@ -83,6 +86,8 @@ export function allowedEnv(
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(origin)) {
     if (value === undefined || isForbiddenVariable(key)) continue;
+    // A blank token (compose passes an empty string when unset) is not a token.
+    if (key.toUpperCase() === 'CLAUDE_CODE_OAUTH_TOKEN' && value.trim() === '') continue;
     if (allowed.has(key.toUpperCase())) env[key] = value;
   }
   return { ...env, ...FIXED_VARIABLES, ...fixed };

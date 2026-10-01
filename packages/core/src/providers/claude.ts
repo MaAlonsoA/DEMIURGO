@@ -29,6 +29,7 @@ import {
 import { type Launcher, type ProcessEnd, isExecutableNotFound, nodeLauncher } from '../agents/process.ts';
 import { allowedEnv, otelResourceAttributes, processEnv } from '../env.ts';
 import { claudeConfigDir, findClaudeTranscript } from '../observe/transcripts.ts';
+import { storedSessionExpired } from '../runner/claude-login.ts';
 import { lineSplitter, messageOf, waitForOutcome } from './stream.ts';
 
 export const CLAUDE_PROVIDER = 'claude';
@@ -279,14 +280,21 @@ export function createClaudeProvider(options: CliProviderOptions = {}): Provider
           return false;
         }
       })();
+      // A stored session whose access token is expired (and no long-lived token to fall back on) cannot be
+      // refreshed safely by the builders: say so instead of "Ready". No call is made to find out.
+      const expired = signedIn && (await storedSessionExpired(origin()));
       const efforts = parseClaudeEfforts(help?.stdout ?? '');
       const models: ProviderModel[] = CLAUDE_MODELS.map((m) => ({ ...m, efforts, defaultEffort: null }));
       return {
         ...base,
         installed: version !== null,
         version: /^(\S+)/.exec(version?.stdout.trim() ?? '')?.[1] ?? null,
-        ready: signedIn,
-        message: signedIn ? null : "Claude isn't signed in: run `claude auth login`.",
+        ready: signedIn && !expired,
+        message: !signedIn
+          ? "Claude isn't signed in: run `claude auth login`."
+          : expired
+            ? 'Sign-in expired: run `claude setup-token` and set CLAUDE_CODE_OAUTH_TOKEN in .env (a long-lived token), or sign in again.'
+            : null,
         models,
         ...(help?.code === 0 && efforts.length > 0 ? {} : { listed: false }),
       };

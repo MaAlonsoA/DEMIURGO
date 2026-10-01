@@ -11,6 +11,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FailureKind } from '@demiurgo/domain';
 import { z } from 'zod';
+import { CLAUDE_TOKEN_VARIABLE, type LoginCheck, checkClaudeLogin, claudeOauthToken } from './claude-login.ts';
 import {
   DEAD_DAEMON_PATTERN,
   NAME_PATTERN,
@@ -66,7 +67,7 @@ export type BuilderResult = {
   state: 'ok' | 'failure';
   exitCode: number | null;
   durationMs: number;
-  failureKind?: Extract<FailureKind, 'timeout' | 'infra' | 'cancelled'>;
+  failureKind?: Extract<FailureKind, 'timeout' | 'infra' | 'cancelled'> | 'login';
   /** Last 20k characters of stdout (the CLI's event stream). */
   transcriptTail: string;
   /** Last 4k characters of stderr, to tell why a run failed (never stored raw: the orchestrator redacts it). */
@@ -82,6 +83,8 @@ export type BuilderOptions = {
   /** Path of the worktree as this process sees it, to read the report (defaults to the host path). */
   worktreePath?: string;
   environment?: Readonly<Record<string, string | undefined>>;
+  /** Replaces the sign-in check that runs before a Claude builder starts (tests). */
+  loginCheck?: (spec: BuilderSpec) => Promise<LoginCheck>;
 };
 
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,99}$/;
@@ -242,8 +245,15 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
   const home = '/home/demiurgo';
   const config = `${home}/.${dir}-auth`;
   const stateVariable = spec.provider === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME';
-  // Copies the sign-in (read-only volume) to a writable place, then runs the CLI in /workspace.
-  const script = `set -eu; mkdir -p "${config}"; cp -R /auth/${dir}/. "${config}"/; cd /workspace; exec "$@"`;
+  // With the long-lived token (Claude only) no credentials are copied: the token travels as an environment
+  // variable and only the non-secret `.claude.json` is copied. Without it the sign-in is copied from the read-only
+  // volume to a writable place, WITHOUT lock files (a stale `.oauth_refresh.lock` makes Claude say another process
+  // is refreshing). Builders never refresh the shared session: see `checkClaudeLogin`.
+  const token = spec.provider === 'claude' ? claudeOauthToken(environment) : undefined;
+  const copy = token
+    ? `if [ -f /auth/${dir}/.claude.json ]; then cp /auth/${dir}/.claude.json "${config}"/; fi`
+    : `cd /auth/${dir}; tar -cf - --exclude='*.lock' . | tar -xf - -C "${config}"`;
+  const script = `set -eu; mkdir -p "${config}"; ${copy}; cd /workspace; exec "$@"`;
   const extra = environmentVariables(spec.env);
   const env: Record<string, string> = {
     ...extra,
@@ -284,6 +294,8 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
     ...networkArguments(spec.network),
   ];
   for (const [key, value] of Object.entries(env).sort(([a], [b]) => a.localeCompare(b))) args.push('--env', `${key}=${value}`);
+  // Name only: docker takes the value from its own environment (see `runBuilder`), so it is not in the arguments.
+  if (token) args.push('--env', CLAUDE_TOKEN_VARIABLE);
   args.push(image, 'sh', '-c', script, 'builder', ...cliCommand(spec));
   return args;
 }
@@ -302,12 +314,19 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
   const name = options.containerName ?? `demiurgo-build-${randomUUID()}`;
   const args = builderArguments(spec, name, options.environment);
   const binary = options.dockerBinary ?? 'docker';
-  const environment = dockerEnv();
+  const token = spec.provider === 'claude' ? claudeOauthToken(options.environment ?? process.env) : undefined;
+  const environment = { ...dockerEnv(), ...(token ? { [CLAUDE_TOKEN_VARIABLE]: token } : {}) };
   const worktree = options.worktreePath ?? spec.worktreeHostPath;
   const start = performance.now();
   const empty = { transcriptTail: '', report: null, container: name };
 
   if (options.signal?.aborted) return { state: 'failure', exitCode: null, durationMs: 0, failureKind: 'cancelled', ...empty };
+
+  // The stored sign-in must outlive the build (or the long-lived token be set): a builder never refreshes it.
+  if (spec.provider === 'claude') {
+    const login = await (options.loginCheck ?? ((sp) => checkClaudeLogin({ env: options.environment ?? process.env, maxTimeMs: sp.maxTimeMs })))(spec);
+    if (!login.ok) return { state: 'failure', exitCode: null, durationMs: 0, failureKind: 'login', stderrTail: login.message, ...empty };
+  }
 
   const output = collector(OUTPUT_LIMIT);
   const errors = collector(64 * 1024);

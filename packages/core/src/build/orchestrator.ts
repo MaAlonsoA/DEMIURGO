@@ -54,11 +54,12 @@ import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/bui
 import { databaseName, prepareEnvironment, projectSlug, teardownEnvironment } from '../runner/environment.ts';
 import { environmentFromCi } from './environment.ts';
 import { pullRequestFootprint } from './footprint.ts';
+import { type OwnershipViolation, checkOwnership, ownershipLine } from './ownership.ts';
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';
 import { codeToExtend } from './queue.ts';
 import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
 import type { Services } from '../services.ts';
-import { commitAll, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { commitAll, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, addedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -248,9 +249,9 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   };
 }
 
-type Feedback = { blocking: string[]; failing: string[]; design: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string };
+type Feedback = { blocking: string[]; failing: string[]; design: string[]; ownership: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string };
 
-const NO_FEEDBACK: Feedback = { blocking: [], failing: [], design: [], flaky: [], conflicts: [] };
+const NO_FEEDBACK: Feedback = { blocking: [], failing: [], design: [], ownership: [], flaky: [], conflicts: [] };
 
 type BuilderStepDetail = { failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string };
 
@@ -338,11 +339,13 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
     .orderBy('created_at', 'desc')
     .orderBy('id', 'desc')
     .executeTakeFirst();
-  const violations = design?.outcome === 'failed' ? ((design.detail as { violations?: DesignViolation[] } | null)?.violations ?? []) : [];
+  const designDetail = design?.outcome === 'failed' ? (design.detail as { violations?: DesignViolation[]; ownership?: OwnershipViolation[] } | null) : null;
+  const violations = designDetail?.violations ?? [];
+  const ownership = (designDetail?.ownership ?? []).map(ownershipLine);
   const previous = r.attempt > 1 ? await failedBuilderStep(s, r.requestId, r.attempt - 1) : null;
   const wip = previous?.failure_kind === 'timeout' && previous.wip_commit ? { sha: previous.wip_commit, files: previous.wip_files ?? [] } : undefined;
   const progress = r.attempt > 1 ? await previousProgress(s, r.requestId, r.attempt - 1) : undefined;
-  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine), flaky: (evidenceDetail?.flaky ?? []).filter((c) => !(evidenceDetail?.quarantined ?? []).includes(c)), conflicts: [], ...(wip ? { wip } : {}), ...(progress ? { progress } : {}) };
+  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine), ownership, flaky: (evidenceDetail?.flaky ?? []).filter((c) => !(evidenceDetail?.quarantined ?? []).includes(c)), conflicts: [], ...(wip ? { wip } : {}), ...(progress ? { progress } : {}) };
 }
 
 const violationLine = (v: DesignViolation): string => `${v.path}${v.line ? `:${v.line}` : ''} (rule ${v.rule}): ${v.message}`;
@@ -380,7 +383,7 @@ function promptOf(
   code: string[] = [],
 ): string {
   const lines = [body, '', '# Brief', brief, ...(code.length > 0 ? ['', ...code] : []), ...designSection(design)];
-  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.flaky.length > 0 || f.progress)) {
+  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || f.progress)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
     if (f.wip) {
       lines.push(
@@ -399,6 +402,7 @@ function promptOf(
     if (f.blocking.length > 0) lines.push('The reviewer asked for these changes:', ...f.blocking.map((b) => `- ${b}`));
     if (f.failing.length > 0) lines.push(`The tests of these criteria failed in CI: ${f.failing.join(', ')}.`);
     if (f.flaky.length > 0) lines.push(flakyNote(f.flaky));
+    if (f.ownership.length > 0) lines.push('The ownership check failed, fix these:', ...f.ownership.map((v) => `- ${v}`));
     if (f.design.length > 0) lines.push('The design-system check (demiurgo/design) failed, fix these:', ...f.design.map((v) => `- ${v}`));
   } else if (attempt > 1) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`, 'The previous attempt did not merge; check the tests and the review comments on the pull request.');
@@ -740,14 +744,25 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
 
   // design: the deterministic design-system guard; no approved system yet means nothing to check
   const designed = await stage(r, 'design', async () => {
+    // Ownership: what the branch adds must not belong to another feature (ownership.ts). Best effort: an error checks nothing.
+    const ownership = await checkOwnership(s0.db, projectId, info.taskCode, {
+      paths: await addedOnBranch(worktree.path),
+      read: (file) => readWorktreeFile(worktree.path, file),
+      repoDir: info.repoDir,
+    }).catch(() => [] as OwnershipViolation[]);
+    const ownershipError = ownership.length > 0 ? `${ownership.length} ownership ${ownership.length === 1 ? 'violation' : 'violations'}: ${ownership.slice(0, 5).map(ownershipLine).join(' | ')}` : null;
     const approved = await designSystemOf(worktree.path);
-    if (!approved) return { value: { note: 'no design system yet' }, detail: { note: 'no design system yet', violations: [] } };
+    if (!approved) {
+      if (ownershipError) return { outcome: 'failed' as const, detail: { violations: [], ownership, error: ownershipError } };
+      return { value: { note: 'no design system yet' }, detail: { note: 'no design system yet', violations: [], ownership } };
+    }
     const keep = (file: string) => /\.(css|scss|html|jsx|tsx|vue|svelte)$/.test(file) || file.endsWith('/tokens.json') || file === 'tokens.json';
     const files = await readWorktreeFiles(worktree.path, keep);
     const result = designGuard(files, approved.manifest, approved.tokens);
-    const detail = { version: approved.manifest.version, checked: files.length, violations: result.violations };
-    if (!result.ok) {
-      return { outcome: 'failed' as const, detail: { ...detail, error: `${result.violations.length} design-system ${result.violations.length === 1 ? 'violation' : 'violations'}: ${result.violations.slice(0, 5).map(violationLine).join(' | ')}` } };
+    const detail = { version: approved.manifest.version, checked: files.length, violations: result.violations, ownership };
+    if (!result.ok || ownershipError) {
+      const designError = result.ok ? null : `${result.violations.length} design-system ${result.violations.length === 1 ? 'violation' : 'violations'}: ${result.violations.slice(0, 5).map(violationLine).join(' | ')}`;
+      return { outcome: 'failed' as const, detail: { ...detail, error: [designError, ownershipError].filter(Boolean).join(' | ') } };
     }
     return { value: { note: `Uses the approved design system ${approved.manifest.version}.` }, detail };
   });

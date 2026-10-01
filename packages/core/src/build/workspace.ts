@@ -275,6 +275,19 @@ export async function changedOnBranch(path: string): Promise<string[]> {
   return [];
 }
 
+/** Files the branch ADDS against main (`git diff --diff-filter=A`); [] when there is no main to compare. */
+export async function addedOnBranch(path: string): Promise<string[]> {
+  for (const base of ['refs/remotes/origin/main', 'main']) {
+    try {
+      const { stdout } = await git(path, ['diff', '--name-only', '--diff-filter=A', `${base}...HEAD`]);
+      return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+    } catch {
+      // try the next base
+    }
+  }
+  return [];
+}
+
 /** One file of the worktree, or null if it is not there. */
 export async function readWorktreeFile(path: string, file: string): Promise<string | null> {
   return readFile(join(path, file), 'utf8').catch(() => null);

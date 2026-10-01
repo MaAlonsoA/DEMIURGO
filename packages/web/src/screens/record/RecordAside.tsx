@@ -215,7 +215,10 @@ export function ContextPanel({
       body: (
         <span>
           <span className="font-medium">{t.thisVersion}</span>
-          <span className="text-fg-2">{t.writtenBySuffix(byWords(version.author, t))}</span>
+          <span className="text-fg-2">
+            {/* A version born from a proposal was drafted by DEMIURGO: the person accepted it. */}
+            {version.origin?.type === 'proposal' ? t.draftedSuffix : t.writtenBySuffix(byWords(version.author, t))}
+          </span>
         </span>
       ),
       meta: <DayTime iso={version.created_at} />,

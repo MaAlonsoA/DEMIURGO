@@ -46,6 +46,29 @@ describe('selectStarts and the schema rule', () => {
   });
 });
 
+describe('selectStarts and Jev testability flags', () => {
+  it('leaves a flagged task waiting for the person and starts the next one', async () => {
+    const flagged = { ...task('TSK-2', 'F2'), testability: [{ criterion: 'AC-1' }] } as unknown as QueueTask;
+    const r = await select([flagged, task('TSK-3', 'F3')], [], {});
+    expect(r.testabilityWaiting).toEqual(['TSK-2']);
+    expect(r.start.map((s) => s.code)).toEqual(['TSK-3']);
+  });
+
+  it('starts a flagged task the person requested', async () => {
+    const flagged = { ...task('TSK-2', 'F2'), testability: [{ criterion: 'AC-1' }] } as unknown as QueueTask;
+    const r = await selectStarts({
+      ready: [flagged],
+      running: [],
+      limit: 1,
+      index,
+      featureOf: () => 'F2',
+      stateOf: async () => ({ kind: 'start', hasRequest: true }),
+      schema: new Map(),
+    });
+    expect(r.start.map((s) => s.code)).toEqual(['TSK-2']);
+  });
+});
+
 describe('schemaEvidence', () => {
   it('knows schema files', () => {
     expect(isSchemaFile('packages/core/migrations/0004_x.sql')).toBe(true);

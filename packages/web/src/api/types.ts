@@ -1256,6 +1256,7 @@ export type BuildQueue = {
     schema_waiting?: string[];
     /** Ready tasks waiting because they share a hotspot file or a table, route, page or server action with a task being built. */
     module_waiting?: { code: string; item: string; with: string }[];
+    testability_waiting?: string[];
     stopped: {
       code: string;
       kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red';

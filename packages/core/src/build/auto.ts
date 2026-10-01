@@ -54,6 +54,8 @@ export type AutoStatus = {
   schema_waiting?: string[];
   /** Ready tasks that wait because they are predicted to change a hotspot file or a table, route, page or server action that a task being built changes too. Omitted when none. */
   module_waiting?: ModuleWaiting[];
+  /** Ready tasks the queue does not start by itself because Jev flagged a criterion that CI cannot check: the person decides (mark it manual, move it or start it). Omitted when none. */
+  testability_waiting?: string[];
   stopped: AutoStopped | null;
   /** Flaky tests the last builds quarantined (they did not block their pull request): someone creates a fix task. Omitted when none. */
   quarantined?: string[];
@@ -178,6 +180,8 @@ type Plan = {
   schemaWaiting: string[];
   /** Tasks skipped this round because they share a hotspot or module with a task being built. */
   moduleWaiting: ModuleWaiting[];
+  /** Tasks skipped because Jev flagged a criterion that CI cannot check and nobody requested them. */
+  testabilityWaiting: string[];
 };
 
 export type SelectInput = {
@@ -224,7 +228,7 @@ export function sharedItem(a: readonly string[], b: readonly string[], hotspots:
  */
 export async function selectStarts(input: SelectInput): Promise<Omit<Plan, 'running'>> {
   const { ready, running, limit, index, featureOf, stateOf, schema, predicted, hotspots, map } = input;
-  const result: Omit<Plan, 'running'> = { start: [], stopped: null, schemaWaiting: [], moduleWaiting: [] };
+  const result: Omit<Plan, 'running'> = { start: [], stopped: null, schemaWaiting: [], moduleWaiting: [], testabilityWaiting: [] };
   // Skipped after the schema rule: a hotspot or module shared with a busy task (Google LSC: more files in flight, more merge conflicts).
   const collision = (code: string): { item: string; with: string } | null => {
     const mine = predicted?.get(code);
@@ -248,6 +252,12 @@ export async function selectStarts(input: SelectInput): Promise<Omit<Plan, 'runn
       // Reported only when nothing runs: a running build is what the page shows then.
       if (running.length === 0) result.stopped = state.stopped;
       break;
+    }
+    // A Jev testability flag asks the person to decide before building: the queue never decides for them, it
+    // leaves the task waiting (it does not stop the ones behind it). A request the person made still starts.
+    if (!state.hasRequest && (t.testability?.length ?? 0) > 0) {
+      result.testabilityWaiting.push(t.code);
+      continue;
     }
     const feature = featureOf(t.code);
     if (dependsOnBusy(index, t.code, busy) || (feature !== null && busyFeatures.has(feature))) continue;
@@ -286,7 +296,7 @@ async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number)
     .execute();
   const running: string[] = [];
   for (const o of open) if (await buildRunning(db, o.id)) running.push(o.code);
-  const result: Plan = { running, start: [], stopped: null, schemaWaiting: [], moduleWaiting: [] };
+  const result: Plan = { running, start: [], stopped: null, schemaWaiting: [], moduleWaiting: [], testabilityWaiting: [] };
   // A red main stops the line even while builds run: they finish, and nothing new starts.
   const red = await mainRed(db, projectId);
   if (red) return { ...result, stopped: red };
@@ -322,7 +332,8 @@ export async function autoStatus(db: Db, projectId: string, queue: BuildQueue): 
   const next = p.start[0]?.code ?? (p.running.length ? (queue.ready.find((t) => !p.running.includes(t.code) && t.request === null)?.code ?? null) : null);
   const waiting = p.schemaWaiting.length > 0 ? { schema_waiting: p.schemaWaiting } : {};
   const moduleWait = p.moduleWaiting.length > 0 ? { module_waiting: p.moduleWaiting } : {};
-  return { on, parallel, building: p.running[0] ?? null, builds: p.running, next, stopped: p.stopped, ...waiting, ...moduleWait, ...flaky };
+  const testWait = p.testabilityWaiting.length > 0 ? { testability_waiting: p.testabilityWaiting } : {};
+  return { on, parallel, building: p.running[0] ?? null, builds: p.running, next, stopped: p.stopped, ...waiting, ...moduleWait, ...testWait, ...flaky };
 }
 
 const tails = new Map<string, Promise<unknown>>();

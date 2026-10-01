@@ -91,6 +91,7 @@ export const BUILD = messages(
     autoSchemaWaiting: (codes: string[]) => `${codes.join(', ')} ${codes.length === 1 ? 'waits: it changes' : 'wait: they change'} the database schema, like a task being built, and the migrations would collide.`,
     autoModuleWaiting: (items: { code: string; item: string; with: string }[]) =>
       items.map((i) => `${i.code} waits for ${i.with}: both change ${i.item}.`).join(' '),
+    autoTestabilityWaiting: (codes: string[]) => `${codes.join(', ')} ${codes.length === 1 ? 'waits' : 'wait'} for you: Jev flagged a criterion CI cannot check. Mark it manual, move it or start the build yourself.`,
     hotspots: 'Hotspots',
     hotspotLine: (h: { path: string; tasks: number; of: number }) => `${h.path}: changed by ${h.tasks} of ${h.of} merged tasks.`,
     autoParallel: 'At once',
@@ -196,6 +197,7 @@ export const BUILD = messages(
     autoSchemaWaiting: (codes: string[]) => `${codes.join(', ')} ${codes.length === 1 ? 'espera: cambia' : 'esperan: cambian'} el esquema de la base de datos, como una tarea en construcción, y las migraciones chocarían.`,
     autoModuleWaiting: (items: { code: string; item: string; with: string }[]) =>
       items.map((i) => `${i.code} espera a ${i.with}: las dos cambian ${i.item}.`).join(' '),
+    autoTestabilityWaiting: (codes: string[]) => `${codes.join(', ')} ${codes.length === 1 ? 'te espera' : 'te esperan'}: Jev marcó un criterio que el CI no puede comprobar. Márcalo manual, muévelo o arranca tú la construcción.`,
     hotspots: 'Puntos calientes',
     hotspotLine: (h: { path: string; tasks: number; of: number }) => `${h.path}: cambiado por ${h.tasks} de ${h.of} tareas fusionadas.`,
     autoParallel: 'A la vez',

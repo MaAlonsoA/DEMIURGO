@@ -440,6 +440,7 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
   const s = auto.stopped;
   const waitingSchema = auto.schema_waiting && auto.schema_waiting.length > 0 ? ` ${t.autoSchemaWaiting(auto.schema_waiting)}` : "";
   const waitingModule = auto.module_waiting && auto.module_waiting.length > 0 ? ` ${t.autoModuleWaiting(auto.module_waiting)}` : "";
+  const waitingTestability = auto.testability_waiting && auto.testability_waiting.length > 0 ? ` ${t.autoTestabilityWaiting(auto.testability_waiting)}` : "";
   const base = !auto.on
     ? null
     : s
@@ -459,7 +460,7 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
         : auto.next
           ? t.autoNext(auto.next)
           : t.autoIdle;
-  const status = base !== null && !s ? `${base}${waitingSchema}${waitingModule}` : base;
+  const status = base !== null && !s ? `${base}${waitingSchema}${waitingModule}${waitingTestability}` : base;
   return (
     <section className="flex flex-col gap-2" data-auto-queue data-auto-on={auto.on ? "true" : "false"}>
       <Checkbox

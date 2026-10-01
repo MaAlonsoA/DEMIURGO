@@ -17,8 +17,10 @@ import type { Db } from '../db/connection.ts';
 import { worthIt, type WorthIt } from '../queries/attention.ts';
 import { harnessScorecards, type PieceHealth, type Verdict } from '../queries/harness-health.ts';
 import type { Services } from '../services.ts';
+import { containmentOf, PCE_TARGET, type PhaseContainment } from './containment.ts';
 import { detectEscapes, ESCAPES_RULES_VERSION } from './escapes.ts';
 import { PIECE_NAMES } from './pieces.ts';
+import { harnessVersionIdOrNull } from './version.ts';
 import { serialized } from './postmortem.ts';
 
 export const CHECK_WINDOW_DAYS = 7;
@@ -64,7 +66,8 @@ export type CheckScorecard = {
   previous_verdict: Verdict | null;
 };
 
-export type PhaseContainment = { phase: string; contained: number; escaped: number; pce: number | null };
+export type { PhaseContainment };
+export { containmentOf };
 
 export type CheckEscapes = {
   rules_version: string;
@@ -73,6 +76,8 @@ export type CheckEscapes = {
   new_ids: string[];
   by_rule: Record<string, number>;
   pce: PhaseContainment[];
+  /** What the pce was computed with (the target is a decisión de la persona, 01-10). */
+  pce_meta: { rules_version: string; harness_version_id: string | null; target: number };
 };
 
 /** What a check keeps of itself to be compared with by the next one. */
@@ -109,26 +114,6 @@ export function regressionsOf(previous: CheckSnapshot | null, current: CheckSnap
 
 const ms = (d: unknown): number => new Date(d as Date | string).getTime();
 const round = (n: number, digits = 3): number => Math.round(n * 10 ** digits) / 10 ** digits;
-
-/**
- * Containment per introducing phase from escape rows. Contained is only a row the rule marked (`evidence.contained`: a
- * problem the design itself caught, e.g. a contradiction resolved before building); found in a later phase is escaped;
- * a row found in its own phase and not marked is neither (a confirmation or an operation is not a caught error). Pure.
- */
-export function containmentOf(rows: readonly { introduced_phase: string; found_phase: string; evidence?: unknown }[]): PhaseContainment[] {
-  const by = new Map<string, { contained: number; escaped: number }>();
-  for (const r of rows) {
-    const marked = (r.evidence as { contained?: unknown } | null | undefined)?.contained === true;
-    if (!marked && r.introduced_phase === r.found_phase) continue;
-    const cell = by.get(r.introduced_phase) ?? { contained: 0, escaped: 0 };
-    if (marked) cell.contained += 1;
-    else cell.escaped += 1;
-    by.set(r.introduced_phase, cell);
-  }
-  return [...by.entries()]
-    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-    .map(([phase, c]) => ({ phase, ...c, pce: c.contained + c.escaped > 0 ? round(c.contained / (c.contained + c.escaped)) : null }));
-}
 
 type StoredCheck = {
   id: string;
@@ -262,6 +247,7 @@ export async function runCheck(services: Services, projectId: string, trigger: C
       .orderBy('detected_at')
       .orderBy('id')
       .execute();
+    const harnessVersionId = await harnessVersionIdOrNull(db);
     const inWindow = rows.filter((r) => r.occurred_at === null || ms(r.occurred_at) >= windowFrom.getTime());
     const fresh = previous ? rows.filter((r) => ms(r.detected_at) > ms(previous.computed_at)) : rows;
     const byRule: Record<string, number> = {};
@@ -272,6 +258,7 @@ export async function runCheck(services: Services, projectId: string, trigger: C
       new_ids: fresh.slice(0, NEW_ESCAPE_IDS_MAX).map((r) => r.id),
       by_rule: byRule,
       pce: containmentOf(inWindow),
+      pce_meta: { rules_version: ESCAPES_RULES_VERSION, harness_version_id: harnessVersionId, target: PCE_TARGET },
     };
 
     const worth: WorthIt = await worthIt(db, projectId);
@@ -301,7 +288,7 @@ export async function runCheck(services: Services, projectId: string, trigger: C
         window_to: now,
         previous_check_id: previous?.id ?? null,
         rules_version: health.rules_version ?? 'none',
-        harness_version_id: null,
+        harness_version_id: harnessVersionId,
         trigger,
         scorecards: JSON.stringify(scorecards),
         escapes: JSON.stringify(escapes),

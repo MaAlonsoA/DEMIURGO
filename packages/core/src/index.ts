@@ -40,6 +40,8 @@ export { executionFacts, observabilitySummary, factsToCsv, spearman, type Execut
 export { judgmentCalibration, type JudgmentCalibration } from './queries/calibration.ts';
 export { attentionByStage, worthIt, type Attention, type StageAttention, type WorthIt } from './queries/attention.ts';
 export { harnessEscapes, harnessChecks, escapesToCsv, type HarnessEscapes, type EscapeRow, type HarnessChecks, type CheckRow } from './queries/harness-health.ts';
+export { harnessContainment, type HarnessContainment, type ContainmentAuditRow } from './queries/harness-containment.ts';
+export { PCE_TARGET, PCE_MIN_N, DESIGN_PHASES } from './harness/containment.ts';
 export { detectEscapes, escapesOf, loadEscapeInputs, ESCAPES_RULES_VERSION, PENDING_ESCAPE_RULES, type DetectResult } from './harness/escapes.ts';
 export { scorecardsByVersion, overlapsOf, NOT_COMPARABLE, type VersionCohort, type VersionCohorts } from './queries/harness-health.ts';
 export { harnessScorecards, harnessFindingRows, findingsToCsv, queueDecisionRows, queueDecisionsToCsv, scorecardsOf, verdictOf, type HarnessHealth, type PieceHealth, type FindingRow } from './queries/harness-health.ts';

@@ -49,8 +49,8 @@ describe('regressions (pure)', () => {
         { introduced_phase: 'P7', found_phase: 'P9' },
       ]),
     ).toEqual([
-      { phase: 'P5', contained: 1, escaped: 1, pce: 0.5 },
-      { phase: 'P7', contained: 0, escaped: 1, pce: 0 },
+      { phase: 'P5', contained: 1, escaped: 1, pce: 0.5, n: 2, target_met: null },
+      { phase: 'P7', contained: 0, escaped: 1, pce: 0, n: 1, target_met: null },
     ]);
   });
 });

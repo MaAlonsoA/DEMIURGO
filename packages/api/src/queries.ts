@@ -51,6 +51,7 @@ import {
   harnessFindingRows,
   harnessEscapes,
   harnessChecks,
+  harnessContainment,
   escapesToCsv,
   findingsToCsv,
   queueDecisionRows,
@@ -360,6 +361,12 @@ registerQueries([
     path: '/api/projects/:projectId/observability/harness/checks.json',
     queryName: 'query.harness_health',
     respond: ({ services, params }) => harnessChecks(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    // Phase containment of design against its target; one escapes rules version at a time (`?rules=`, default the latest).
+    path: '/api/projects/:projectId/observability/harness/containment.json',
+    queryName: 'query.harness_health',
+    respond: ({ services, params, query }) => harnessContainment(services.db, uuid(params.projectId, 'project'), { rules: query.rules || undefined }),
   },
   {
     path: '/api/projects/:projectId/observability/harness/escapes.csv',

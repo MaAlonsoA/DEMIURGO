@@ -3,7 +3,8 @@
 // merged, and at least one). Both are `depends_on` links from the task's version: to a task, or to a
 // feature. Derived on read from the links and the build requests; nothing is stored.
 
-import { type TaskWaits, findDependencyCycle } from '@demiurgo/domain';
+import { type NeededTask, type TaskWaits, findDependencyCycle } from '@demiurgo/domain';
+import { needKey, loadTaskNeeds, taskNeedsWait } from '../classifier/task-needs.ts';
 import type { Db } from '../db/connection.ts';
 import { mergedBuildOf } from './read.ts';
 
@@ -19,7 +20,16 @@ export type TaskDependencyIndex = {
   taskFeature: Map<string, string>;
   titles: Map<string, string>;
   merged: Map<string, boolean>;
+  /** The features each feature needs (feature-to-feature `based_on`, from the current version of each feature). */
+  featureNeeds: Map<string, string[]>;
+  /**
+   * Jev's latest probability that a task needs another one, by `pairKey(task, needed)` (task codes). Only
+   * opinions on the versions that are current now (or the `own` version) are here.
+   */
+  needs: Map<string, number>;
 };
+
+export const pairKey = (code: string, needed: string): string => `${code}|${needed}`;
 
 const unique = <T>(xs: T[]): T[] => [...new Set(xs)];
 
@@ -91,16 +101,47 @@ export async function loadTaskDependencies(
     .where('fr.type', '=', 'task')
     .where('tr.type', '=', 'fdr')
     .execute();
+  // Feature needs (feature based on feature) from each feature's current approved version.
+  const featureLinks = await db
+    .selectFrom('links')
+    .innerJoin('record_versions as fv', 'fv.id', 'links.from_id')
+    .innerJoin('records as fr', 'fr.id', 'fv.record_id')
+    .innerJoin('record_versions as tv', 'tv.id', 'links.to_id')
+    .innerJoin('records as tr', 'tr.id', 'tv.record_id')
+    .select(['fv.record_id as fromRecord', 'fv.n as fromN', 'fr.code as fromCode', 'tr.code as toCode'])
+    .where('links.project_id', '=', projectId)
+    .where('links.type', '=', 'based_on')
+    .where('links.state', '!=', 'obsolete')
+    .where('fr.type', '=', 'fdr')
+    .where('tr.type', '=', 'fdr')
+    .execute();
+  const featureApproved = featureLinks.length
+    ? await db
+        .selectFrom('record_versions')
+        .select(['record_id', 'n'])
+        .where('record_id', 'in', unique(featureLinks.map((l) => l.fromRecord)))
+        .where('state', '=', 'approved')
+        .execute()
+    : [];
+  const featureCurrentN = new Map<string, number>();
+  for (const v of featureApproved) featureCurrentN.set(v.record_id, Math.max(featureCurrentN.get(v.record_id) ?? 0, v.n));
+  const featureNeeds = new Map<string, string[]>();
+  for (const l of featureLinks) {
+    if (l.fromN === featureCurrentN.get(l.fromRecord)) featureNeeds.set(l.fromCode, unique([...(featureNeeds.get(l.fromCode) ?? []), l.toCode]));
+  }
+  // The tasks whose merged state matters: those of the features waited for and of the features a task's feature needs.
   const waitedFeatures = new Set([...targets.values()].filter((t) => t.type === 'fdr').map((t) => t.code));
+  for (const b of based) taskFeature.set(b.taskCode, b.featureCode);
+  const ownFeature = own ? taskFeature.get(own.code) : undefined;
+  for (const [feature, needed] of featureNeeds) if (!own || feature === ownFeature) for (const n of needed) waitedFeatures.add(n);
   for (const b of based) {
-    taskFeature.set(b.taskCode, b.featureCode);
     featureTasks.set(b.featureCode, unique([...(featureTasks.get(b.featureCode) ?? []), b.taskCode]));
     if (waitedFeatures.has(b.featureCode)) taskRecords.set(b.taskCode, b.taskRecord);
   }
   const merged = new Map<string, boolean>();
   for (const [code, id] of taskRecords) merged.set(code, !!(await mergedBuildOf(db, id)));
   // The title each one is shown with: its latest version's.
-  const ids = [...targets.values()].map((t) => t.recordId);
+  const ids = [...new Set([...[...targets.values()].map((t) => t.recordId), ...taskRecords.values()])];
   const titles = new Map<string, string>();
   if (ids.length > 0) {
     const versions = await db
@@ -113,13 +154,60 @@ export async function loadTaskDependencies(
       .execute();
     for (const v of versions) titles.set(v.code, v.title);
   }
-  return { tasks, features, featureTasks, taskFeature, titles, merged };
+  // Jev's opinions on which task needs which, for the versions that are current (the `own` one for its task).
+  const opinions = await loadTaskNeeds(db, projectId);
+  const needs = new Map<string, number>();
+  if (opinions.size > 0) {
+    const versions = await db
+      .selectFrom('record_versions as v')
+      .innerJoin('records as r', 'r.id', 'v.record_id')
+      .select(['r.code', 'v.id', 'v.n'])
+      .where('r.project_id', '=', projectId)
+      .where('r.type', '=', 'task')
+      .where('v.state', '=', 'approved')
+      .orderBy('v.n', 'desc')
+      .execute();
+    const latest = new Map<string, string>();
+    for (const v of versions) if (!latest.has(v.code)) latest.set(v.code, v.id);
+    if (own) latest.set(own.code, own.versionId);
+    const codes = [...latest.keys()];
+    for (const a of codes) {
+      for (const b of codes) {
+        const o = opinions.get(needKey(latest.get(a) as string, latest.get(b) as string));
+        if (o) needs.set(pairKey(a, b), o.p);
+      }
+    }
+  }
+  return { tasks, features, featureTasks, taskFeature, titles, merged, featureNeeds, needs };
+}
+
+/**
+ * The unmerged tasks of `feature` that `code` waits for: every one without an opinion yet, an explicit link or
+ * an opinion of at least the threshold (classifier/task-needs.ts). `unmerged` is how many tasks of the feature
+ * are not merged, whatever the answer.
+ */
+function neededTasksOf(index: TaskDependencyIndex, code: string, feature: string): { needed: NeededTask[]; unmerged: number } {
+  const unmerged = (index.featureTasks.get(feature) ?? []).filter((t) => t !== code && index.merged.get(t) === false);
+  const explicit = new Set(index.tasks.get(code) ?? []);
+  const needed = unmerged
+    .filter((t) => taskNeedsWait(index.needs.get(pairKey(code, t)), explicit.has(t)))
+    .map((t) => ({ code: t, title: index.titles.get(t) ?? '', feature }));
+  return { needed, unmerged: unmerged.length };
 }
 
 /** What the task `code` waits for, with the dependency cycle it is in. A feature never makes its own task wait. */
 export function taskWaitsFrom(index: TaskDependencyIndex, code: string, ownFeature?: string | null): TaskWaits {
   const title = (c: string) => index.titles.get(c) ?? '';
   const cycle = findDependencyCycle(index.tasks, code);
+  // Features this task's feature needs: it waits only for the tasks it needs, and the feature-level reason is replaced.
+  const needed: NeededTask[] = [];
+  const replacesNeeds: string[] = [];
+  for (const f of ownFeature ? (index.featureNeeds.get(ownFeature) ?? []) : []) {
+    const n = neededTasksOf(index, code, f);
+    if (n.unmerged === 0) continue;
+    replacesNeeds.push(f);
+    needed.push(...n.needed);
+  }
   return {
     cycle: cycle ? (cycle.length > 1 ? cycle.slice(1) : cycle) : null,
     tasks: (index.tasks.get(code) ?? []).map((c) => ({ code: c, title: title(c), merged: index.merged.get(c) ?? false })),
@@ -127,17 +215,19 @@ export function taskWaitsFrom(index: TaskDependencyIndex, code: string, ownFeatu
       .filter((f) => f !== ownFeature)
       .map((f) => {
         const own = index.featureTasks.get(f) ?? [];
-        return { code: f, title: title(f), built: own.length > 0 && own.every((t) => index.merged.get(t) === true) };
+        const built = own.length > 0 && own.every((t) => index.merged.get(t) === true);
+        const n = neededTasksOf(index, code, f);
+        return { code: f, title: title(f), built, ...(built || n.unmerged === 0 ? {} : { needed: n.needed }) };
       }),
+    needed,
+    replacesNeeds,
   };
 }
 
-/** The codes (tasks, and every task of each waited feature) a task has to come after in the queue. */
+/** The codes (tasks, and the tasks it needs of each waited or needed feature) a task has to come after in the queue. */
 export function waitedTaskCodes(index: TaskDependencyIndex, code: string, ownFeature?: string | null): string[] {
-  return unique([
-    ...(index.tasks.get(code) ?? []),
-    ...(index.features.get(code) ?? []).filter((f) => f !== ownFeature).flatMap((f) => index.featureTasks.get(f) ?? []),
-  ]);
+  const features = [...(index.features.get(code) ?? []).filter((f) => f !== ownFeature), ...(ownFeature ? (index.featureNeeds.get(ownFeature) ?? []) : [])];
+  return unique([...(index.tasks.get(code) ?? []), ...features.flatMap((f) => neededTasksOf(index, code, f).needed.map((t) => t.code))]);
 }
 
 /** Which features wait for which, from their tasks' dependencies on features and on tasks of other features. */

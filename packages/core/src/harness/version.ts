@@ -12,6 +12,7 @@ import { fingerprint } from '@demiurgo/domain';
 import { loadAgentCatalog } from '../agents/catalog.ts';
 import { RERANK_QUESTION_VERSION } from '../classifier/code-rerank.ts';
 import { LAYERS_QUESTION_VERSION } from '../classifier/layers.ts';
+import { TASK_NEEDS_QUESTION_VERSION } from '../classifier/task-needs.ts';
 import { SIZE_QUESTION_VERSION } from '../classifier/size.ts';
 import type { Db } from '../db/connection.ts';
 import { RULES_VERSION } from './rules/index.ts';
@@ -70,7 +71,7 @@ export function currentHarnessMarks(): Promise<HarnessMarks> {
       demiurgo_sha: await demiurgoSha(),
       agents: Object.fromEntries(catalog.agents.map((a) => [a.id, a.version]).toSorted(([a], [b]) => String(a).localeCompare(String(b)))),
       skills: Object.fromEntries(catalog.skills.map((s) => [s.id, fingerprint({ description: s.description, body: s.body })]).toSorted(([a], [b]) => String(a).localeCompare(String(b)))),
-      question_versions: { code_rerank: RERANK_QUESTION_VERSION, layers: LAYERS_QUESTION_VERSION, size: SIZE_QUESTION_VERSION },
+      question_versions: { code_rerank: RERANK_QUESTION_VERSION, layers: LAYERS_QUESTION_VERSION, size: SIZE_QUESTION_VERSION, task_needs: TASK_NEEDS_QUESTION_VERSION },
       rules_version: RULES_VERSION,
     };
   })();

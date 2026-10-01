@@ -202,9 +202,16 @@ export type ReadinessInput = {
  * startable, as in Jira's «is blocked by» and Linear's «blocked by»): the tasks it depends on and the
  * features it waits for, each with whether it is done, and the dependency cycle it is part of, if any.
  */
+export type NeededTask = { code: string; title: string; feature: string };
+
 export type TaskWaits = {
   tasks: { code: string; title: string; merged: boolean }[];
-  features: { code: string; title: string; built: boolean }[];
+  /** `needed`: when set, the feature is waited for only through these unmerged tasks (the ones this task needs), not as a whole. */
+  features: { code: string; title: string; built: boolean; needed?: NeededTask[] }[];
+  /** Unmerged tasks of the features this task's feature needs that this task needs too (dependencies per task, not per feature). */
+  needed?: NeededTask[];
+  /** Codes of the needed features whose feature-level «not built yet» reason these tasks replace. */
+  replacesNeeds?: string[];
   /** Codes of the other tasks of a dependency cycle this task is in (itself when it waits for itself); null when none. */
   cycle: string[] | null;
 };
@@ -214,7 +221,12 @@ export function dependencyReasons(w: TaskWaits): string[] {
   const reasons: string[] = [];
   if (w.cycle) reasons.push(`Dependency cycle with ${w.cycle.join(', ')}.`);
   for (const t of w.tasks) if (!t.merged) reasons.push(`Waits for ${t.code} ${t.title} (not merged yet).`);
-  for (const f of w.features) if (!f.built) reasons.push(`Waits for ${f.code} ${f.title} (not built yet).`);
+  const neededReason = (t: NeededTask) => `Waits for ${t.code} ${t.title} (${t.feature}, not merged yet).`;
+  for (const t of w.needed ?? []) reasons.push(neededReason(t));
+  for (const f of w.features) {
+    if (f.needed) for (const t of f.needed) reasons.push(neededReason(t));
+    else if (!f.built) reasons.push(`Waits for ${f.code} ${f.title} (not built yet).`);
+  }
   return reasons;
 }
 
@@ -289,6 +301,11 @@ export function questionReason(state: string, question: string): string {
   return `${QUESTION_REASONS[state] ?? 'A question of its thread is open'}: “${shown}”`;
 }
 
+/** The feature-level reason for a needed feature that is not built (a task replaces it with the tasks it really needs). */
+export function needNotBuiltReason(code: string): string {
+  return `It needs ${code}, which is not built yet.`;
+}
+
 export function readiness(e: ReadinessInput): Readiness {
   const reasons: string[] = [];
   if (e.version.state === 'superseded') {
@@ -344,7 +361,7 @@ export function readiness(e: ReadinessInput): Readiness {
     if (!e.architecturePassed) reasons.push('The Architecture stage has not passed.');
     if (!e.securityPassed) reasons.push('The Security baseline stage has not passed.');
     for (const n of e.needs) {
-      if (n.implementation !== 'implemented') reasons.push(`It needs ${n.code}, which is not built yet.`);
+      if (n.implementation !== 'implemented') reasons.push(needNotBuiltReason(n.code));
     }
   }
   if (e.type === 'task' && e.taskWaits) reasons.push(...dependencyReasons(e.taskWaits));

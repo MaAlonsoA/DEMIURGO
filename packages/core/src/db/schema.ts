@@ -444,6 +444,20 @@ export type TaskTestabilityOpinionsTable = {
 };
 
 /** Jev's guess at the layers a task version changes (H101); append-only. Only `schema_p` (the schema Score / 2) is asked now: the others are null in new rows. */
+export type TaskNeedOpinionsTable = {
+  id: Generated<string>;
+  project_id: string;
+  record_id: string;
+  record_version_id: string;
+  needed_record_id: string;
+  needed_version_id: string;
+  p: number;
+  classifier_id: string;
+  input_hash: string;
+  question_version: string;
+  created_at: Generated<Timestamp>;
+};
+
 export type TaskLayersOpinionsTable = {
   id: Generated<string>;
   project_id: string;
@@ -907,6 +921,7 @@ export type DB = {
   task_size_dismissals: TaskSizeDismissalsTable;
   task_testability_opinions: TaskTestabilityOpinionsTable;
   task_layers_opinions: TaskLayersOpinionsTable;
+  task_need_opinions: TaskNeedOpinionsTable;
   task_code_opinions: TaskCodeOpinionsTable;
   review_finding_kinds: ReviewFindingKindsTable;
   project_repos: ProjectReposTable;

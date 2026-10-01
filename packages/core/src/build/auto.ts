@@ -20,6 +20,7 @@ import { type SchemaEvidence, schemaChangingTasks } from './schema-risk.ts';
 import { type CodeMap, moduleOverlap } from './code-map.ts';
 import { barrelsAmong, hotspotsOf, isHotspot } from './hotspots.ts';
 import { predictedFiles } from './predicted-files.ts';
+import { ensureTaskNeeds } from '../classifier/task-needs.ts';
 import { ensureTaskLayers } from '../classifier/layers.ts';
 import { registerReconciler } from '../engine/registry.ts';
 import { isDraining } from '../drain.ts';
@@ -493,7 +494,10 @@ export function advanceBuildQueue(services: Services, projectId: string, trigger
         await persistDraining(services.db, projectId, trigger, await queueParallelOf(services.db, projectId)).catch((e) => logPersistError(services, projectId, e));
         return started;
       }
-      const queue = await buildQueue(services.db, projectId);
+      let queue = await buildQueue(services.db, projectId);
+      // Dependencies per task (task-needs.ts): Jev judges which unmerged tasks of a needed feature each waiting task
+      // really needs; new opinions can make tasks ready, so the queue is read again.
+      if ((await ensureTaskNeeds(services, projectId, queue.waiting.map((t) => t.code))) > 0) queue = await buildQueue(services.db, projectId);
       const limit = await queueParallelOf(services.db, projectId);
       // The schema rule needs Jev's prediction for every candidate: tasks written before it have none (H101 gap).
       if (limit > 1) await ensureTaskLayers(services, projectId, queue.ready.map((t) => t.code));

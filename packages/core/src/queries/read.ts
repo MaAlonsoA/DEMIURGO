@@ -30,6 +30,7 @@ import {
   relationOf,
   behaviorSteps,
   nextStepNeed,
+  needNotBuiltReason,
 } from '@demiurgo/domain';
 import type { Db } from '../db/connection.ts';
 import { staleDependencies } from '../commands/proposals.ts';
@@ -273,7 +274,9 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
         .executeTakeFirst();
       if (!feature) continue;
       const f = await versionReadiness(db, projectId, feature.id);
-      for (const reason of f.reasons) own.reasons.push(`Feature ${b.code}: ${reason}`);
+      // The feature's «It needs FDR-X, which is not built yet» gives way to the tasks this task really needs (task-deps.ts).
+      const replaced = new Set((taskWaits?.replacesNeeds ?? []).map(needNotBuiltReason));
+      for (const reason of f.reasons) if (!replaced.has(reason)) own.reasons.push(`Feature ${b.code}: ${reason}`);
     }
     own.ready = own.reasons.length === 0;
   }

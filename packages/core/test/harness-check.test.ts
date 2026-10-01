@@ -1,6 +1,6 @@
 // The periodic check of the harness (salud-del-harness §8): regressions against the previous check (a verdict that
 // worsens, a containment drop, a cost per merged task up by more than 25 %), no repeat with the same inputs, the
-// cadence (24 hours or 5 merged tasks) and one issue per regression, never a second while one is open.
+// cadence (24 hours or 5 merged tasks); comparisons only under the same rules, and never an issue of the project.
 
 import { human } from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
@@ -30,6 +30,13 @@ describe('regressions (pure)', () => {
     const before = snap({ pce: { P5: { pce: 0.8, items: 10 }, P7: { pce: 0.8, items: 10 }, P9: { pce: 0.8, items: 10 } } });
     const after = snap({ pce: { P5: { pce: 0.5, items: 10 }, P7: { pce: 0.7, items: 10 }, P9: { pce: 0.1, items: 4 } } });
     expect(regressionsOf(before, after)).toEqual([{ kind: 'containment_drop', phase: 'P5', before: 0.8, after: 0.5, threshold: 0.2 }]);
+  });
+
+  it('compares verdicts and containment only under the same rules (ISS-003: esc-1 0.707 against esc-2 0.091 was no regression)', () => {
+    const before = snap({ rules: { postmortem: 'pm-6', escapes: 'esc-1' }, verdicts: { B01: 'helps' }, pce: { P5: { pce: 0.707, items: 20 } } });
+    const after = snap({ rules: { postmortem: 'pm-7', escapes: 'esc-2' }, verdicts: { B01: 'hurts' }, pce: { P5: { pce: 0.091, items: 11 } } });
+    expect(regressionsOf(before, after)).toEqual([]);
+    expect(regressionsOf(before, { ...after, rules: { postmortem: 'pm-6', escapes: 'esc-1' } })).toHaveLength(2);
   });
 
   it('flags a cost per merged task up by more than 25 %, and exactly 25 % does not count', () => {
@@ -122,7 +129,7 @@ describe('the check over stored data', () => {
   const issuesOf = (projectId: string) => environment().services.db.selectFrom('issues').selectAll().where('project_id', '=', projectId).execute();
   const at = (minutes: number) => new Date(Date.now() + minutes * 60_000);
 
-  it('records a regression once, opens one issue, and never a second while it is open', async () => {
+  it('records a regression once and never opens an issue of the project (the harness is DEMIURGO, not the product)', async () => {
     const s = environment().services;
     const { projectId, request } = await project('Checks');
     const req = await request();
@@ -149,16 +156,14 @@ describe('the check over stored data', () => {
     expect(second.status).toBe('recorded');
     if (second.status !== 'recorded') return;
     expect(second.regressions).toEqual([{ kind: 'verdict_worse', piece: 'B01', before: 'helps', after: 'hurts', threshold: null }]);
-    expect(second.issue).toBe('ISS-001');
-    const [issue] = await issuesOf(projectId);
-    expect(issue).toMatchObject({ kind: 'harness_regression', state: 'open', source_key: `harness_check:${second.id}`, opened_by: 'system:harness@1' });
-    expect(issue!.body).toContain('B01 (Queue: dependencies and same feature): verdict went from helps to hurts.');
+    expect(second.issue).toBeNull();
+    expect(await issuesOf(projectId)).toHaveLength(0);
     const stored = await s.db.selectFrom('harness_checks').selectAll().where('id', '=', second.id).executeTakeFirstOrThrow();
     expect(stored.previous_check_id).toBe((first as { id: string }).id);
     expect(stored.trigger).toBe('schedule');
     expect((stored.scorecards as { piece: string; previous_verdict: string | null }[]).find((c) => c.piece === 'B01')).toMatchObject({ verdict: 'hurts', previous_verdict: 'helps' });
 
-    // A second regression (B02) while the first issue is still open: recorded, but no second issue.
+    // A second regression (B02): recorded, and still no issue.
     await postmortem(projectId, req, [
       { piece: 'B01', class: 'tp', n: 4 },
       { piece: 'B01', class: 'fp', n: 6 },
@@ -167,7 +172,7 @@ describe('the check over stored data', () => {
     ]);
     const third = await runCheck(s, projectId, 'manual', at(4));
     expect(third).toMatchObject({ status: 'recorded', issue: null, regressions: [{ kind: 'verdict_worse', piece: 'B02' }] });
-    expect(await issuesOf(projectId)).toHaveLength(1);
+    expect(await issuesOf(projectId)).toHaveLength(0);
 
     // Append-only.
     await expect(s.db.updateTable('harness_checks').set({ trigger: 'manual' }).where('id', '=', second.id).execute()).rejects.toThrow(/only admits INSERT/);

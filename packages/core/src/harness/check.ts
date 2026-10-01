@@ -1,7 +1,8 @@
 // The periodic check of the harness (salud-del-harness §8): a deterministic job that recomputes the scorecards over the
 // last 7 days, records the escapes found since the previous check, compares with that check and stores the result in
-// `harness_checks` (append-only). Regressions are the one thing that reaches the person: a check with at least one
-// opens one `harness_regression` issue (Needs you), unless an earlier one is still open. No model call anywhere.
+// `harness_checks` (append-only). Regressions are shown in Observability (Overview and Harness health); they are about
+// DEMIURGO, not the product, so they never become an issue of the project. Two checks are compared only under the same
+// rules: a new rules version measures something else, so the first check under it starts afresh. No model call anywhere.
 //
 // Thresholds are «convención nuestra» (no standard fixes them; the Scrum Guide 2020 only says the retrospective closes
 // each sprint, at most one month): a window of 7 days, a check every 24 hours or every 5 merged tasks, a cost per merged
@@ -10,9 +11,7 @@
 // in the phase that introduced them (introduced = found, e.g. E06); a phase without such rows reads as 0.
 
 import { createHash } from 'node:crypto';
-import { system } from '@demiurgo/domain';
 import { sql } from 'kysely';
-import { executeCommand } from '../bus/bus.ts';
 import type { Db } from '../db/connection.ts';
 import { worthIt, type WorthIt } from '../queries/attention.ts';
 import { harnessScorecards, type PieceHealth, type Verdict } from '../queries/harness-health.ts';
@@ -35,7 +34,6 @@ export const PCE_MIN_ITEMS = 5;
 export const NEW_ESCAPE_IDS_MAX = 500;
 export const REGRESSION_SOURCE_PREFIX = 'harness_check:';
 
-const HARNESS = system('harness', '1');
 const DAY_MS = 86_400_000;
 
 export type CheckTrigger = 'schedule' | 'merges' | 'manual';
@@ -82,6 +80,8 @@ export type CheckEscapes = {
 
 /** What a check keeps of itself to be compared with by the next one. */
 export type CheckSnapshot = {
+  /** The post-mortem and escape rules the check measured with; verdicts and containment compare only under equal ones. */
+  rules?: { postmortem: string | null; escapes: string | null };
   verdicts: Record<string, Verdict>;
   pce: Record<string, { pce: number | null; items: number }>;
   units: { usd_per_merged_task: number | null; tokens_per_merged_task: number | null };
@@ -93,13 +93,14 @@ const RANK: Record<Verdict, number | null> = { helps: 2, neutral: 1, hurts: 0, n
 export function regressionsOf(previous: CheckSnapshot | null, current: CheckSnapshot): Regression[] {
   if (!previous) return [];
   const out: Regression[] = [];
-  for (const [piece, after] of Object.entries(current.verdicts).sort(([a], [b]) => a.localeCompare(b))) {
+  const same = (k: 'postmortem' | 'escapes') => (previous.rules?.[k] ?? null) === (current.rules?.[k] ?? null);
+  for (const [piece, after] of Object.entries(same('postmortem') ? current.verdicts : {}).sort(([a], [b]) => a.localeCompare(b))) {
     const before = previous.verdicts[piece];
     const b = before ? RANK[before] : null;
     const a = RANK[after];
     if (before && b !== null && a !== null && a < b) out.push({ kind: 'verdict_worse', piece, before, after, threshold: null });
   }
-  for (const [phase, now] of Object.entries(current.pce).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))) {
+  for (const [phase, now] of Object.entries(same('escapes') ? current.pce : {}).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))) {
     const was = previous.pce[phase];
     if (!was || was.pce === null || now.pce === null || now.items < PCE_MIN_ITEMS) continue;
     if (was.pce - now.pce > PCE_DROP) out.push({ kind: 'containment_drop', phase, before: was.pce, after: now.pce, threshold: PCE_DROP });
@@ -122,12 +123,13 @@ type StoredCheck = {
   scorecards: unknown;
   escapes: unknown;
   worth: unknown;
+  rules_version: string | null;
 };
 
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
 /** The snapshot the next check compares against, read back from a stored check. */
-export function snapshotOf(check: Pick<StoredCheck, 'scorecards' | 'escapes' | 'worth'>): CheckSnapshot {
+export function snapshotOf(check: Pick<StoredCheck, 'scorecards' | 'escapes' | 'worth'> & { rules_version?: string | null }): CheckSnapshot {
   const verdicts: Record<string, Verdict> = {};
   for (const c of Array.isArray(check.scorecards) ? (check.scorecards as CheckScorecard[]) : []) verdicts[c.piece] = c.verdict;
   const pce: CheckSnapshot['pce'] = {};
@@ -135,14 +137,15 @@ export function snapshotOf(check: Pick<StoredCheck, 'scorecards' | 'escapes' | '
   for (const p of Array.isArray(stored) ? (stored as PhaseContainment[]) : []) pce[p.phase] = { pce: p.pce, items: p.contained + p.escaped };
   const units = obj(obj(check.worth).units);
   const num = (v: unknown): number | null => (typeof v === 'number' ? v : null);
-  return { verdicts, pce, units: { usd_per_merged_task: num(units.usd_per_merged_task), tokens_per_merged_task: num(units.tokens_per_merged_task) } };
+  const escapesRules = obj(check.escapes).rules_version;
+  return { rules: { postmortem: check.rules_version ?? null, escapes: typeof escapesRules === 'string' ? escapesRules : null }, verdicts, pce, units: { usd_per_merged_task: num(units.usd_per_merged_task), tokens_per_merged_task: num(units.tokens_per_merged_task) } };
 }
 
 async function latestCheck(db: Db, projectId: string): Promise<StoredCheck | null> {
   return (
     (await db
       .selectFrom('harness_checks')
-      .select(['id', 'computed_at', 'inputs_hash', 'scorecards', 'escapes', 'worth'])
+      .select(['id', 'computed_at', 'inputs_hash', 'scorecards', 'escapes', 'worth', 'rules_version'])
       .where('project_id', '=', projectId)
       .orderBy('computed_at', 'desc')
       .orderBy('id', 'desc')
@@ -188,30 +191,6 @@ export function describeRegression(r: Regression): string {
   return `Cost ${name}: went from ${r.before} to ${r.after} (more than ${Math.round((r.threshold ?? 0) * 100)} % up).`;
 }
 
-/** Opens the one `harness_regression` issue of a check; none when an earlier one is still open. Returns its code. */
-async function openRegressionIssue(services: Services, projectId: string, checkId: string, regressions: readonly Regression[]): Promise<string | null> {
-  const open = await services.db
-    .selectFrom('issues')
-    .select('id')
-    .where('project_id', '=', projectId)
-    .where('kind', '=', 'harness_regression')
-    .where('state', '=', 'open')
-    .limit(1)
-    .executeTakeFirst();
-  if (open) return null;
-  const done = await executeCommand(services, {
-    command: 'issue.open',
-    actor: HARNESS,
-    projectId,
-    data: {
-      kind: 'harness_regression',
-      title: `The harness got worse: ${regressions.length} regression${regressions.length === 1 ? '' : 's'} in the latest check`,
-      body: [...regressions.map(describeRegression), '', 'See Observability, Harness health, Checks.'].join('\n'),
-      source_key: `${REGRESSION_SOURCE_PREFIX}${checkId}`,
-    },
-  });
-  return (done.result as { code?: string } | undefined)?.code ?? null;
-}
 
 /**
  * Runs one check and stores it. Idempotent: when the inputs equal those of the latest check (same hash) nothing is
@@ -265,6 +244,7 @@ export async function runCheck(services: Services, projectId: string, trigger: C
 
     const worth: WorthIt = await worthIt(db, projectId);
     const current: CheckSnapshot = {
+      rules: { postmortem: health.rules_version ?? 'none', escapes: ESCAPES_RULES_VERSION },
       verdicts: Object.fromEntries(scorecards.map((c) => [c.piece, c.verdict])),
       pce: Object.fromEntries(escapes.pce.map((p) => [p.phase, { pce: p.pce, items: p.contained + p.escaped }])),
       units: { usd_per_merged_task: worth.units.usd_per_merged_task, tokens_per_merged_task: worth.units.tokens_per_merged_task },
@@ -301,15 +281,7 @@ export async function runCheck(services: Services, projectId: string, trigger: C
       .returning('id')
       .executeTakeFirstOrThrow();
 
-    let issue: string | null = null;
-    if (regressions.length > 0) {
-      try {
-        issue = await openRegressionIssue(services, projectId, id, regressions);
-      } catch (e) {
-        services.logger.error('The harness regression issue could not be opened', { check: id, error: e instanceof Error ? e.message : String(e) });
-      }
-    }
-    return { status: 'recorded', id, regressions, issue };
+    return { status: 'recorded', id, regressions, issue: null };
   });
 }
 

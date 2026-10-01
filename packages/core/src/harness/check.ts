@@ -60,6 +60,8 @@ export type CheckScorecard = {
   benefit: Record<string, number>;
   cost: Record<string, number>;
   verdict: Verdict;
+  /** The engine cohort(s) the piece was measured on (the applied ones joined by ` + `); null when no rule of the piece reads an engine. A verdict is compared only against one of the same cohort. */
+  cohort?: string | null;
   /** The verdict in the previous check; null when there was none or the piece was not in it. */
   previous_verdict: Verdict | null;
 };
@@ -83,6 +85,8 @@ export type CheckSnapshot = {
   /** The post-mortem and escape rules the check measured with; verdicts and containment compare only under equal ones. */
   rules?: { postmortem: string | null; escapes: string | null };
   verdicts: Record<string, Verdict>;
+  /** The engine cohort each piece was measured on (absent in checks from before the cohort was stored: never equal to a known one). */
+  cohorts?: Record<string, string | null>;
   pce: Record<string, { pce: number | null; items: number }>;
   units: { usd_per_merged_task: number | null; tokens_per_merged_task: number | null };
 };
@@ -95,6 +99,8 @@ export function regressionsOf(previous: CheckSnapshot | null, current: CheckSnap
   const out: Regression[] = [];
   const same = (k: 'postmortem' | 'escapes') => (previous.rules?.[k] ?? null) === (current.rules?.[k] ?? null);
   for (const [piece, after] of Object.entries(same('postmortem') ? current.verdicts : {}).sort(([a], [b]) => a.localeCompare(b))) {
+    // Same cohort or no comparison: a verdict measured on another engine says nothing about this one (convención nuestra).
+    if ((previous.cohorts?.[piece] ?? undefined) !== (current.cohorts?.[piece] ?? undefined)) continue;
     const before = previous.verdicts[piece];
     const b = before ? RANK[before] : null;
     const a = RANK[after];
@@ -132,13 +138,15 @@ const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object'
 export function snapshotOf(check: Pick<StoredCheck, 'scorecards' | 'escapes' | 'worth'> & { rules_version?: string | null }): CheckSnapshot {
   const verdicts: Record<string, Verdict> = {};
   for (const c of Array.isArray(check.scorecards) ? (check.scorecards as CheckScorecard[]) : []) verdicts[c.piece] = c.verdict;
+  const cohorts: Record<string, string | null> = {};
+  for (const c of Array.isArray(check.scorecards) ? (check.scorecards as CheckScorecard[]) : []) if (c.cohort !== undefined) cohorts[c.piece] = c.cohort;
   const pce: CheckSnapshot['pce'] = {};
   const stored = obj(check.escapes).pce;
   for (const p of Array.isArray(stored) ? (stored as PhaseContainment[]) : []) pce[p.phase] = { pce: p.pce, items: p.contained + p.escaped };
   const units = obj(obj(check.worth).units);
   const num = (v: unknown): number | null => (typeof v === 'number' ? v : null);
   const escapesRules = obj(check.escapes).rules_version;
-  return { rules: { postmortem: check.rules_version ?? null, escapes: typeof escapesRules === 'string' ? escapesRules : null }, verdicts, pce, units: { usd_per_merged_task: num(units.usd_per_merged_task), tokens_per_merged_task: num(units.tokens_per_merged_task) } };
+  return { rules: { postmortem: check.rules_version ?? null, escapes: typeof escapesRules === 'string' ? escapesRules : null }, verdicts, cohorts, pce, units: { usd_per_merged_task: num(units.usd_per_merged_task), tokens_per_merged_task: num(units.tokens_per_merged_task) } };
 }
 
 async function latestCheck(db: Db, projectId: string): Promise<StoredCheck | null> {
@@ -215,6 +223,7 @@ export async function runCheck(services: Services, projectId: string, trigger: C
       benefit: p.benefit,
       cost: p.cost,
       verdict: p.verdict,
+      cohort: p.cohort && p.cohort.all_applied.length > 0 ? [...p.cohort.all_applied].sort().join(' + ') : null,
       previous_verdict: prevSnapshot?.verdicts[p.piece] ?? null,
     }));
 
@@ -246,6 +255,7 @@ export async function runCheck(services: Services, projectId: string, trigger: C
     const current: CheckSnapshot = {
       rules: { postmortem: health.rules_version ?? 'none', escapes: ESCAPES_RULES_VERSION },
       verdicts: Object.fromEntries(scorecards.map((c) => [c.piece, c.verdict])),
+      cohorts: Object.fromEntries(scorecards.map((c) => [c.piece, c.cohort ?? null])),
       pce: Object.fromEntries(escapes.pce.map((p) => [p.phase, { pce: p.pce, items: p.contained + p.escaped }])),
       units: { usd_per_merged_task: worth.units.usd_per_merged_task, tokens_per_merged_task: worth.units.tokens_per_merged_task },
     };

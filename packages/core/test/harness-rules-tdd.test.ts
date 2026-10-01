@@ -19,6 +19,13 @@ describe('tdd.gate', () => {
     expect(classes(f)).toEqual(['tp', 'benefit']);
     expect(f.find((x) => x.class === 'benefit')).toMatchObject({ value: 1, unit: 'ci_runs', ground_truth: 'G05' });
   });
+  it('prices a CI run saved in minutes so the benefit meets the loop cost in one unit (pm-8)', () => {
+    const waiting = (attempt: number) => step(attempt, 'ci', 'waiting', {});
+    const f = tddGate(inputs([builder({ status: 'passed', red: [{ outcome: 'failed', criterion: 'AC-X-001-01' }], green: null, loops: 1 }), waiting(1), ci('ok')]));
+    const saved = f.find((x) => x.finding === 'tdd.gate_saved')!;
+    expect(saved).toMatchObject({ class: 'benefit', unit: 'min', ground_truth: 'G05', value: 0.02 }); // the fake clock ticks one second between steps
+    expect(f.find((x) => x.class === 'benefit' && x.unit === 'ci_runs')).toBeTruthy();
+  });
   it('benefit in tests: a criterion test that passed on main without the change', () => {
     const f = tddGate(inputs([builder({ status: 'red', red: [{ outcome: 'passed', criterion: 'AC-X-001-02', test: 't', path: 'a.spec.ts' }, { outcome: 'already_green_on_main', criterion: 'AC-X-001-03' }], green: null, loops: 15, stopped: 'cap' })]));
     expect(f.find((x) => x.class === 'benefit')).toMatchObject({ value: 1, unit: 'tests', subject: 'AC-X-001-02' });

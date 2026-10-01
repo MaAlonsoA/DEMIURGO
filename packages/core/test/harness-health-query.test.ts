@@ -4,12 +4,33 @@
 import { human } from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
-import { type FindingClass, type FindingFact, findingsToCsv, harnessFindingRows, harnessScorecards, scorecardsOf, verdictOf } from '../src/queries/harness-health.ts';
+import { type FindingClass, type FindingFact, findingsToCsv, wilsonInterval, harnessFindingRows, harnessScorecards, scorecardsOf, sessionCompareOf, verdictOf } from '../src/queries/harness-health.ts';
 import { useEnvironment } from './support/env.ts';
 
 const fact = (cls: FindingClass, extra: Partial<FindingFact> = {}): FindingFact => ({ piece: 'B01', class: cls, ground_truth: null, value: null, unit: null, ...extra });
 const many = (cls: FindingClass, n: number, extra: Partial<FindingFact> = {}) => Array.from({ length: n }, () => fact(cls, extra));
 const verdict = (facts: FindingFact[]) => scorecardsOf(facts)[0]!.verdict;
+
+describe('intervals, requests and pseudoreplication (pm-8)', () => {
+  it('Wilson 95 % interval (Brown, Cai and DasGupta 2001): the values the diagnosis computed', () => {
+    expect(wilsonInterval(40, 40)).toEqual([0.912, 1]);
+    expect(wilsonInterval(0, 32)).toEqual([0, 0.107]);
+    expect(wilsonInterval(8, 9)).toEqual([0.565, 0.98]);
+    expect(wilsonInterval(0, 0)).toBeNull();
+  });
+  it('shows the intervals and the distinct requests behind n, and warns when one request is half of the decisions', () => {
+    const fromRequest = (id: string, cls: FindingClass, n: number) => many(cls, n, { build_request_id: id, task_code: id.toUpperCase() });
+    const [card] = scorecardsOf([...fromRequest('a', 'tp', 15), ...fromRequest('b', 'tp', 1), ...fromRequest('c', 'tp', 1)]);
+    expect(card).toMatchObject({ n: 17, requests: 3, precision: 1, dominant_request: { task_code: 'A', share: 0.882 } });
+    expect(card!.precision_ci).toEqual([0.816, 1]);
+    const [even] = scorecardsOf([...fromRequest('a', 'tp', 3), ...fromRequest('b', 'tp', 3), ...fromRequest('c', 'tp', 3), ...fromRequest('d', 'tp', 3)]);
+    expect(even).toMatchObject({ requests: 4, dominant_request: null });
+  });
+  it('B20 reads attempts by request too', () => {
+    const rows = Array.from({ length: 4 }, (_, i) => ({ ...fact(i < 2 ? 'benefit' : 'cost', { piece: 'B20', finding: 'session.outcome', build_request_id: i < 3 ? 'x' : 'y' }), subject: 'resumed' }));
+    expect(sessionCompareOf(rows).resumed).toMatchObject({ n: 4, requests: 2, merged: 2 });
+  });
+});
 
 describe('verdict by §1.2', () => {
   it('is «no data» under 10 decisions, however good they look', () => {
@@ -19,8 +40,10 @@ describe('verdict by §1.2', () => {
   });
 
   it('applies the precision and recall thresholds', () => {
-    // precision 7/10 = 0.7 and recall 7/10: helps (boundaries are inclusive)
-    expect(verdict([...many('tp', 7), ...many('fp', 3), ...many('fn', 3)])).toBe('helps');
+    // precision 28/40 = 0.7 and recall 28/40: helps (boundaries are inclusive; the interval [0.55, 0.82] stays over 0.5)
+    expect(verdict([...many('tp', 28), ...many('fp', 12), ...many('fn', 12)])).toBe('helps');
+    // 7/10 has the same point precision but its interval [0.40, 0.89] reaches the «estorba» line: neutral (pm-8)
+    expect(verdict([...many('tp', 7), ...many('fp', 3), ...many('fn', 3)])).toBe('neutral');
     // precision 0.6: neither helps nor hurts
     expect(verdict([...many('tp', 6), ...many('fp', 4)])).toBe('neutral');
     // precision 0.4 (< 0.5): hurts
@@ -36,9 +59,14 @@ describe('verdict by §1.2', () => {
     expect(verdict(many('cost', 10, { unit: 'min', value: 2 }))).toBe('no_data');
     expect(verdict([...many('tn', 20), ...many('cost', 4, { unit: 'min', value: 2 })])).toBe('no_data');
     // One harmful FN among 23 escape decisions (B17 after the fix): 4 %, not above the rate.
-    const rare = [...many('tn', 22, { ground_truth: 'G03' }), ...many('fn', 1, { ground_truth: 'G03' })];
-    expect(verdict(rare)).toBe('helps'); // only the escape rate is measured, and it is low
-    expect(scorecardsOf(rare)[0]!.rules[0]).toMatchObject({ escape_rate: 1 / 23, verdict: 'helps' });
+    const rare = [...many('tn', 40, { ground_truth: 'G03' }), ...many('fn', 1, { ground_truth: 'G03' })];
+    expect(verdict(rare)).toBe('helps'); // only the escape rate is measured, and its interval stays under 0.2
+    expect(scorecardsOf(rare)[0]!.rules[0]).toMatchObject({ escape_rate: 1 / 41, verdict: 'helps', escape_ci: [0.004, 0.126] });
+    // The same rate over few cases: the interval reaches 0.2, so no «ayuda».
+    expect(verdict([...many('tn', 22, { ground_truth: 'G03' }), ...many('fn', 1, { ground_truth: 'G03' })])).toBe('neutral');
+    // B03 (pm-8): the conflicts between parallel tasks (G02) are harm too, so the rule gets an escape rate.
+    const b03 = [...many('tn', 68, { finding: 'queue.parallel_conflict', ground_truth: 'G02' }), ...many('fn', 4, { finding: 'queue.parallel_conflict', ground_truth: 'G02' })].map((f) => ({ ...f, piece: 'B03' }));
+    expect(scorecardsOf(b03)[0]!.rules[0]).toMatchObject({ escape_rate: 4 / 72, verdict: 'helps' });
     // The same single FN with no sample behind it never hurts.
     expect(verdict([...many('tn', 3, { ground_truth: 'G03' }), ...many('fn', 1, { ground_truth: 'G03' })])).toBe('no_data');
     // A harmful rate of 30 % over 10 decisions hurts.
@@ -56,13 +84,13 @@ describe('verdict by §1.2', () => {
 
   it('measures per rule, never mixing the rules of a piece (B17: comments and escapes)', () => {
     const comments = [...many('tp', 9, { finding: 'review.finding_outcome' }), ...many('fp', 1, { finding: 'review.finding_outcome' })];
-    const escapes = [...many('tn', 21, { finding: 'review.escape', ground_truth: 'G03' }), ...many('fn', 1, { finding: 'review.escape', ground_truth: 'G03' })];
+    const escapes = [...many('tn', 40, { finding: 'review.escape', ground_truth: 'G03' }), ...many('fn', 1, { finding: 'review.escape', ground_truth: 'G03' })];
     const cost = many('cost', 30, { finding: 'review.cost', unit: 'tokens', value: 1000 });
     const [card] = scorecardsOf([...comments, ...escapes, ...cost].map((f) => ({ ...f, piece: 'B17' })));
-    expect(card).toMatchObject({ main_rule: 'review.finding_outcome', precision: 0.9, recall: 1, n: 32, verdict: 'helps' });
+    expect(card).toMatchObject({ main_rule: 'review.finding_outcome', precision: 0.9, recall: 1, n: 51, verdict: 'helps' });
     const escape = card!.rules.find((r) => r.finding === 'review.escape')!;
     // The escape rule has no TP: its precision and recall are null / 0 of itself, not the comments' 90 %.
-    expect(escape).toMatchObject({ precision: null, n: 22 });
+    expect(escape).toMatchObject({ precision: null, n: 41 });
   });
 
   it('shows a precision only with TP + FP > 0 and a recall only with TP + FN > 0 (B03 «precision 0 %» was a recall)', () => {

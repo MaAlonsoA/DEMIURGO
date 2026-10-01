@@ -49,24 +49,45 @@ describe('files.prediction', () => {
   });
   it('emits per-file tp/fp/fn rows for the Jev strong set (p >= 0.5), not for the whole top 10 (pm-5)', () => {
     const list = run(['src/a.ts', 'src/b.ts', 'src/other.ts']);
-    const rows = list.filter((f) => f.finding === 'files.prediction_file');
+    const rows = list.filter((f) => f.finding === 'files.strong_set');
     expect(rows.filter((f) => f.class === 'tp').map((f) => f.subject)).toEqual(['jev:src/a.ts', 'jev:src/b.ts']);
     expect(rows.filter((f) => f.class === 'fp')).toHaveLength(0); // only a (0.9) and b (0.8) have p >= 0.5
-    const fn = rows.filter((f) => f.class === 'fn');
-    expect(fn.map((f) => f.subject)).toEqual(['jev:src/other.ts']);
-    expect(fn[0]!.evidence).toMatchObject({ outside_candidates: true }); // not among the 12 candidates of the map
+    // pm-8: a changed file the map never offered is the map's ceiling, not a false negative of the strong set.
+    expect(rows.filter((f) => f.class === 'fn')).toHaveLength(0);
+    expect(list.filter((f) => f.finding === 'files.map_ceiling').map((f) => [f.subject, f.class])).toEqual([['src/other.ts', 'info']]);
     expect(rows.every((f) => f.subject!.startsWith('jev:') && f.piece === 'B07')).toBe(true);
     expect(list.filter((f) => f.class === 'benefit')).toHaveLength(2); // the aggregate rows stay
   });
   it('marks a miss that was a candidate but low as inside the candidates, and reports R-precision and recall@10 (pm-5)', () => {
     // c is a candidate with p 0.1: a real file Jev lowered, not one the map missed. Actual = {a, c}: R = 2, top 2 = a, b.
     const list = run(['src/a.ts', 'src/c.ts']);
-    const fn = list.filter((f) => f.finding === 'files.prediction_file' && f.class === 'fn');
-    expect(fn.map((f) => [f.subject, (f.evidence as { outside_candidates: boolean }).outside_candidates])).toEqual([['jev:src/c.ts', false]]);
+    const fn = list.filter((f) => f.finding === 'files.strong_set' && f.class === 'fn');
+    expect(fn.map((f) => f.subject)).toEqual(['jev:src/c.ts']);
+    expect(list.filter((f) => f.finding === 'files.map_ceiling')).toEqual([]);
     const jev = by(list.filter((f) => f.finding === 'files.prediction'), 'jev');
     expect(jev.evidence).toMatchObject({ r_precision: 0.5, recall: 1, strong_size: 2, strong_hits: 1, strong_precision: 0.5, strong_recall: 0.5, outside_candidates: [] });
     expect(list.find((f) => f.finding === 'files.r_precision' && f.subject === 'jev')).toMatchObject({ class: 'info', value: 0.5 });
     expect(list.find((f) => f.finding === 'files.recall_at_k' && f.subject === 'jev')).toMatchObject({ class: 'info', value: 1 });
+  });
+  it('judges the list the builder really saw (files.code_to_extend): recall only, the changed file the map never offered apart (pm-8)', () => {
+    // No stored section: the first 10 of Jev's order (a..j). Changed: a (listed), k (candidate, rank 11: not listed), other (outside).
+    const rows = run(['src/a.ts', 'src/k.ts', 'src/other.ts']).filter((f) => f.finding === 'files.code_to_extend');
+    expect(rows.map((f) => [f.class, f.subject])).toEqual([
+      ['tp', 'src/a.ts'],
+      ['fn', 'src/k.ts'],
+    ]);
+    expect(rows.every((f) => (f.evidence as { list_source: string }).list_source === 'top_10:jev')).toBe(true);
+    expect(rows.some((f) => f.class === 'fp')).toBe(false); // precision@10 is capped by the size of the truth: not judged
+  });
+  it('uses the files of the stored «Code to extend» section when the builder step kept it (pm-8)', () => {
+    const steps = mergedSteps('r6', ['src/a.ts', 'src/c.ts'], {});
+    const section = 'src/c.ts (p 0.1)\n  function c\nsrc/b.ts\n  function b';
+    const withSection = [...steps, { id: 'sb', build_request_id: 'r6', attempt: 1, stage: 'builder', outcome: 'ok', created_at: new Date(2000), detail: { code_to_extend: { section } } }] as never[];
+    const rows = filesPrediction(inputs({ id: 'r6', steps: withSection, codeOpinions: candidates as never[] })).filter((f) => f.finding === 'files.code_to_extend');
+    expect(rows.map((f) => [f.class, f.subject, (f.evidence as { list_source: string }).list_source])).toEqual([
+      ['tp', 'src/c.ts', 'builder_section'],
+      ['fn', 'src/a.ts', 'builder_section'],
+    ]);
   });
   it('reads the footprint stored as a JSON string (old format) when there is no commit list', () => {
     const i = inputs({ id: 'r3', steps: mergedSteps('r3', ['src/a.ts'], { footprintAsString: true }).filter((s) => s.stage !== 'commit'), codeOpinions: candidates as never[] });

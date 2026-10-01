@@ -4,9 +4,9 @@
 import { FindingLabel, PieceLabel } from './codes.tsx';
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Fragment, type ReactNode, useState } from 'react';
+import { Fragment, type ReactElement, type ReactNode, useState } from 'react';
 import { get } from '../../api/client.ts';
-import { buttonClass } from '../../components/Button.tsx';
+import { Button, buttonClass } from '../../components/Button.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { Section } from '../../components/Page.tsx';
 import { RowsSkeleton } from '../../components/Spinner.tsx';
@@ -38,9 +38,15 @@ export type HarnessRule = {
   precision: number | null;
   recall: number | null;
   escape_rate: number | null;
+  /** Wilson 95 % intervals (Brown, Cai and DasGupta 2001). */
+  precision_ci?: [number, number] | null;
+  recall_ci?: [number, number] | null;
+  escape_ci?: [number, number] | null;
+  /** Distinct build requests behind the decisions. */
+  requests?: number;
 };
 /** B20: resumed against fresh builder sessions (core queries/harness-health.ts `sessionCompareOf`). */
-export type SessionModeStats = { n: number; merged: number; success_rate: number | null; mean_minutes: number | null; mean_tokens: number | null };
+export type SessionModeStats = { n: number; merged: number; success_rate: number | null; mean_minutes: number | null; mean_tokens: number | null; requests?: number; success_ci?: [number, number] | null };
 export type SessionCompare = { resumed: SessionModeStats; fresh: SessionModeStats };
 export type HarnessPiece = {
   piece: string;
@@ -50,6 +56,14 @@ export type HarnessPiece = {
   n: number;
   precision: number | null;
   recall: number | null;
+  precision_ci?: [number, number] | null;
+  recall_ci?: [number, number] | null;
+  /** Distinct build requests behind the decisions (n counts rows). */
+  requests?: number;
+  /** One request that is half of the decisions or more (pseudoreplication, Hurlbert 1984). */
+  dominant_request?: { task_code: string; share: number } | null;
+  /** The engine cohort the piece was measured on and what the cut left out. */
+  cohort?: { applied: string | null; all_applied: string[]; excluded: number; newer_skipped: { cohort: string; decisions: number; requests: number } | null };
   /** The rule whose precision and recall the row shows. */
   main_rule?: string | null;
   rules?: HarnessRule[];
@@ -59,14 +73,32 @@ export type HarnessPiece = {
   cases_total: number;
   session_compare?: SessionCompare;
 };
-export type HarnessHealthData = { rules_version: string | null; requests: number; pieces: HarnessPiece[] };
+/** The engine cut (core harness/engine.ts): what was asked, what was left out and a readable name per cohort. */
+export type HarnessEngine = { requested: string; excluded: number; labels: Record<string, string> };
+export type HarnessHealthData = { rules_version: string | null; requests: number; pieces: HarnessPiece[]; engine?: HarnessEngine };
 
 const harnessUrl = (projectId: string) => `/api/projects/${projectId}/observability/harness`;
-export const harnessQuery = (projectId: string) =>
+/** `allEngines` mixes every engine cohort (`?engine_cohort=all`); by default each rule reads its current cohort. */
+export const harnessQuery = (projectId: string, allEngines = false) =>
   queryOptions({
-    queryKey: ['p', projectId, 'observability', 'harness'] as const,
-    queryFn: () => get<HarnessHealthData>(harnessUrl(projectId)),
+    queryKey: ['p', projectId, 'observability', 'harness', ...(allEngines ? (['all-engines'] as const) : [])] as const,
+    queryFn: () => get<HarnessHealthData>(allEngines ? `${harnessUrl(projectId)}?engine_cohort=all` : harnessUrl(projectId)),
   });
+
+/** `[60–88%]`: a Wilson interval as whole percents; empty without one. */
+export function ciText(locale: string, ci: readonly [number, number] | null | undefined): string {
+  return ci ? `[${num(locale, ci[0] * 100, 0)}–${num(locale, ci[1] * 100, 0)}%]` : '';
+}
+
+/** A rate with its interval under it, in one cell. */
+function Rate({ locale, v, ci }: { locale: string; v: number | null; ci?: readonly [number, number] | null }): ReactElement {
+  return (
+    <>
+      {shareText(locale, v)}
+      {v !== null && ci ? <span className="block text-xs text-fg-3">{ciText(locale, ci)}</span> : null}
+    </>
+  );
+}
 
 const th = 'px-3 py-2 text-xs font-medium text-fg-2 whitespace-nowrap';
 const td = 'px-3 py-2 align-top';
@@ -116,9 +148,12 @@ function CasesTable({ projectId, piece }: { projectId: string; piece: HarnessPie
           {(['resumed', 'fresh'] as const).map((mode) => (
             <tr key={mode} data-session-mode={mode}>
               <td className={td}>{t.mode(mode)}</td>
-              <td className={numTd}>{num(locale, compare[mode].n, 0)}</td>
+              <td className={numTd}>
+                {num(locale, compare[mode].n, 0)}
+                {compare[mode].requests !== undefined ? <span className="block text-xs text-fg-3">{t.requestsCount(compare[mode].requests)}</span> : null}
+              </td>
               <td className={numTd}>{num(locale, compare[mode].merged, 0)}</td>
-              <td className={numTd}>{shareText(locale, compare[mode].success_rate)}</td>
+              <td className={numTd}><Rate locale={locale} v={compare[mode].success_rate} ci={compare[mode].success_ci} /></td>
               <td className={numTd}>{compare[mode].mean_minutes === null ? '—' : num(locale, compare[mode].mean_minutes, 1)}</td>
               <td className={numTd}>{tokensText(locale, compare[mode].mean_tokens)}</td>
             </tr>
@@ -143,10 +178,13 @@ function CasesTable({ projectId, piece }: { projectId: string; piece: HarnessPie
             <tr key={r.finding} data-rule={r.finding} data-verdict={r.verdict}>
               <td className={`${td} break-words text-fg`}><FindingLabel code={r.finding} />{r.finding === piece.main_rule ? ' *' : ''}</td>
               <td className={`${td} ${verdictClass(r.verdict)}`}>{t.verdict(r.verdict)}</td>
-              <td className={numTd}>{num(locale, r.n, 0)}</td>
-              <td className={numTd}>{shareText(locale, r.precision)}</td>
-              <td className={numTd}>{shareText(locale, r.recall)}</td>
-              <td className={numTd}>{shareText(locale, r.escape_rate)}</td>
+              <td className={numTd}>
+                {num(locale, r.n, 0)}
+                {r.requests !== undefined ? <span className="block text-xs text-fg-3">{t.requestsCount(r.requests)}</span> : null}
+              </td>
+              <td className={numTd}><Rate locale={locale} v={r.precision} ci={r.precision_ci} /></td>
+              <td className={numTd}><Rate locale={locale} v={r.recall} ci={r.recall_ci} /></td>
+              <td className={numTd}><Rate locale={locale} v={r.escape_rate} ci={r.escape_ci} /></td>
             </tr>
           ))}
         </Table>
@@ -211,14 +249,17 @@ export function HarnessHealthView({ projectId, data }: { projectId: string; data
   const locale = useSafeLocale();
   const [open, setOpen] = useState<string | null>(null);
   if (data.pieces.length === 0) return <p className="text-sm text-fg-2">{t.empty}</p>;
+  const labelOf = (key: string): string => data.engine?.labels[key] ?? key;
   return (
     <div className="flex flex-col gap-4">
+      {data.engine ? <p className="text-xs text-fg-3">{data.engine.requested === 'all' ? t.cutAll : t.cutCurrent(data.engine.excluded)}</p> : null}
       <Table
         caption={t.caption}
         head={
           <>
             <th scope="col" className={th}>{t.colPiece}</th>
             <th scope="col" className={th}>{t.colVerdict}</th>
+            <th scope="col" className={th}>{t.colEngine}</th>
             <th scope="col" className={numTh}>{t.colN}</th>
             <th scope="col" className={numTh}>{t.colBenefit}</th>
             <th scope="col" className={numTh}>{t.colCost}</th>
@@ -248,15 +289,28 @@ export function HarnessHealthView({ projectId, data }: { projectId: string; data
                   )}
                 </th>
                 <td className={`${td} font-medium ${verdictClass(p.verdict)}`}>{t.verdict(p.verdict)}</td>
-                <td className={numTd}>{num(locale, p.n, 0)}</td>
+                <td className={`${td} text-xs text-fg-2`} data-engine-cell={p.piece}>
+                  {p.cohort?.applied ? labelOf(p.cohort.applied) : t.noEngine}
+                  {p.cohort && p.cohort.excluded > 0 ? <span className="block text-fg-3">{t.excludedRows(p.cohort.excluded)}</span> : null}
+                  {p.cohort?.newer_skipped ? <span className="block text-fg-3">{t.newerSkipped(labelOf(p.cohort.newer_skipped.cohort), p.cohort.newer_skipped.decisions, p.cohort.newer_skipped.requests)}</span> : null}
+                </td>
+                <td className={numTd}>
+                  {num(locale, p.n, 0)}
+                  {p.requests !== undefined ? <span className="block text-xs text-fg-3">{t.rowsOfRequests(p.n, p.requests)}</span> : null}
+                  {p.dominant_request ? (
+                    <span className="block text-xs text-warning-text" data-dominant-request={p.dominant_request.task_code}>
+                      {t.dominant(p.dominant_request.task_code, shareText(locale, p.dominant_request.share))}
+                    </span>
+                  ) : null}
+                </td>
                 <td className={numTd}>{sums(locale, p.benefit, t.unit)}</td>
                 <td className={numTd}>{sums(locale, p.cost, t.unit)}</td>
-                <td className={numTd}>{shareText(locale, p.precision)}</td>
-                <td className={numTd}>{shareText(locale, p.recall)}</td>
+                <td className={numTd}><Rate locale={locale} v={p.precision} ci={p.precision_ci} /></td>
+                <td className={numTd}><Rate locale={locale} v={p.recall} ci={p.recall_ci} /></td>
               </tr>
               {expanded ? (
                 <tr>
-                  <td colSpan={7} className="bg-sunken px-3">
+                  <td colSpan={8} className="bg-sunken px-3">
                     <CasesTable projectId={projectId} piece={p} />
                   </td>
                 </tr>
@@ -272,7 +326,8 @@ export function HarnessHealthView({ projectId, data }: { projectId: string; data
 
 export function HarnessHealthSection({ projectId }: { projectId: string }) {
   const t = useMessages(HARNESS_HEALTH);
-  const q = useQuery(harnessQuery(projectId));
+  const [allEngines, setAllEngines] = useState(false);
+  const q = useQuery(harnessQuery(projectId, allEngines));
   const base = harnessUrl(projectId);
   return (
     <Section
@@ -282,6 +337,9 @@ export function HarnessHealthSection({ projectId }: { projectId: string }) {
       note={q.data ? t.note(q.data.requests, q.data.rules_version) : undefined}
       actions={
         <div className="flex gap-2">
+          <Button size="sm" variant="quiet" aria-pressed={allEngines} onClick={() => setAllEngines((v) => !v)}>
+            {allEngines ? t.currentEngines : t.allEngines}
+          </Button>
           <a href={`${base}/findings.csv`} download className={buttonClass()}>
             {t.downloadCsv}
           </a>

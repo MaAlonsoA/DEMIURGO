@@ -36,10 +36,15 @@ function flagsOf(d: Json): Flag[] {
   return out;
 }
 
+/** The guard text a failed design step flagged (the items of every flag), to tell «the same again» from «something else». */
+const flagText = (step: Step, piece: Flag['piece']): string => flagsOf(detailOf(step)).filter((f) => f.piece === piece).flatMap((f) => f.items).sort().join('\n');
+
 export const designGuard: Rule = (inputs) => {
   const out: Finding[] = [];
   for (const step of stepsOf(inputs, 'design')) {
     if (step.outcome !== 'failed') continue;
+    // The next `design` step of the request after this one (the guard run again): did it pass, or say the same?
+    const nextDesign = stepsOf(inputs, 'design').find((s) => s.attempt > step.attempt || (s.attempt === step.attempt && ms(s.created_at) > ms(step.created_at)));
     const later = inputs.steps.filter((s) => s.attempt > step.attempt);
     const next = later.filter((s) => s.attempt === step.attempt + 1);
     const commits = later.filter((s) => s.stage === 'commit' && s.outcome === 'ok');
@@ -50,9 +55,15 @@ export const designGuard: Rule = (inputs) => {
       // With the flagged paths known (design system) the proxy is whether a later commit touched one; otherwise (ownership,
       // duplicate tests) whether the builder committed anything after the guard stopped it.
       const changed = flag.paths.length > 0 ? flag.paths.some((p) => touched.has(p)) : commits.length > 0;
-      const cls = merged ? (changed ? ('tp' as const) : ('fp' as const)) : ('info' as const);
-      const evidence = { build_step: step.id, violations: flag.items, paths: flag.paths, changed_by_later_commit: changed, merged, next_attempt: next.length > 0 ? step.attempt + 1 : null };
-      const base = { piece: flag.piece, finding: 'design.guard', ground_truth: null, attempt: step.attempt, subject: inputs.taskCode, evidence };
+      // pm-8, convención nuestra: a true positive only when the next `design` step passes (the builder fixed what the guard
+      // flagged); the same text again is `repeat` (the guard did not get the builder to fix anything: it is not a hit and
+      // it is not judged as a false positive either), a different one is `other`; no next step: nothing says yet (`info`).
+      const nextPassed = nextDesign !== undefined && nextDesign.outcome !== 'failed';
+      const repeats = nextDesign !== undefined && nextDesign.outcome === 'failed' && flagText(nextDesign, flag.piece) === flagText(step, flag.piece) && flagText(step, flag.piece) !== '';
+      const verdict = nextDesign === undefined ? 'info' : nextPassed ? (merged && !changed && flag.paths.length > 0 ? 'fp' : 'tp') : repeats ? 'repeat' : 'info';
+      const cls = verdict === 'tp' ? ('tp' as const) : verdict === 'fp' ? ('fp' as const) : ('info' as const);
+      const evidence = { build_step: step.id, violations: flag.items, paths: flag.paths, changed_by_later_commit: changed, merged, next_attempt: next.length > 0 ? step.attempt + 1 : null, next_design: nextDesign ? { build_step: nextDesign.id, outcome: nextDesign.outcome } : null, ...(verdict === 'repeat' ? { repeat: true } : {}) };
+      const base = { piece: flag.piece, finding: 'design.guard', ground_truth: null, attempt: step.attempt, subject: verdict === 'repeat' ? 'repeat' : inputs.taskCode, evidence };
       out.push({ ...base, class: cls, value: flag.items.length, unit: null });
       if (stopped !== null) out.push({ ...base, class: 'cost', value: stopped, unit: 'min' });
     }
@@ -96,10 +107,14 @@ export const testReuseFollow: Rule = (inputs) => {
     const commits = stepsOf(inputs, 'commit').filter((s) => s.attempt === step.attempt && s.outcome === 'ok');
     if (commits.length === 0) continue; // nothing was committed: nothing says the suggestion was followed or not
     const touched = new Set(commits.flatMap(commitFiles));
-    for (const r of reuse) {
-      const path = normalPath(r.path as string);
+    // pm-8: one row per (attempt, file), not per suggested test (several suggestions point at the same spec file).
+    const byPath = new Map<string, Json[]>();
+    for (const r of reuse) byPath.set(normalPath(r.path as string), [...(byPath.get(normalPath(r.path as string)) ?? []), r]);
+    for (const [path, list] of byPath) {
       const followed = touched.has(path);
-      out.push({ piece: 'B08', finding: 'test_reuse.follow', class: followed ? 'tp' : 'fp', ground_truth: null, value: typeof r.p === 'number' ? r.p : null, unit: null, subject: path, attempt: step.attempt, evidence: { build_step: step.id, criterion: typeof r.criterion === 'string' ? r.criterion : null, followed } });
+      const ps = list.map((r) => r.p).filter((p): p is number => typeof p === 'number');
+      const criteria = list.map((r) => r.criterion).filter((c): c is string => typeof c === 'string');
+      out.push({ piece: 'B08', finding: 'test_reuse.follow', class: followed ? 'tp' : 'fp', ground_truth: null, value: ps.length > 0 ? Math.max(...ps) : null, unit: null, subject: path, attempt: step.attempt, evidence: { build_step: step.id, criterion: criteria[0] ?? null, criteria, followed } });
     }
   }
   return out;

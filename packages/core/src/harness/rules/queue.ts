@@ -260,7 +260,29 @@ export const queueTestabilityWait: Rule = (inputs) => {
   }
   const round = (n: number) => Math.round(n * 10) / 10;
   const criteria = [...new Set([...holds.values()].map((d) => d.item).filter((c): c is string => !!c))].sort();
+  // pm-8 (convención nuestra, the `manual_evidence_finding` outcome of the judgment outcomes, harness/outcomes.ts): when Jev
+  // classified the reviews of the request, a held criterion is a TP if a reviewer comment asked for manual evidence (the
+  // hold was right: the criterion could not be proved by an automatic test) and a FP if none did. Without classified
+  // reviews nothing says, and the hold stays a cost only.
+  const kinds = inputs.reviewKinds ?? [];
+  const manual = kinds.some((k) => k.category === 'manual_evidence' && k.p >= 0.5);
+  const judged: Finding[] =
+    kinds.length === 0
+      ? []
+      : criteria.map(
+          (criterion): Finding => ({
+            piece: 'B04',
+            finding: 'queue.testability_wait',
+            class: manual ? 'tp' : 'fp',
+            ground_truth: null,
+            value: 1,
+            unit: null,
+            subject: criterion,
+            evidence: { decisions: [...holds.values()].filter((d) => d.item === criterion).map((d) => d.id), manual_evidence_comment: manual, review_kinds: kinds.length },
+          }),
+        );
   return [
+    ...judged,
     {
       piece: 'B04',
       finding: 'queue.testability_wait',

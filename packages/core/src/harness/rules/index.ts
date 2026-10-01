@@ -41,7 +41,7 @@ export type Finding = {
 
 export type Rule = (inputs: PostmortemInputs) => Finding[];
 
-export const RULES_VERSION = 'pm-7';
+export const RULES_VERSION = 'pm-8';
 
 /** Rules 1.3 (queue, schema, files) and 1.4 (tdd, review) are added here, each from its own file. */
 export const RULES: readonly Rule[] = [requestShape, queueSkipVsFootprint, queueParallelConflict, queueSlotIdle, queueTestabilityWait, designGuard, builderFailureClass, testReuseFollow, schemaPrediction, filesPrediction, filesSymbols, tddGate, tddSkipped, tddLoopCost, reviewFindingOutcome, reviewRepeat, reviewEscape, reviewWaiver, reviewCost, sessionMode, sessionOutcome, sessionTddLoops, sessionInsisted, sessionLastTurnTokens, environmentSmoke, environmentStartCommand, builderScreenCheck];

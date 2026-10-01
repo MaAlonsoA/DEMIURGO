@@ -9,6 +9,7 @@ import type { Rule, Finding } from './index.ts';
 import { type Json, asArray, asObject, cachedTokensOf, costUsdOf, detailOf, firstDecisiveCi, numberOf, stepsOf, tokensOf } from './builder-detail.ts';
 import type { PostmortemInputs } from '../postmortem.ts';
 import type { Row } from '../../db/schema.ts';
+import { ms } from './common.ts';
 
 const PIECE = 'B09';
 /** A red explained by the environment, not by the code (the gate's own notes). */
@@ -136,6 +137,29 @@ function criterionFailedInCi(inputs: PostmortemInputs, attempt: number): boolean
   });
 }
 
+/**
+ * Minutes one CI run of this request takes: the median, over the attempts that have both, of the time from the first
+ * `ci` step in `waiting` to the `ci` step that ended it (ok or failed). Null when no attempt has both. Convención nuestra:
+ * it prices «a CI run saved» in minutes so that the benefit of the gate is weighed against its cost (`tdd.loop_cost`,
+ * minutes) in the same unit.
+ */
+export function ciRunMinutes(inputs: PostmortemInputs): number | null {
+  const durations: number[] = [];
+  for (const attempt of new Set(inputs.steps.map((s) => s.attempt))) {
+    const ci = inputs.steps.filter((s) => s.attempt === attempt && s.stage === 'ci');
+    const waiting = ci.find((s) => s.outcome === 'waiting');
+    const ended = ci.filter((s) => s.outcome === 'ok' || s.outcome === 'failed').at(-1);
+    if (!waiting || !ended) continue;
+    const dt = (ms(ended.created_at) - ms(waiting.created_at)) / 60_000;
+    if (dt > 0) durations.push(dt);
+  }
+  if (durations.length === 0) return null;
+  durations.sort((a, b) => a - b);
+  const mid = durations.length >> 1;
+  const median = durations.length % 2 === 1 ? durations[mid]! : (durations[mid - 1]! + durations[mid]!) / 2;
+  return Math.round(median * 100) / 100;
+}
+
 export const tddGate: Rule = (inputs) => {
   const out: Finding[] = [];
   for (const g of gatesOf(inputs)) {
@@ -175,7 +199,11 @@ export const tddGate: Rule = (inputs) => {
       const detail = { ...evidence, split: { own: split.own, foreign: split.foreign, environment: split.environment, green: split.green }, basis: split.basis };
       if (split.own > 0) {
         out.push({ ...base, class: 'tp', ground_truth: null, value: split.own, unit: 'loops', evidence: { ...detail, minutes: round(split.minutes.own) } });
-        if (ci?.green) out.push({ ...base, class: 'benefit', ground_truth: 'G05', value: 1, unit: 'ci_runs', evidence: { ...detail, ci_step: ci.step.id } });
+        if (ci?.green) {
+          out.push({ ...base, class: 'benefit', ground_truth: 'G05', value: 1, unit: 'ci_runs', evidence: { ...detail, ci_step: ci.step.id } });
+          const saved = ciRunMinutes(inputs);
+          if (saved !== null) out.push({ ...base, finding: 'tdd.gate_saved', class: 'benefit', ground_truth: 'G05', value: saved, unit: 'min', evidence: { ...detail, ci_step: ci.step.id, ci_run_min: saved } });
+        }
       }
       if (split.foreign > 0) out.push({ ...base, class: 'fp', ground_truth: null, value: split.foreign, unit: 'loops', evidence: { ...detail, why: 'foreign', minutes: round(split.minutes.foreign) } });
       if (split.environment > 0) out.push({ ...base, class: 'info', ground_truth: null, value: split.environment, unit: 'loops', evidence: { ...detail, why: 'environment', minutes: round(split.minutes.environment) } });

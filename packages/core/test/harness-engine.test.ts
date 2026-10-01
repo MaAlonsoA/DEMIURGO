@@ -2,7 +2,7 @@
 // that a finding's evidence names. Pure parts only.
 
 import { describe, expect, it } from 'vitest';
-import { buildEngineMark, cliVersionOf, engineCohortKey, engineMarkOf, majorMinor, parseCliVersion, resetCliVersionCache, selectEngineCohort } from '../src/harness/engine.ts';
+import { buildEngineMark, cliVersionOf, cohortLabel, cohortNormalizer, engineCohortKey, engineMarkOf, majorMinor, parseCliVersion, resetCliVersionCache, selectEngineCohort } from '../src/harness/engine.ts';
 import { engineOfFinding, withEngineEvidence } from '../src/harness/postmortem.ts';
 import { engineCohortOfEvidence } from '../src/queries/harness-health.ts';
 import { claudeInitModelOf, claudeInitVersionOf, usageCollector } from '../src/runner/builder-usage.ts';
@@ -70,6 +70,61 @@ describe('cut by engine cohort', () => {
     expect(selectEngineCohort(rows, 'claude|m1|2.1').rows).toHaveLength(1);
     expect(selectEngineCohort(rows, 'all').rows).toHaveLength(5);
     expect(selectEngineCohort(rows, 'all').excluded).toBe(0);
+  });
+});
+
+describe('cohort normalisation (pm-8)', () => {
+  const marks = [
+    { provider: 'claude', model: 'sonnet' }, // before the marks carried more
+    { provider: 'claude', model: 'sonnet', model_reported: 'claude-sonnet-5-5' },
+    { provider: 'claude', model: 'sonnet', model_reported: 'claude-sonnet-5-5', cli_version: '2.1.4' },
+    { provider: 'codex', model: 'gpt-6.1-sol' },
+    { provider: 'codex', model: 'gpt-6.1-sol', cli_version: '0.159.3' },
+  ];
+  it('merges an alias with the model every mark of it reported, and a missing version with the single known one', () => {
+    const key = cohortNormalizer(marks);
+    expect(new Set(marks.slice(0, 3).map(key))).toEqual(new Set(['claude|claude-sonnet-5-5|2.1']));
+    expect(new Set(marks.slice(3).map(key))).toEqual(new Set(['codex|gpt-6.1-sol|0.159']));
+    expect(key(null)).toBe('unknown');
+    expect(key({ provider: 'claude' })).toBe('unknown');
+  });
+  it('keeps an alias apart when it reported two models, and a missing version apart when two are known', () => {
+    const key = cohortNormalizer([
+      { provider: 'claude', model: 'opus', model_reported: 'claude-opus-4', cli_version: '2.0.1' },
+      { provider: 'claude', model: 'opus', model_reported: 'claude-opus-5', cli_version: '2.0.1' },
+      { provider: 'codex', model: 'm', cli_version: '0.1.0' },
+      { provider: 'codex', model: 'm', cli_version: '0.2.0' },
+    ]);
+    expect(key({ provider: 'claude', model: 'opus' })).toBe('claude|opus|?');
+    expect(key({ provider: 'codex', model: 'm' })).toBe('codex|m|?');
+    expect(cohortLabel('codex|m|?')).toBe('codex · m · CLI version not recorded');
+    expect(cohortLabel('claude|claude-sonnet-5-5|2.1')).toBe('claude · claude-sonnet-5-5 · CLI 2.1');
+  });
+});
+
+describe('the current cohort is chosen by engine time and needs evidence (pm-8)', () => {
+  let n = 0;
+  const row = (cohort: string, at: string, request: string, cls = 'tp') => ({ piece: 'B09', finding: 'tdd.gate', engine_cohort: cohort, engine_at: at, class: cls, build_request_id: request, id: n++ });
+  const old = (i: number) => row('claude|m1|2.1', `2026-10-01T10:0${i}:00Z`, `r${i}`);
+  it('orders by when the engine ran, not by the order of the rows (the recompute of an old request does not change it)', () => {
+    // The row of the OLD cohort comes first (it was recomputed last), but it ran before.
+    const rows = [row('claude|m1|2.1', '2026-10-01T09:00:00Z', 'a'), row('claude|m2|2.2', '2026-10-01T12:00:00Z', 'b'), row('claude|m2|2.2', '2026-10-01T12:05:00Z', 'c'), row('claude|m2|2.2', '2026-10-01T12:06:00Z', 'd')];
+    expect(selectEngineCohort(rows).applied).toEqual({ 'B09/tdd.gate': 'claude|m2|2.2' });
+  });
+  it('falls back to the newest cohort with 10 decisions or 3 requests, and says which newer one it skipped', () => {
+    const rows = [row('claude|m2|2.2', '2026-10-01T12:00:00Z', 'z'), old(1), old(2), old(3)];
+    const cut = selectEngineCohort(rows);
+    expect(cut.applied).toEqual({ 'B09/tdd.gate': 'claude|m1|2.1' });
+    expect(cut.newer_skipped['B09/tdd.gate']).toMatchObject({ cohort: 'claude|m2|2.2', decisions: 1, requests: 1 });
+    expect(cut.excluded).toBe(1);
+    expect(cut.excluded_by_piece).toEqual({ B09: 1 });
+    // 10 decisions of two requests are enough on their own.
+    const ten = [...Array.from({ length: 10 }, (_, i) => row('claude|m2|2.2', '2026-10-01T12:00:00Z', i < 5 ? 'x' : 'y')), old(1)];
+    expect(selectEngineCohort(ten).applied['B09/tdd.gate']).toBe('claude|m2|2.2');
+  });
+  it('when no cohort has enough, the newest one is applied', () => {
+    const rows = [row('claude|m2|2.2', '2026-10-01T12:00:00Z', 'z'), old(1)];
+    expect(selectEngineCohort(rows).applied['B09/tdd.gate']).toBe('claude|m2|2.2');
   });
 });
 

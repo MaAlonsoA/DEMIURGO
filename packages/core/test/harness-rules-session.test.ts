@@ -73,8 +73,11 @@ describe('B20 comparison', () => {
     expect(c.resumed).toMatchObject({ n: 2, merged: 1, success_rate: 0.5, mean_minutes: 3, mean_tokens: null });
     expect(c.fresh).toMatchObject({ n: 1, success_rate: 1, mean_minutes: 6, mean_tokens: 900 });
     expect(sessionVerdictOf(c)).toBe('no_data');
-    const many = (subject: string, ok: number) => Array.from({ length: 10 }, (_, i) => fact('session.outcome', i < ok ? 'benefit' : 'cost', subject, 1, 'min'));
-    expect(sessionVerdictOf(sessionCompareOf([...many('resumed', 8), ...many('fresh', 5)]))).toBe('helps');
-    expect(sessionVerdictOf(sessionCompareOf([...many('resumed', 3), ...many('fresh', 5)]))).toBe('hurts');
+    const many = (subject: string, ok: number, length = 30) => Array.from({ length }, (_, i) => fact('session.outcome', i < ok ? 'benefit' : 'cost', subject, 1, 'min'));
+    // pm-8: a verdict only when the Wilson intervals do not overlap (Brown, Cai and DasGupta 2001).
+    expect(sessionVerdictOf(sessionCompareOf([...many('resumed', 29), ...many('fresh', 15)]))).toBe('helps');
+    expect(sessionVerdictOf(sessionCompareOf([...many('resumed', 3), ...many('fresh', 15)]))).toBe('hurts');
+    // 8/10 against 5/10: a higher rate, but the intervals overlap: neutral, not «ayuda».
+    expect(sessionVerdictOf(sessionCompareOf([...many('resumed', 8, 10), ...many('fresh', 5, 10)]))).toBe('neutral');
   });
 });

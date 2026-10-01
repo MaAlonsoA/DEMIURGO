@@ -62,21 +62,40 @@ describe('queue.testability_wait', () => {
     expect(f[0]!.evidence).toMatchObject({ waited_min: 40, free_slot_min: 30, criteria: ['AC-X-001-01'] });
     expect(queueTestabilityWait(inputs({ steps: [], queuePlans: [], queueDecisions: [] }))).toEqual([]);
   });
+  it('judges the hold from the classified reviews: tp when a comment asked for manual evidence, fp when none did (pm-8)', () => {
+    const plan = { id: 'p0', decided_at: at(0), parallel_limit: 3, running: [] as string[], started: [] as string[], stopped_kind: null };
+    const dec = { id: 'd0', plan_id: 'p0', decided_at: at(0), decision: 'wait_testability', item: 'AC-X-001-01', with_task: null, with_source: null, evidence: null };
+    const base = { steps: [step('r', 1, 'repo', 'started', null, 10)], queuePlans: [plan], queueDecisions: [dec] };
+    const kind = (category: string, p: number) => ({ id: uid('k'), pr_review_id: 'rv', comment_index: 0, category, p }) as never;
+    const withKinds = (kinds: never[]) => queueTestabilityWait(inputs({ ...base, reviewKinds: kinds })).map((x) => [x.class, x.subject]);
+    expect(withKinds([kind('manual_evidence', 0.8)])).toEqual([['tp', 'AC-X-001-01'], ['cost', 'TSK-A-001']]);
+    expect(withKinds([kind('style', 0.9), kind('manual_evidence', 0.3)])).toEqual([['fp', 'AC-X-001-01'], ['cost', 'TSK-A-001']]);
+    expect(withKinds([])).toEqual([['cost', 'TSK-A-001']]); // no classified review: nothing says
+  });
 });
 
 describe('design.guard', () => {
   const failed = (detail: unknown) => step('r', 1, 'design', 'failed', detail, 10);
-  it('is a tp when a later commit changed the flagged file and the task merged, with the minutes stopped', () => {
-    const steps = [failed({ violations: [{ rule: 1, path: 'src/a.tsx', line: 3, message: 'x' }], ownership: [] }), step('r', 2, 'repo', 'started', { automatic: true }, 12), step('r', 2, 'commit', 'ok', { files: ['src/a.tsx'] }, 20)];
+  it('is a tp when a later commit changed the flagged file and the next design step passes, with the minutes stopped', () => {
+    const steps = [failed({ violations: [{ rule: 1, path: 'src/a.tsx', line: 3, message: 'x' }], ownership: [] }), step('r', 2, 'repo', 'started', { automatic: true }, 12), step('r', 2, 'commit', 'ok', { files: ['src/a.tsx'] }, 20), step('r', 2, 'design', 'ok', {}, 21)];
     const f = designGuard(inputs({ steps }));
     expect(f.map((x) => [x.piece, x.class, x.unit])).toEqual([['B13', 'tp', null], ['B13', 'cost', 'min']]);
     expect(f[1]!.value).toBe(2);
   });
-  it('is a fp when it merged and nothing flagged was changed (ownership kept), and info when it did not merge', () => {
-    const steps = [failed({ violations: [], ownership: [{ kind: 'route', name: '/auth/sign-in', message: 'm' }] }), step('r', 2, 'repo', 'started', { automatic: true }, 12)];
-    expect(designGuard(inputs({ steps })).map((x) => [x.piece, x.class])).toEqual([['B14', 'fp'], ['B14', 'cost']]);
-    const open = inputs({ steps, request: { id: 'r', state: 'requested', feature_version_id: 'fv' } as never });
-    expect(designGuard(open).filter((x) => x.class !== 'cost').map((x) => [x.piece, x.class])).toEqual([['B14', 'info']]);
+  it('is a fp when the next design step passes but the flagged file was never changed (exemption or wrong reading)', () => {
+    const steps = [failed({ violations: [{ rule: 1, path: 'src/a.tsx', line: 3, message: 'x' }], ownership: [] }), step('r', 2, 'repo', 'started', { automatic: true }, 12), step('r', 2, 'commit', 'ok', { files: ['src/other.ts'] }, 20), step('r', 2, 'design', 'ok', {}, 21)];
+    expect(designGuard(inputs({ steps })).map((x) => [x.piece, x.class])).toEqual([['B13', 'fp'], ['B13', 'cost']]);
+  });
+  it('is info, not a tp, while no later design step says anything (pm-8)', () => {
+    const steps = [failed({ violations: [], ownership: [{ kind: 'route', name: '/auth/sign-in', message: 'm' }] }), step('r', 2, 'repo', 'started', { automatic: true }, 12), step('r', 2, 'commit', 'ok', { files: ['x.ts'] }, 20)];
+    expect(designGuard(inputs({ steps })).map((x) => [x.piece, x.class])).toEqual([['B14', 'info'], ['B14', 'cost']]);
+  });
+  it('the same guard text again is a repeat (info with subject repeat), not a tp (pm-8: MYA-018 failed 15 times in a row)', () => {
+    const detail = { violations: [], ownership: [], test_guard: { violations: 2 } };
+    const steps = [failed(detail), step('r', 2, 'repo', 'started', { automatic: true }, 12), step('r', 2, 'commit', 'ok', { files: ['x.ts'] }, 14), step('r', 2, 'design', 'failed', detail, 15), step('r', 3, 'commit', 'ok', { files: ['y.ts'] }, 25), step('r', 3, 'design', 'ok', {}, 26)];
+    const rows = designGuard(inputs({ steps })).filter((x) => x.class !== 'cost');
+    expect(rows.map((x) => [x.piece, x.class, x.subject])).toEqual([['B15', 'info', 'repeat'], ['B15', 'tp', 'TSK-A-001']]);
+    expect(rows[0]!.evidence).toMatchObject({ repeat: true });
   });
   it('reports duplicate tests as B15', () => {
     expect(designGuard(inputs({ steps: [failed({ violations: [], ownership: [], test_guard: { violations: 2 } })] }))[0]).toMatchObject({ piece: 'B15', finding: 'design.guard' });
@@ -101,5 +120,11 @@ describe('builder.failure_class and test_reuse.follow', () => {
   it('B08: a suggested test is followed when a commit of the attempt touched it', () => {
     const steps = [step('r', 1, 'builder', 'ok', { test_reuse: [{ path: 'e2e/a.spec.ts', criterion: 'AC-1', p: 0.7 }, { path: 'e2e/b.spec.ts', criterion: 'AC-2', p: 0.6 }] }, 1), step('r', 1, 'commit', 'ok', { files: ['e2e/a.spec.ts'] }, 5)];
     expect(testReuseFollow(inputs({ steps })).map((x) => [x.subject, x.class])).toEqual([['e2e/a.spec.ts', 'tp'], ['e2e/b.spec.ts', 'fp']]);
+  });
+  it('B08: one row per (attempt, file), not per suggested test (pm-8)', () => {
+    const steps = [step('r', 1, 'builder', 'ok', { test_reuse: [{ path: 'e2e/b.spec.ts', criterion: 'AC-1', p: 0.6 }, { path: 'e2e/b.spec.ts', criterion: 'AC-2', p: 0.8 }, { path: 'e2e/c.spec.ts', criterion: 'AC-3', p: 0.5 }] }, 1), step('r', 1, 'commit', 'ok', { files: ['e2e/c.spec.ts'] }, 5)];
+    const rows = testReuseFollow(inputs({ steps }));
+    expect(rows.map((x) => [x.subject, x.class, x.value])).toEqual([['e2e/b.spec.ts', 'fp', 0.8], ['e2e/c.spec.ts', 'tp', 0.5]]);
+    expect(rows[0]!.evidence).toMatchObject({ criteria: ['AC-1', 'AC-2'] });
   });
 });

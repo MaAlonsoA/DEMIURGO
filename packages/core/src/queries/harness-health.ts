@@ -9,7 +9,7 @@
 import { sql } from 'kysely';
 import { queueDecisionRows as storedQueueDecisionRows, type QueueDecisionRow } from '../build/queue-decisions.ts';
 import type { Db } from '../db/connection.ts';
-import { type CohortSelection, UNKNOWN_COHORT, engineCohortKey, engineMarkOf, selectEngineCohort } from '../harness/engine.ts';
+import { type CohortSelection, type CohortStat, type EngineMark, UNKNOWN_COHORT, cohortLabel, cohortNormalizer, engineCohortKey, engineMarkOf, selectEngineCohort } from '../harness/engine.ts';
 import { PIECE_NAMES } from '../harness/pieces.ts';
 import { PENDING_ESCAPE_RULES } from '../harness/rules/escapes/index.ts';
 
@@ -19,8 +19,24 @@ export const PRECISION_HURTS = 0.5;
 export const RECALL_HELPS = 0.5;
 /** Share of the harmful false negatives among (FN + TN) of a rule from which it hurts (convención nuestra; needs MIN_DECISIONS of them). */
 export const ESCAPE_RATE_HURTS = 0.2;
-/** Ground truths whose false negatives do harm: a failure on main after the merge (G03) and a later issue (G10). */
-export const HARMFUL_GROUND_TRUTHS: ReadonlySet<string> = new Set(['G03', 'G10']);
+/** Ground truths whose false negatives do harm: a failure on main after the merge (G03), a real conflict between parallel tasks (G02, B03's) and a later issue (G10). */
+export const HARMFUL_GROUND_TRUTHS: ReadonlySet<string> = new Set(['G02', 'G03', 'G10']);
+/** A request that is this share of a card's decisions or more makes the card pseudoreplicated (convención nuestra; the concept is Hurlbert 1984). */
+export const DOMINANT_REQUEST_SHARE = 0.5;
+
+/**
+ * Wilson score interval of a proportion at 95 % (z = 1.96): Brown, Cai and DasGupta, "Interval Estimation for a Binomial
+ * Proportion", Statistical Science 16(2), 2001, which recommend it for small n. Null without trials. Rounded to 3 decimals.
+ */
+export function wilsonInterval(successes: number, trials: number, z = 1.96): [number, number] | null {
+  if (trials <= 0) return null;
+  const p = successes / trials;
+  const z2 = z * z;
+  const centre = (p + z2 / (2 * trials)) / (1 + z2 / trials);
+  const half = (z * Math.sqrt((p * (1 - p)) / trials + z2 / (4 * trials * trials))) / (1 + z2 / trials);
+  const r = (x: number) => Math.round(Math.min(1, Math.max(0, x)) * 1000) / 1000;
+  return [r(centre - half), r(centre + half)];
+}
 /** Cases listed per piece (convención nuestra); the counts always cover all of them. */
 export const CASES_PER_PIECE = 50;
 
@@ -36,6 +52,9 @@ export type FindingFact = {
   ground_truth: string | null;
   value: number | null;
   unit: string | null;
+  /** The request and task the finding belongs to (for counting distinct requests). */
+  build_request_id?: string;
+  task_code?: string;
 };
 
 export type ScorecardInput = {
@@ -57,8 +76,17 @@ export type RuleScore = ScorecardInput & {
   recall: number | null;
   /** Harmful FN / (FN + TN judged against G03 or G10): how often what the rule let through did harm; null without such cases. */
   escape_rate: number | null;
+  /** Wilson 95 % intervals (Brown, Cai and DasGupta 2001) of the three rates; null where the rate is. */
+  precision_ci: [number, number] | null;
+  recall_ci: [number, number] | null;
+  escape_ci: [number, number] | null;
+  /** Distinct build requests behind the decisions (n counts rows; a request can be many of them: pseudoreplication, Hurlbert 1984). */
+  requests: number;
   verdict: Verdict;
 };
+
+/** The request that is most of a card's decisions, when it is DOMINANT_REQUEST_SHARE of them or more. */
+export type DominantRequest = { task_code: string; share: number };
 
 export type Scorecard = ScorecardInput & {
   piece: string;
@@ -67,6 +95,11 @@ export type Scorecard = ScorecardInput & {
   /** Of the piece's main rule (`main_rule`): the rule with most decisions that has a precision or a recall. */
   precision: number | null;
   recall: number | null;
+  precision_ci: [number, number] | null;
+  recall_ci: [number, number] | null;
+  /** Distinct requests behind the decisions of the piece (all its rules). */
+  requests: number;
+  dominant_request: DominantRequest | null;
   main_rule: string | null;
   rules: RuleScore[];
   /** The worst verdict of its rules (and the benefit against the cost where they share a unit). */
@@ -92,13 +125,29 @@ export type HarnessCase = {
 };
 
 /** `name` is the English name of the piece in the inventory of the design (harness/pieces.ts); null when it has none. */
-export type PieceHealth = Scorecard & { name: string | null; cases: HarnessCase[]; cases_total: number; session_compare?: SessionCompare };
+export type PieceHealth = Scorecard & { name: string | null; cases: HarnessCase[]; cases_total: number; session_compare?: SessionCompare; cohort?: PieceCohort };
+
+/** The engine cohort a card was measured on, and what the cut left out (set by `harnessScorecards`). */
+export type PieceCohort = {
+  /** The cohort of the main rule (else the first rule that has one); null when no rule of the piece reads an engine. */
+  applied: string | null;
+  /** The distinct cohorts applied to its rules. */
+  all_applied: string[];
+  /** Rows left out of this card by the cut. */
+  excluded: number;
+  /** Where the newest cohort was not applied because it had too little evidence: that cohort and its size. */
+  newer_skipped: CohortStat | null;
+};
 
 /** B20: how the attempts that continued the builder's session fared against the ones that started fresh. */
 export type SessionModeStats = {
   /** Attempts judged (reached merge or needed another attempt). */
   n: number;
+  /** Distinct requests of those attempts. */
+  requests: number;
   merged: number;
+  /** Wilson 95 % interval of the success rate. */
+  success_ci: [number, number] | null;
   /** merged / n; null without attempts. */
   success_rate: number | null;
   mean_minutes: number | null;
@@ -132,7 +181,9 @@ export function sessionCompareOf(facts: readonly (FindingFact & { subject?: stri
     const tokens = facts.filter((f) => f.piece === SESSION_PIECE && f.finding === 'session.outcome_tokens' && f.subject === mode && f.value !== null).map((f) => f.value as number);
     return {
       n: rows.length,
+      requests: new Set(rows.map((f) => f.build_request_id).filter((x) => x !== undefined)).size,
       merged,
+      success_ci: wilsonInterval(merged, rows.length),
       success_rate: rows.length === 0 ? null : merged / rows.length,
       mean_minutes: mean(rows.filter((f) => f.value !== null).map((f) => f.value as number)),
       mean_tokens: mean(tokens),
@@ -143,13 +194,14 @@ export function sessionCompareOf(facts: readonly (FindingFact & { subject?: stri
 
 /**
  * Verdict of B20 (convención nuestra): «sin datos» unless both modes have at least MIN_DECISIONS judged attempts; then
- * «ayuda» when resuming succeeds more often than starting fresh, «estorba» when less, «neutra» when equal.
+ * «ayuda» only when the Wilson interval of resuming lies entirely above that of starting fresh, «estorba» when entirely
+ * below, «neutra» when they overlap (two samples whose intervals overlap do not say which is better).
  */
 export function sessionVerdictOf(c: SessionCompare): Verdict {
   if (c.resumed.n < MIN_DECISIONS || c.fresh.n < MIN_DECISIONS) return 'no_data';
-  const r = c.resumed.success_rate as number;
-  const f = c.fresh.success_rate as number;
-  return r > f ? 'helps' : r < f ? 'hurts' : 'neutral';
+  const r = wilsonInterval(c.resumed.merged, c.resumed.n) as [number, number];
+  const f = wilsonInterval(c.fresh.merged, c.fresh.n) as [number, number];
+  return r[0] > f[1] ? 'helps' : r[1] < f[0] ? 'hurts' : 'neutral';
 }
 
 const emptyCounts = (): Record<FindingClass, number> => ({ tp: 0, fp: 0, fn: 0, tn: 0, benefit: 0, cost: 0, info: 0 });
@@ -163,17 +215,24 @@ const VERDICT_RANK: Record<Verdict, number> = { hurts: 0, neutral: 1, helps: 2, 
  * (precision ≥ 0.7, recall ≥ 0.5). «neutra»: the rest. Cost never hurts by itself: it is weighed against the benefit
  * in the units both share (see `scorecardsOf`).
  */
-export function verdictOf(card: { n: number; counts: Record<FindingClass, number>; precision: number | null; recall: number | null; escape_rate?: number | null }): Verdict {
+export function verdictOf(card: { n: number; counts: Record<FindingClass, number>; precision: number | null; recall: number | null; escape_rate?: number | null; harmful?: { fn: number; pool: number } }): Verdict {
   if (card.n < MIN_DECISIONS) return 'no_data';
   const { tp, fp, fn, tn } = card.counts;
   const precisionSeen = card.precision !== null && tp + fp >= MIN_DECISIONS;
   const recallSeen = card.recall !== null && tp + fn >= MIN_DECISIONS;
   const rateSeen = card.escape_rate !== null && card.escape_rate !== undefined && fn + tn >= MIN_DECISIONS;
   if (!precisionSeen && !recallSeen && !rateSeen) return 'no_data';
-  if ((precisionSeen && (card.precision as number) < PRECISION_HURTS) || (rateSeen && (card.escape_rate as number) >= ESCAPE_RATE_HURTS)) return 'hurts';
-  const precisionOk = !precisionSeen || (card.precision as number) >= PRECISION_HELPS;
+  // A verdict takes a side only when the Wilson interval of the measure does not reach the other side (convención nuestra):
+  // «estorba» needs the interval of the precision to stay under the «ayuda» line (0.7), «ayuda» needs it to stay over the
+  // «estorba» line (0.5); the escape rate is «estorba» from 0.2 and «ayuda» only when its interval stays under 0.2.
+  const precisionCi = precisionSeen ? wilsonInterval(tp, tp + fp) : null;
+  const harmful = card.harmful ?? { fn: Math.round((card.escape_rate ?? 0) * (fn + tn)), pool: fn + tn };
+  const escapeCi = rateSeen ? wilsonInterval(harmful.fn, harmful.pool) : null;
+  if ((precisionSeen && (card.precision as number) < PRECISION_HURTS && (precisionCi as [number, number])[1] < PRECISION_HELPS) || (rateSeen && (card.escape_rate as number) >= ESCAPE_RATE_HURTS)) return 'hurts';
+  const precisionOk = !precisionSeen || ((card.precision as number) >= PRECISION_HELPS && (precisionCi as [number, number])[0] >= PRECISION_HURTS);
   const recallOk = !recallSeen || (card.recall as number) >= RECALL_HELPS;
-  return precisionOk && recallOk ? 'helps' : 'neutral';
+  const rateOk = !rateSeen || (escapeCi as [number, number])[1] < ESCAPE_RATE_HURTS;
+  return precisionOk && recallOk && rateOk ? 'helps' : 'neutral';
 }
 
 const tally = (list: readonly FindingFact[]) => {
@@ -182,8 +241,16 @@ const tally = (list: readonly FindingFact[]) => {
   const cost: Record<string, number> = {};
   let harmful = false;
   let harmfulFn = 0;
-  let harmfulPool = 0; // FN and TN judged against a ground truth where a miss does harm (G03, G10)
+  let harmfulPool = 0; // FN and TN judged against a ground truth where a miss does harm (G02, G03, G10)
+  const requestIds = new Set<string>();
+  const decisionsByRequest = new Map<string, { task: string; n: number }>();
   for (const f of list) {
+    if (f.build_request_id !== undefined && (f.class === 'tp' || f.class === 'fp' || f.class === 'fn' || f.class === 'tn')) {
+      requestIds.add(f.build_request_id);
+      const seen = decisionsByRequest.get(f.build_request_id) ?? { task: f.task_code ?? f.build_request_id, n: 0 };
+      seen.n += 1;
+      decisionsByRequest.set(f.build_request_id, seen);
+    }
     counts[f.class] += 1;
     const harmfulTruth = f.ground_truth !== null && HARMFUL_GROUND_TRUTHS.has(f.ground_truth);
     if ((f.class === 'fn' || f.class === 'tn') && harmfulTruth) harmfulPool += 1;
@@ -200,7 +267,9 @@ const tally = (list: readonly FindingFact[]) => {
   const precision = counts.tp + counts.fp > 0 ? counts.tp / (counts.tp + counts.fp) : null;
   const recall = counts.tp + counts.fn > 0 ? counts.tp / (counts.tp + counts.fn) : null;
   const escape_rate = harmfulPool > 0 ? harmfulFn / harmfulPool : null;
-  return { counts, benefit, cost, harmful_fn: harmful, n, precision, recall, escape_rate };
+  const biggest = [...decisionsByRequest.values()].sort((a, b) => b.n - a.n)[0];
+  const dominant_request: DominantRequest | null = biggest && n >= 2 && biggest.n / n >= DOMINANT_REQUEST_SHARE ? { task_code: biggest.task, share: Math.round((biggest.n / n) * 1000) / 1000 } : null;
+  return { counts, benefit, cost, harmful_fn: harmful, n, precision, recall, escape_rate, harmful_counts: { fn: harmfulFn, pool: harmfulPool }, requests: requestIds.size, dominant_request };
 };
 
 const NO_RULE = '(rule)';
@@ -217,8 +286,16 @@ export function scorecardsOf(facts: readonly FindingFact[]): Scorecard[] {
       const rules = [...byRule.entries()]
         .sort(([a], [b]) => (a < b ? -1 : 1))
         .map(([finding, items]): RuleScore => {
-          const t = tally(items);
-          return { finding, ...t, verdict: verdictOf(t) };
+          const { harmful_counts, dominant_request: _d, ...t } = tally(items);
+          const { tp, fp, fn } = t.counts;
+          return {
+            finding,
+            ...t,
+            precision_ci: wilsonInterval(tp, tp + fp),
+            recall_ci: wilsonInterval(tp, tp + fn),
+            escape_ci: harmful_counts.pool > 0 ? wilsonInterval(harmful_counts.fn, harmful_counts.pool) : null,
+            verdict: verdictOf({ ...t, harmful: harmful_counts }),
+          };
         });
       const all = tally(list);
       // The main rule is the classifier with the most decisions: one that has a precision (TP + FP > 0), else one that found
@@ -230,7 +307,7 @@ export function scorecardsOf(facts: readonly FindingFact[]): Scorecard[] {
       // Benefit against cost, only in the units both have (never a cost against nothing).
       const shared = Object.keys(all.benefit).filter((u) => u in all.cost);
       if (verdict === 'helps' && !shared.every((u) => (all.benefit[u] ?? 0) > (all.cost[u] ?? 0))) verdict = 'neutral';
-      return { piece, counts: all.counts, benefit: all.benefit, cost: all.cost, harmful_fn: all.harmful_fn, n: all.n, precision: main?.precision ?? null, recall: main?.recall ?? null, main_rule: main?.finding ?? null, rules, verdict };
+      return { piece, counts: all.counts, benefit: all.benefit, cost: all.cost, harmful_fn: all.harmful_fn, n: all.n, precision: main?.precision ?? null, recall: main?.recall ?? null, precision_ci: main?.precision_ci ?? null, recall_ci: main?.recall_ci ?? null, requests: all.requests, dominant_request: all.dominant_request, main_rule: main?.finding ?? null, rules, verdict };
     });
 }
 
@@ -248,7 +325,13 @@ export type HealthOptions = {
 };
 
 /** What the engine cut kept: the cohort each piece was cut to, the findings per cohort before the cut and the ones left out. */
-export type EngineView = Pick<CohortSelection<FindingRow>, 'applied' | 'available' | 'excluded'> & { requested: string };
+export type EngineView = Pick<CohortSelection<FindingRow>, 'applied' | 'available' | 'excluded' | 'excluded_by_piece' | 'newer_skipped'> & {
+  requested: string;
+  /** A readable name for every cohort key in `available` (provider · model · CLI version). */
+  labels: Record<string, string>;
+};
+
+const EMPTY_ENGINE = (requested: string): EngineView => ({ requested, applied: {}, available: {}, excluded: 0, excluded_by_piece: {}, newer_skipped: {}, labels: {} });
 
 export type FindingRow = {
   id: string;
@@ -265,8 +348,10 @@ export type FindingRow = {
   subject: string | null;
   evidence: unknown;
   harness_version: string | null;
-  /** The engine cohort of the step the finding comes from (`unknown` when it recorded none): `provider|model|cli major.minor`. */
+  /** The normalised engine cohort of the step the finding comes from (`unknown` when it recorded none): `provider|model|cli major.minor` (aliases and missing versions merged, see `cohortNormalizer`). */
   engine_cohort: string;
+  /** When the engine ran (the time of the first step of the attempt, else of the request), not when the post-mortem was computed. */
+  engine_at: string | null;
   rules_version: string;
   pr_url: string | null;
   computed_at: string;
@@ -280,6 +365,12 @@ export function engineCohortOfEvidence(evidence: unknown): string {
   const e = typeof evidence === 'string' ? (() => { try { return JSON.parse(evidence) as unknown; } catch { return null; } })() : evidence;
   const mark = e && typeof e === 'object' && !Array.isArray(e) ? engineMarkOf((e as Record<string, unknown>).engine) : null;
   return mark ? engineCohortKey(mark) : UNKNOWN_COHORT;
+}
+
+/** The engine mark a finding's evidence names (`evidence.engine`), null when it names none. */
+export function engineMarkOfEvidence(evidence: unknown): EngineMark | null {
+  const e = typeof evidence === 'string' ? (() => { try { return JSON.parse(evidence) as unknown; } catch { return null; } })() : evidence;
+  return e && typeof e === 'object' && !Array.isArray(e) ? engineMarkOf((e as Record<string, unknown>).engine) : null;
 }
 
 /** The rules version to read: the asked one, or the version of the latest post-mortem of the project. */
@@ -299,7 +390,7 @@ async function rulesVersionOf(db: Db, projectId: string, asked: string | undefin
 /** Every finding of the latest post-mortem of each request, for one rules version (the rows the scorecards read). */
 export async function harnessFindingRows(db: Db, projectId: string, opts: HealthOptions = {}): Promise<{ rules_version: string | null; requests: number; rows: FindingRow[]; engine: EngineView }> {
   const rules = await rulesVersionOf(db, projectId, opts.rules);
-  if (rules === null) return { rules_version: null, requests: 0, rows: [], engine: { requested: opts.engine_cohort || 'current', applied: {}, available: {}, excluded: 0 } };
+  if (rules === null) return { rules_version: null, requests: 0, rows: [], engine: EMPTY_ENGINE(opts.engine_cohort || 'current') };
   const latest = sql`(select distinct on (build_request_id) id from harness_postmortems where project_id = ${projectId} and rules_version = ${rules} order by build_request_id, computed_at desc, id desc)`;
   let q = db
     .selectFrom('harness_findings as f')
@@ -323,6 +414,7 @@ export async function harnessFindingRows(db: Db, projectId: string, opts: Health
       'p.harness_version_id',
       'p.rules_version',
       'r.pr_url',
+      'r.requested_at',
       'p.computed_at',
       'f.created_at',
     ])
@@ -332,6 +424,13 @@ export async function harnessFindingRows(db: Db, projectId: string, opts: Health
   if (opts.to) q = q.where(sql<boolean>`p.computed_at <= ${new Date(opts.to)}`);
   if (opts.piece) q = q.where('f.piece', '=', opts.piece);
   const found = await q.orderBy('f.created_at', 'desc').orderBy('f.id', 'desc').execute();
+  // When each attempt's engine ran: the first step of the (request, attempt), else of the request, else the request itself.
+  const stepTimes = found.length === 0 ? [] : await db.selectFrom('build_steps').select(['build_request_id', 'attempt', sql<Date>`min(created_at)`.as('at')]).where('build_request_id', 'in', [...new Set(found.map((r) => r.build_request_id))]).groupBy(['build_request_id', 'attempt']).execute();
+  const attemptAt = new Map(stepTimes.map((t) => [`${t.build_request_id}|${t.attempt}`, new Date(t.at).getTime()]));
+  const requestAt = new Map<string, number>();
+  for (const t of stepTimes) requestAt.set(t.build_request_id, Math.min(requestAt.get(t.build_request_id) ?? Infinity, new Date(t.at).getTime()));
+  const engineTime = (r: (typeof found)[number]): string => iso(new Date((r.attempt !== null ? attemptAt.get(`${r.build_request_id}|${r.attempt}`) : undefined) ?? requestAt.get(r.build_request_id) ?? new Date(r.requested_at as unknown as Date | string).getTime()));
+  const normal = cohortNormalizer(found.map((r) => engineMarkOfEvidence(r.evidence)).filter((m): m is EngineMark => m !== null));
   const all = found.map(
     (r): FindingRow => ({
       id: r.id,
@@ -348,7 +447,8 @@ export async function harnessFindingRows(db: Db, projectId: string, opts: Health
       subject: r.subject,
       evidence: r.evidence,
       harness_version: r.harness_version_id,
-      engine_cohort: engineCohortOfEvidence(r.evidence),
+      engine_cohort: normal(engineMarkOfEvidence(r.evidence)),
+      engine_at: engineTime(r),
       rules_version: r.rules_version,
       pr_url: r.pr_url,
       computed_at: iso(r.computed_at),
@@ -367,7 +467,9 @@ export async function harnessFindingRows(db: Db, projectId: string, opts: Health
         .executeTakeFirstOrThrow()
     ).n,
   );
-  return { rules_version: rules, requests, rows, engine: { requested: opts.engine_cohort || 'current', applied: cut.applied, available: cut.available, excluded: cut.excluded } };
+  const labels: Record<string, string> = {};
+  for (const k of [...Object.keys(cut.available), ...Object.values(cut.applied)]) labels[k] = cohortLabel(k);
+  return { rules_version: rules, requests, rows, engine: { requested: opts.engine_cohort || 'current', applied: cut.applied, available: cut.available, excluded: cut.excluded, excluded_by_piece: cut.excluded_by_piece, newer_skipped: cut.newer_skipped, labels } };
 }
 
 /** The scorecards per piece with their cases (newest first, capped per piece). */
@@ -404,7 +506,12 @@ export async function harnessScorecards(db: Db, projectId: string, opts: HealthO
     thresholds: { min_decisions: MIN_DECISIONS, precision_helps: PRECISION_HELPS, precision_hurts: PRECISION_HURTS, recall_helps: RECALL_HELPS },
     pieces: scorecardsOf(rows).map((card) => {
       const all = cases.get(card.piece) ?? [];
-      const base = { ...card, name: PIECE_NAMES[card.piece] ?? null, cases: all.slice(0, CASES_PER_PIECE), cases_total: all.length };
+      const unitOf = (finding: string) => engine.applied[`${card.piece}/${finding}`];
+      const applied = (card.main_rule ? unitOf(card.main_rule) : undefined) ?? card.rules.map((r) => unitOf(r.finding)).find((c) => c !== undefined) ?? null;
+      const allApplied = [...new Set(card.rules.map((r) => unitOf(r.finding)).filter((c): c is string => c !== undefined))];
+      const skipped = card.rules.map((r) => engine.newer_skipped[`${card.piece}/${r.finding}`]).find((x) => x !== undefined) ?? null;
+      const cohort: PieceCohort = { applied, all_applied: allApplied, excluded: engine.excluded_by_piece[card.piece] ?? 0, newer_skipped: skipped };
+      const base = { ...card, name: PIECE_NAMES[card.piece] ?? null, cases: all.slice(0, CASES_PER_PIECE), cases_total: all.length, cohort };
       if (card.piece !== SESSION_PIECE) return base;
       const session_compare = sessionCompareOf(rows);
       return { ...base, verdict: sessionVerdictOf(session_compare), session_compare };

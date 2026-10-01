@@ -100,6 +100,9 @@ export const environmentStartCommand: Rule = (inputs) =>
     .filter((s) => s.outcome === 'ok' || s.outcome === 'failed')
     .map((s): Finding => {
       const d: Json = detailOf(s);
-      const command = typeof d.start_command === 'string' && d.start_command.trim() !== '' ? d.start_command : null;
+      // The step stores `start_command` as an object `{command}` (older ones as plain text): read both.
+      const stored = d.start_command;
+      const raw = typeof stored === 'string' ? stored : asObject(stored).command;
+      const command = typeof raw === 'string' && raw.trim() !== '' ? raw : null;
       return { piece: PIECE, finding: 'environment.start_command', class: 'info', attempt: s.attempt, value: command ? 1 : 0, unit: null, subject: command, evidence: { build_step: s.id, found: command !== null } };
     });

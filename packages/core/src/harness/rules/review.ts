@@ -163,7 +163,12 @@ export const reviewRepeat: Rule = (inputs) => {
         const { repeat, similarity } = isRepeat(e, c);
         if (repeat && (!best || similarity > best.similarity)) best = { comment: e, similarity };
       }
-      if (!best) continue;
+      // pm-8: a blocking comment of round >= 2 that repeats nothing is a TN: it is the denominator B10 needs (a rate of
+      // repeats among the blocking comments of later rounds).
+      if (!best) {
+        out.push({ piece: 'B10', finding: 'review.repeat', class: 'tn', ground_truth: 'G04', value: null, unit: null, subject: c.path || null, attempt: attemptOfReview(inputs, current), evidence: { pr_review: current.id, comment_index: c.index, repeats: null } });
+        continue;
+      }
       out.push({
         piece: 'B10',
         finding: 'review.repeat',

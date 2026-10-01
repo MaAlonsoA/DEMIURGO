@@ -97,28 +97,45 @@ export const filesPrediction: Rule = (inputs) => {
   const candidatePaths = new Set(inputs.codeOpinions.filter((o) => o.attempt === attempt).map((o) => o.path));
   const strong = opinions.filter((o) => o.jev_p !== null && o.jev_p >= STRONG_P).sort(byRank).map((o) => o.path);
   const pOf = new Map(opinions.map((o) => [o.path, o.jev_p]));
-  return scored.flatMap((s): Finding[] => {
-    const row = (path: string, cls: 'tp' | 'fp' | 'fn'): Finding => {
-      const outside = cls === 'fn' && !candidatePaths.has(path);
-      return {
-        piece: 'B07',
-        finding: 'files.prediction_file',
-        class: cls,
-        ground_truth: 'G01',
-        subject: `${s.name}:${path}`,
-        attempt,
-        evidence: { order: s.name, path, set: `p>=${STRONG_P}`, p: pOf.get(path) ?? null, ...(cls === 'fn' ? { outside_candidates: outside } : {}), code_opinions: ids },
-      };
-    };
-    // Per file, for Jev's strong set (p >= 0.5) only: precision and recall of the piece come from these rows.
+  // pm-8 (convención nuestra): two judgments with their own rule, and what the map never offered apart.
+  // - `files.code_to_extend`: the list the builder really saw (the files of the stored `code_to_extend.section` of the
+  //   attempt; else the first 10 of the primary order). Recall only (tp = listed and changed, fn = changed, offered by
+  //   the map but not listed): precision@10 is capped by how many files a task touches (above), so it is not judged.
+  // - `files.strong_set`: per file, Jev's set with p >= 0.5, the one the queue uses for choques (tp, fp, fn).
+  // - `files.map_ceiling` (info): a changed file the map never offered; neither Jev's nor the list's miss.
+  const section = inputs.steps.filter((s) => s.stage === 'builder' && s.attempt === attempt && typeof objectOf(objectOf(s.detail).code_to_extend).section === 'string').at(-1);
+  const seen = section ? [...listedSymbolsOf(objectOf(objectOf(section.detail).code_to_extend).section as string).keys()].map((f) => f.replace(/^\.\//, '')) : null;
+  const primary = scored.find((x) => x.name === 'jev') ?? scored[0]!;
+  const primaryOrder = orders.find((o) => o.name === primary.name)!.order;
+  const list = new Set(seen && seen.length > 0 ? seen : primaryOrder.slice(0, PREDICTED_FILES));
+  const outside = [...actual].filter((f) => !candidatePaths.has(f)).sort();
+  const listRows = (cls: 'tp' | 'fn', files: readonly string[]): Finding[] =>
+    files.map((path) => ({ piece: 'B07', finding: 'files.code_to_extend', class: cls, ground_truth: 'G01', subject: path, attempt, evidence: { path, list_source: seen && seen.length > 0 ? 'builder_section' : `top_${PREDICTED_FILES}:${primary.name}`, listed: list.size, code_opinions: ids } }));
+  const common: Finding[] = [
+    ...listRows('tp', [...actual].filter((f) => list.has(f)).sort()),
+    ...listRows('fn', [...actual].filter((f) => !list.has(f) && candidatePaths.has(f)).sort()),
+    ...outside.map((path): Finding => ({ piece: 'B07', finding: 'files.map_ceiling', class: 'info', ground_truth: 'G01', subject: path, attempt, evidence: { path, outside_candidates: true, code_opinions: ids } })),
+  ];
+  const rows = scored.flatMap((s): Finding[] => {
+    const row = (path: string, cls: 'tp' | 'fp' | 'fn'): Finding => ({
+      piece: 'B07',
+      finding: 'files.strong_set',
+      class: cls,
+      ground_truth: 'G01',
+      subject: `${s.name}:${path}`,
+      attempt,
+      evidence: { order: s.name, path, set: `p>=${STRONG_P}`, p: pOf.get(path) ?? null, code_opinions: ids },
+    });
+    // Per file, for Jev's strong set (p >= 0.5) only: its precision and recall come from these rows. A changed file the
+    // map never offered is `files.map_ceiling`, not a false negative of the set.
     const perFile =
       s.name === 'jev'
-        ? [...strong.filter((f) => actual.has(f)).sort().map((f) => row(f, 'tp')), ...strong.filter((f) => !actual.has(f)).sort().map((f) => row(f, 'fp')), ...[...actual].filter((f) => !strong.includes(f)).sort().map((f) => row(f, 'fn'))]
+        ? [...strong.filter((f) => actual.has(f)).sort().map((f) => row(f, 'tp')), ...strong.filter((f) => !actual.has(f)).sort().map((f) => row(f, 'fp')), ...[...actual].filter((f) => !strong.includes(f) && candidatePaths.has(f)).sort().map((f) => row(f, 'fn'))]
         : [];
     const strongHits = strong.filter((f) => actual.has(f)).length;
     const setMeasures =
       s.name === 'jev'
-        ? { strong_size: strong.length, strong_hits: strongHits, strong_precision: strong.length === 0 ? null : round(strongHits / strong.length), strong_recall: round(strongHits / actual.size), outside_candidates: [...actual].filter((f) => !candidatePaths.has(f)).sort() }
+        ? { strong_size: strong.length, strong_hits: strongHits, strong_precision: strong.length === 0 ? null : round(strongHits / strong.length), strong_recall: round(strongHits / actual.size), outside_candidates: outside }
         : {};
     return [
       {
@@ -138,6 +155,7 @@ export const filesPrediction: Rule = (inputs) => {
       ...perFile,
     ];
   });
+  return [...rows, ...common];
 };
 
 // `files.symbols` (B07, pm-7): the same question one level down. For each file «Code to extend» listed with its symbols and

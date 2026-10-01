@@ -98,8 +98,9 @@ describe('environment.smoke (B25)', () => {
     expect(environmentSmoke(inputs([env(1, 'ok', { skipped: 'no ci' }), step(1, 'environment', 'ok', {})]))).toEqual([]);
   });
   it('environment.start_command is info with the command or zero', () => {
-    const f = environmentStartCommand(inputs([env(1, 'ok', null, { start_command: 'pnpm dev' }), env(2, 'ok', null)]));
-    expect(f.map((x) => [x.class, x.value, x.subject])).toEqual([['info', 1, 'pnpm dev'], ['info', 0, null]]);
+    const f = environmentStartCommand(inputs([env(1, 'ok', null, { start_command: 'pnpm dev' }), env(2, 'ok', null), env(3, 'ok', null, { start_command: { command: 'node e2e/fake-identity-provider.ts' } })]));
+    expect(f.map((x) => [x.value, x.subject])).toEqual([[1, 'pnpm dev'], [0, null], [1, 'node e2e/fake-identity-provider.ts']]); // pm-8: the step stores an object {command}
+    expect(f.every((x) => x.class === 'info')).toBe(true);
   });
 });
 

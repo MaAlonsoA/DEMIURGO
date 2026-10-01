@@ -43,6 +43,31 @@ describe('HarnessHealthView', () => {
     expect(html).toContain('8 min');
   });
 
+  it('shows the applied cohort, rows against builds, the rows left out, the intervals and the pseudoreplication warning', () => {
+    const withEngine: HarnessHealthData = {
+      ...data,
+      engine: { requested: 'current', excluded: 7, labels: { 'claude|claude-sonnet-5-5|2.1': 'claude · claude-sonnet-5-5 · CLI 2.1' } },
+      pieces: [
+        {
+          ...data.pieces[0]!,
+          requests: 3,
+          precision_ci: [0.46, 0.91],
+          dominant_request: { task_code: 'TSK-AAA-001', share: 0.8 },
+          cohort: { applied: 'claude|claude-sonnet-5-5|2.1', all_applied: ['claude|claude-sonnet-5-5|2.1'], excluded: 7, newer_skipped: null },
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(<HarnessHealthView projectId="p1" data={withEngine} />);
+    expect(html).toContain('claude · claude-sonnet-5-5 · CLI 2.1');
+    expect(html).toContain('12 rows / 3 builds');
+    expect(html).toContain('7 rows left out');
+    expect(html).toContain('[46–91%]');
+    expect(html).toContain('data-dominant-request="TSK-AAA-001"');
+    expect(html).toContain('7 rows of other cohorts are left out');
+    const all = renderToStaticMarkup(<HarnessHealthView projectId="p1" data={{ ...withEngine, engine: { ...withEngine.engine!, requested: 'all' } }} />);
+    expect(all).toContain('All engine cohorts are mixed');
+  });
+
   it('shows an empty note when no piece has data', () => {
     expect(renderToStaticMarkup(<HarnessHealthView projectId="p1" data={{ ...data, pieces: [] }} />)).toContain('No build has a post-mortem yet');
   });

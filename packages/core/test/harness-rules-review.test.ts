@@ -118,10 +118,12 @@ describe('review.repeat', () => {
     const f = reviewRepeat(inputs({ steps, reviews: reviews as never }));
     expect(f).toMatchObject([{ class: 'fn', subject: 'src/a.ts', attempt: 2 }]);
   });
-  it('nothing for another path or a different text', () => {
+  it('tn: a blocking comment of a later round that repeats nothing is the denominator of B10 (pm-8)', () => {
     const steps = [step(1, 'review', 'changes_requested', { run_id: 'a' }), step(2, 'review', 'changes_requested', { run_id: 'b' })];
     const reviews = [review('a', 'request_changes', [comment('src/a.ts', 'blocking', 'Missing null check on the user.')]), review('b', 'request_changes', [comment('src/a.ts', 'blocking', 'Rename the exported constant to upper case.'), comment('src/b.ts', 'blocking', 'Missing null check on the user.')])];
-    expect(reviewRepeat(inputs({ steps, reviews: reviews as never }))).toEqual([]);
+    const f = reviewRepeat(inputs({ steps, reviews: reviews as never }));
+    expect(f.filter((x) => x.class === 'fn')).toEqual([]);
+    expect(f.map((x) => [x.class, x.subject, x.piece])).toEqual([['tn', 'src/a.ts', 'B10'], ['tn', 'src/b.ts', 'B10']]);
   });
   it('trigram similarity is 1 for equal text and low for unrelated text', () => {
     expect(trigramSimilarity('Missing null check', 'missing NULL check')).toBe(1);

@@ -39,6 +39,15 @@ describe('regressions (pure)', () => {
     expect(regressionsOf(before, { ...after, rules: { postmortem: 'pm-6', escapes: 'esc-1' } })).toHaveLength(2);
   });
 
+  it('compares a verdict only against one measured on the same engine cohort (pm-8)', () => {
+    const before = snap({ verdicts: { B09: 'helps', B17: 'helps' }, cohorts: { B09: 'claude|m1|2.1', B17: 'codex|g|0.159' } });
+    const after = snap({ verdicts: { B09: 'hurts', B17: 'hurts' }, cohorts: { B09: 'claude|m2|2.2', B17: 'codex|g|0.159' } });
+    expect(regressionsOf(before, after)).toEqual([{ kind: 'verdict_worse', piece: 'B17', before: 'helps', after: 'hurts', threshold: null }]);
+    // A check from before the cohort was stored has none: it is not compared with a known one.
+    expect(regressionsOf(snap({ verdicts: { B09: 'helps' } }), snap({ verdicts: { B09: 'hurts' }, cohorts: { B09: 'claude|m2|2.2' } }))).toEqual([]);
+    expect(regressionsOf(snap({ verdicts: { B05: 'helps' } }), snap({ verdicts: { B05: 'hurts' }, cohorts: { B05: null } }))).toHaveLength(1);
+  });
+
   it('flags a cost per merged task up by more than 25 %, and exactly 25 % does not count', () => {
     const before = snap({ units: { usd_per_merged_task: 1, tokens_per_merged_task: 1000 } });
     expect(regressionsOf(before, snap({ units: { usd_per_merged_task: 1.26, tokens_per_merged_task: 1250 } }))).toEqual([

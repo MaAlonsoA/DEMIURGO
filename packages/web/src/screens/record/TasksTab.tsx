@@ -184,7 +184,7 @@ function ApproveAllTasks({ projectId, drafts }: { projectId: string; drafts: Non
     setDone(0);
     for (let i = 0; i < list.length; i++) {
       try {
-        await command.mutateAsync({ command: 'proposal.accept', entityId: list[i]!.proposal_id, data: {} });
+        await command.mutateAsync({ command: 'proposal.accept', entityId: list[i]!.proposal_id, data: { approve: true } });
       } catch (e) {
         setError(e);
         setRunning(false);

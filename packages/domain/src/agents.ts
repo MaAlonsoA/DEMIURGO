@@ -933,9 +933,9 @@ export const coherenceOutput = z
         z
           .object({
             kind: z
-              .enum(['contradiction', 'duplicate'])
+              .enum(['contradiction', 'duplicate', 'already_designed'])
               .describe(
-                'contradiction: two statements that cannot both be true. duplicate: two records that specify the same behaviour, data, command or screen, so building both would make two versions of it.',
+                'contradiction: two statements that cannot both be true. duplicate: two records that specify the same behaviour, data, command or screen, so building both would make two versions of it. already_designed: a feature of this epic designs a capability that a feature of another epic (or of none) already designed or built, e.g. the same access rule or the same screen.',
               ),
             record: recordCode.describe('The record to change, one of `records`.'),
             quote: text(COHERENCE_QUOTE_MAX).describe("A passage of that record's text, copied verbatim."),

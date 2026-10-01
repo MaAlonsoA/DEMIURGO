@@ -9,10 +9,17 @@ import { registerBuilder } from '../context/build.ts';
 import { ManifestBuilder } from '../context/manifest.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
+import { loadBuiltState } from './built-state.ts';
 
 const BUILDER = 'coherence_review@1';
 /** About 120,000 characters of approved text: a whole epic with its neighbours fits a deep model. */
 const BUDGET = { records: 120_000 };
+/**
+ * Features of other epics (or of none) that did not fit whole enter as a compact entry: goal and owned pieces.
+ * The cap is our convention; the practice is the context map (Evans, Domain-Driven Design, ch. 14), which names
+ * what each context owns so the same capability is not modelled twice.
+ */
+const COMPACT = { records: 40, chars: 500 };
 const FINAL = ['completed', 'failed', 'cancelled', 'interrupted'];
 
 type Current = { recordId: string; versionId: string; code: string; type: string; n: number; title: string; sections: unknown };
@@ -132,7 +139,19 @@ registerBuilder('coherence_review', async ({ trx, projectId, scope, graphVersion
     trx,
     all.map((v) => v.versionId),
   );
-  const texts = new Map(all.map((v) => [v.recordId, recordText(v, criteria.get(v.versionId) ?? [])]));
+  // What each feature already owns (screens and routes of its merged tasks), appended to its text so a finding can quote it.
+  const built = new Map((await loadBuiltState(trx, projectId, null)).features.map((f) => [f.code, f] as const));
+  const ownsLine = (code: string): string => {
+    const b = built.get(code);
+    const parts = [
+      b && b.screens.length > 0 ? `screens ${b.screens.join(', ')}` : '',
+      b && b.routes.length > 0 ? `routes ${b.routes.join(', ')}` : '',
+    ].filter(Boolean);
+    return parts.length > 0 ? `\nOwns (built): ${parts.join('; ')}` : '';
+  };
+  const texts = new Map(
+    all.map((v) => [v.recordId, recordText(v, criteria.get(v.versionId) ?? []) + (v.type === 'fdr' ? ownsLine(v.code) : '')]),
+  );
   // Features and decisions of other epics: the closest in words to one of the epic's features first,
   // then those linked to them (based on counts more than knowledge's related).
   const pool = all.filter((v) => ['fdr', 'adr'].includes(v.type) && !own.has(v.recordId));
@@ -174,6 +193,22 @@ registerBuilder('coherence_review', async ({ trx, projectId, scope, graphVersion
     left -= text.length;
     records.push({ code: v.code, type: v.type, version: v.n, title: v.title, text });
     manifest.entered({ section: 'records', source, text, reason });
+  }
+  // Approved features outside this epic that did not fit whole: code, title, goal and what they own, so the
+  // capability they cover is still visible (the review reads them as context, not as text to change).
+  let compact = 0;
+  for (const v of pool) {
+    if (v.type !== 'fdr' || !omitted.some((o) => o.code === v.code) || compact >= COMPACT.records) continue;
+    const goal = (v.sections as { title: string; content: string }[]).find((x) => /^(goal|summary)$/i.test(x.title))?.content ?? '';
+    const text = `Goal: ${goal.trim().slice(0, COMPACT.chars)}${ownsLine(v.code)}`;
+    records.push({ code: v.code, type: v.type, version: v.n, title: v.title, text });
+    manifest.entered({
+      section: 'records',
+      source: { type: 'record' as const, id: v.recordId, version: v.n, eventSeq: null },
+      text,
+      reason: 'another epic or no epic, compact',
+    });
+    compact++;
   }
   const content: CoherencePack = { epic: { code: epic.code, title: epic.title }, records, omitted };
   return {
@@ -230,7 +265,7 @@ async function pendingFindings(trx: Tx, projectId: string): Promise<Set<string>>
     .where('project_id', '=', projectId)
     .where('type', '=', 'review')
     .where('state', '=', 'pending')
-    .where(sql<boolean>`payload->>'verdict' in ('contradiction', 'duplicate')`)
+    .where(sql<boolean>`payload->>'verdict' in ('contradiction', 'duplicate', 'already_designed')`)
     .execute();
   return new Set(
     rows.flatMap((r) => {

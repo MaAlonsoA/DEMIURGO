@@ -36,6 +36,7 @@ export const TITLES = messages(
         other: 'may be affected',
         contradiction: 'contradicts another record',
         duplicate: 'may duplicate another record',
+        already_designed: 'may redo a capability another record already designs',
       })[verdict] ?? 'may be affected',
     conflictRow: (change: string, record: string, topic: string) => `${change} vs ${record}: ${topic}`,
     packageImported: 'Imported from design/',
@@ -138,6 +139,7 @@ export const TITLES = messages(
           other: 'puede verse afectado',
           contradiction: 'contradice otro registro',
           duplicate: 'puede duplicar otro registro',
+          already_designed: 'puede rehacer una capacidad que otro registro ya diseña',
         }) as Record<string, string>
       )[verdict] ?? 'puede verse afectado',
     conflictRow: (change: string, record: string, topic: string) => `${change} vs ${record}: ${topic}`,

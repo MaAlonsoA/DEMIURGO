@@ -629,6 +629,8 @@ export type RecordVersion = {
   /** Real practices the version rests on (free-form objects). */
   practice_sources?: unknown[];
   links: Link[];
+  /** Feature only: Jev's testability warnings on its automatic criteria, judged while it was drafted (information). */
+  testability?: TestabilityFlag[];
   readiness: Readiness | null;
 };
 

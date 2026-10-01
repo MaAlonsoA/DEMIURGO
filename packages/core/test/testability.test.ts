@@ -11,6 +11,7 @@ import {
   type TestabilityJudgment,
   UNTESTABLE_OUTSIDE_MIN,
   WAITS_FOR_FEATURE_MIN,
+  classifyFeatureTestability,
   classifyTaskTestability,
   buildTestabilityRequest,
   judgeTestability,
@@ -196,6 +197,47 @@ describe('classifyTaskTestability', () => {
         throw new Error('nothing to store');
       },
     });
+    expect(requests).toHaveLength(0);
+  });
+});
+
+describe('classifyFeatureTestability', () => {
+  const saved = process.env.TYPESAFE_API_KEY;
+  beforeEach(() => {
+    process.env.TYPESAFE_API_KEY = 'test-key';
+  });
+  afterEach(() => {
+    if (saved === undefined) delete process.env.TYPESAFE_API_KEY;
+    else process.env.TYPESAFE_API_KEY = saved;
+  });
+
+  it('judges each automatic criterion of a drafted feature and stores the judgments with its version', async () => {
+    const { client, requests } = fakeClient((key) => (key === 'needs_kind' ? 'ci_automated' : 0.3));
+    const stored: { versionId: string; codes: string[] }[] = [];
+    await classifyFeatureTestability(services(), 'p', 'r', 'v', {
+      client,
+      load: async () => INPUT,
+      store: async (_s, ids, _id, judgments) => void stored.push({ versionId: ids.versionId, codes: judgments.map((j) => j.code) }),
+    });
+    expect(requests).toHaveLength(1);
+    expect(stored).toEqual([{ versionId: 'v', codes: ['AC-1', 'AC-2'] }]);
+  });
+
+  it('a Jev failure leaves no data and does not throw', async () => {
+    const failing = {
+      systemOne: async () => {
+        throw new Error('boom');
+      },
+    } as unknown as Pick<TypeSafeClient, 'systemOne'>;
+    let stored = 0;
+    await classifyFeatureTestability(services(), 'p', 'r', 'v', { client: failing, load: async () => INPUT, store: async () => void stored++ });
+    expect(stored).toBe(0);
+  });
+
+  it('does nothing without the key', async () => {
+    delete process.env.TYPESAFE_API_KEY;
+    const { client, requests } = fakeClient(() => 0.5);
+    await classifyFeatureTestability(services(), 'p', 'r', 'v', { client, load: async () => INPUT, store: async () => {} });
     expect(requests).toHaveLength(0);
   });
 });

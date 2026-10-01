@@ -68,3 +68,38 @@ export async function testabilityFlagsOf(db: Db, recordIds: readonly string[]): 
   for (const list of out.values()) list.sort((a, b) => a.code.localeCompare(b.code));
   return out;
 }
+
+/**
+ * Jev's warnings on the automatic criteria of a feature version, judged while it was drafted. Same policy and
+ * thresholds as for tasks (including «unbuilt feature» needing the Choice to agree); there is no declared-dependency
+ * filter because a feature's needs are not a plan yet. Information for the person approving; nothing is blocked.
+ */
+export async function featureVersionFlags(db: Db, versionId: string): Promise<TestabilityFlag[]> {
+  if (!jevAllowed()) return [];
+  const rows = await db
+    .selectFrom('task_testability_opinions')
+    .select(['criterion_code', 'needs_outside_ci', 'needs_unbuilt_feature', 'needs_kind'])
+    .where('record_version_id', '=', versionId)
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .execute();
+  if (rows.length === 0) return [];
+  // Only criteria that are still automatic in this version are in CI's scope.
+  const automatic = new Set(
+    (await db.selectFrom('criteria').select(['code', 'verification']).where('record_version_id', '=', versionId).execute())
+      .filter((c) => c.verification === 'automatic')
+      .map((c) => c.code),
+  );
+  const out: TestabilityFlag[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    if (seen.has(r.criterion_code)) continue;
+    seen.add(r.criterion_code);
+    if (!automatic.has(r.criterion_code)) continue;
+    const p = { needs_outside_ci: r.needs_outside_ci, needs_unbuilt_feature: r.needs_unbuilt_feature };
+    const kind = testabilityVerdict(p);
+    if (kind === 'ok' || (kind === 'waits_for_feature' && r.needs_kind !== 'needs_unbuilt_part')) continue;
+    out.push({ code: r.criterion_code, kind, probability: Math.round(testabilityStrength(p, kind) * 100) / 100, needs: isNeedsKind(r.needs_kind) ? r.needs_kind : null });
+  }
+  return out.sort((a, b) => a.code.localeCompare(b.code));
+}

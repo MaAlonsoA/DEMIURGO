@@ -38,7 +38,7 @@ import { appendSize } from './sizes.ts';
 import { jevAllowed } from '../classifier/aspect.ts';
 import { classifyTaskLayers } from '../classifier/layers.ts';
 import { classifyTaskSize } from '../classifier/size.ts';
-import { classifyTaskTestability } from '../classifier/testability.ts';
+import { classifyFeatureTestability, classifyTaskTestability } from '../classifier/testability.ts';
 import { DISCARD_TRIGGER, onAuthorityEvent } from './reactions.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -656,6 +656,13 @@ registerHandlers({
         ctx.afterCommit(() => void classifyTaskTestability(services, projectId, data.record_id, v.id));
         // And the layers it will change, so «Build the queue» never runs two schema changes at once (H101).
         ctx.afterCommit(() => void classifyTaskLayers(services, projectId, data.record_id, v.id));
+      }
+      // A feature's new content, as soon as the designer's proposal becomes a version: Jev's testability opinion per
+      // automatic criterion, shown where the person approves (information, never a block).
+      if (rec?.type === 'fdr' && jevAllowed()) {
+        const services = ctx.services;
+        const projectId = ctx.projectId;
+        ctx.afterCommit(() => void classifyFeatureTestability(services, projectId, data.record_id, v.id));
       }
       return {
         entityId: v.id,

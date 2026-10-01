@@ -68,7 +68,7 @@ export function buildFact(
 
 /** "contradiction" (the default) or "duplicate": what the finding says about the two records. */
 export function conflictNature(review: ConflictReview): 'different' | 'same' {
-  return review.verdict === 'duplicate' ? 'same' : 'different';
+  return review.verdict === 'duplicate' || review.verdict === 'already_designed' ? 'same' : 'different';
 }
 
 /** Code of the approved change (B) that triggered the finding, if the product still has it. */

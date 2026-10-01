@@ -40,6 +40,7 @@ import { threadDraft } from './draft.ts';
 import { githubConfig } from '../github/client.ts';
 import { taskViewOfRecord } from './task-view.ts';
 import { loadTaskDependencies, taskWaitsFrom } from './task-deps.ts';
+import { featureVersionFlags } from './testability.ts';
 import { currentVersions, suspectRecords } from './impact.ts';
 import { inceptionOf } from './inception.ts';
 
@@ -824,6 +825,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
         }),
       ),
       links,
+      testability: r.type === 'fdr' ? await featureVersionFlags(db, v.id) : [],
       readiness: WITHOUT_READINESS.has(r.type) ? null : await versionReadiness(db, projectId, v.id),
     });
   }

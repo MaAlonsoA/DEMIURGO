@@ -8,6 +8,7 @@ import type { RecordDetail, RecordVersion } from '../../api/types.ts';
 import { Notice } from '../../components/Notice.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
+import { TestabilityLines } from './Testability.tsx';
 import { CRITERION_LINT } from './words.i18n.ts';
 
 export function useCriterionLint(record: RecordDetail, version: RecordVersion) {
@@ -29,6 +30,8 @@ export function useCriterionLint(record: RecordDetail, version: RecordVersion) {
   const blocking = blockingCriterionFindings(findings).length > 0;
   return {
     findings,
+    /** Jev's per-criterion testability opinions, judged while the feature was drafted: information, never blocking. */
+    jev: record.type === 'fdr' ? (version.testability ?? []) : [],
     blocking,
     reason,
     setReason,
@@ -41,11 +44,12 @@ export function useCriterionLint(record: RecordDetail, version: RecordVersion) {
 
 export function CriterionLintNotice({ lint }: { lint: ReturnType<typeof useCriterionLint> }) {
   const t = useMessages(CRITERION_LINT);
-  if (lint.findings.length === 0) return null;
+  if (lint.findings.length === 0 && lint.jev.length === 0) return null;
   const deployed = lint.findings.filter((f) => f.kind === 'needs_deployed_candidate');
   const cited = lint.findings.filter((f) => f.kind === 'depends_on_unbuilt_feature');
   return (
     <div className="flex flex-col gap-3">
+      {lint.findings.length > 0 ? (
       <Notice tone="warning" title={t.title} role="status">
         {deployed.length > 0 ? (
           <>
@@ -65,6 +69,12 @@ export function CriterionLintNotice({ lint }: { lint: ReturnType<typeof useCrite
           </ul>
         ) : null}
       </Notice>
+      ) : null}
+      {lint.jev.length > 0 ? (
+        <Notice tone="info" title={t.jevTitle} role="status">
+          <TestabilityLines flags={lint.jev} />
+        </Notice>
+      ) : null}
       {lint.blocking ? (
         <label className="flex flex-col gap-1.5 text-sm font-medium text-fg">
           {t.reasonLabel}

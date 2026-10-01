@@ -1239,6 +1239,7 @@ export const CRITERION_LINT = messages(
     cites: (code: string, cited: string) => `${code} cites ${cited}: check that feature is built before this criterion is checked.`,
     reasonLabel: 'Why it stands as automatic',
     reasonHint: 'Kept with the approval. Required to approve with these warnings.',
+    jevTitle: 'Jev checked how each automatic criterion can be tested (information, it does not block the approval)',
   },
   {
     title: 'Algunos criterios pueden tener el nivel de verificación equivocado',
@@ -1248,5 +1249,6 @@ export const CRITERION_LINT = messages(
     cites: (code: string, cited: string) => `${code} cita ${cited}: comprueba que esa funcionalidad esté construida antes de verificar este criterio.`,
     reasonLabel: 'Por qué se queda como automático',
     reasonHint: 'Se guarda con la aprobación. Obligatorio para aprobar con estos avisos.',
+    jevTitle: 'Jev ha revisado cómo se puede probar cada criterio automático (información, no bloquea la aprobación)',
   },
 );

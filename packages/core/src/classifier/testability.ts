@@ -200,6 +200,51 @@ export async function judgeTestability(
 const SECTIONS = (sections: { title: string; content: string }[], name: string): string =>
   sections.find((s) => s.title.trim().toLowerCase() === name)?.content ?? '';
 
+/** Titles of the project's approved decisions (stack and hosting hints), latest version of each. */
+async function approvedDecisions(db: Db, projectId: string): Promise<string[]> {
+  const adrs = await db
+    .selectFrom('records')
+    .innerJoin('record_versions', 'record_versions.record_id', 'records.id')
+    .select(['records.code', 'record_versions.title', 'record_versions.n'])
+    .where('records.project_id', '=', projectId)
+    .where('records.type', '=', 'adr')
+    .where('record_versions.state', '=', 'approved')
+    .orderBy('records.code')
+    .orderBy('record_versions.n', 'desc')
+    .execute();
+  const seen = new Set<string>();
+  const decisions: string[] = [];
+  for (const a of adrs) {
+    if (seen.has(a.code)) continue;
+    seen.add(a.code);
+    decisions.push(`${a.code}: ${a.title}`);
+  }
+  return decisions;
+}
+
+/** The project's features other than `exceptRecordId`, each with whether it is built. */
+async function otherFeatures(db: Db, projectId: string, exceptRecordId: string): Promise<TestabilityInput['features']> {
+  const fdrs = await db
+    .selectFrom('records')
+    .innerJoin('record_versions', 'record_versions.record_id', 'records.id')
+    .select(['records.id', 'records.code', 'record_versions.title', 'record_versions.n'])
+    .where('records.project_id', '=', projectId)
+    .where('records.type', '=', 'fdr')
+    .where('records.id', '<>', exceptRecordId)
+    .orderBy('records.code')
+    .orderBy('record_versions.n', 'desc')
+    .execute();
+  const mergedFeatures = await featuresWithMergedTask(db, projectId);
+  const features: TestabilityInput['features'] = [];
+  const done = new Set<string>();
+  for (const f of fdrs) {
+    if (done.has(f.id) || features.length >= MAX_FEATURES) continue;
+    done.add(f.id);
+    features.push({ code: f.code, title: f.title, built: mergedFeatures.has(f.code) || (await implementationOf(db, f.id)) === 'implemented' });
+  }
+  return features;
+}
+
 /**
  * Loads what Jev judges for a task version: its text, the criteria of its feature that it covers, the
  * feature itself (Goal and Scope), the dependencies its plan declares, the approved decisions, the other
@@ -231,42 +276,8 @@ export async function loadTestabilityInput(db: Db, projectId: string, recordId: 
   const sections = v.sections as { title: string; content: string }[];
   const featureSections = basis.sections as { title: string; content: string }[];
 
-  const adrs = await db
-    .selectFrom('records')
-    .innerJoin('record_versions', 'record_versions.record_id', 'records.id')
-    .select(['records.code', 'record_versions.title', 'record_versions.n'])
-    .where('records.project_id', '=', projectId)
-    .where('records.type', '=', 'adr')
-    .where('record_versions.state', '=', 'approved')
-    .orderBy('records.code')
-    .orderBy('record_versions.n', 'desc')
-    .execute();
-  const seen = new Set<string>();
-  const decisions: string[] = [];
-  for (const a of adrs) {
-    if (seen.has(a.code)) continue;
-    seen.add(a.code);
-    decisions.push(`${a.code}: ${a.title}`);
-  }
-
-  const fdrs = await db
-    .selectFrom('records')
-    .innerJoin('record_versions', 'record_versions.record_id', 'records.id')
-    .select(['records.id', 'records.code', 'record_versions.title', 'record_versions.n'])
-    .where('records.project_id', '=', projectId)
-    .where('records.type', '=', 'fdr')
-    .where('records.id', '<>', basis.record_id)
-    .orderBy('records.code')
-    .orderBy('record_versions.n', 'desc')
-    .execute();
-  const mergedFeatures = await featuresWithMergedTask(db, projectId);
-  const features: TestabilityInput['features'] = [];
-  const done = new Set<string>();
-  for (const f of fdrs) {
-    if (done.has(f.id) || features.length >= MAX_FEATURES) continue;
-    done.add(f.id);
-    features.push({ code: f.code, title: f.title, built: mergedFeatures.has(f.code) || (await implementationOf(db, f.id)) === 'implemented' });
-  }
+  const decisions = await approvedDecisions(db, projectId);
+  const features = await otherFeatures(db, projectId, basis.record_id);
 
   const own = await db.selectFrom('records').select('code').where('id', '=', recordId).executeTakeFirst();
   let declaredDependencies: string[] | undefined;
@@ -285,6 +296,42 @@ export async function loadTestabilityInput(db: Db, projectId: string, recordId: 
     featureBeingBuilt: { code: basis.code, title: basis.title, goal: SECTIONS(featureSections, 'goal'), scope: SECTIONS(featureSections, 'scope') },
     decisions: decisions.slice(0, MAX_DECISIONS),
     features,
+    projectStack: repo?.project_stack ?? null,
+  };
+}
+
+/**
+ * What Jev judges for a feature version while it is drafted (phase P5 of the design): the feature is the unit
+ * of work, its automatic criteria are the ones asked about, and the project's other features say what is built.
+ * Null when the version has no automatic criterion. The same questions as for a task: only the moment changes
+ * (shift left: Larry Smith, Dr. Dobb's, 2001; the judgment happens before the tasks exist).
+ */
+export async function loadFeatureTestabilityInput(db: Db, projectId: string, recordId: string, versionId: string): Promise<TestabilityInput | null> {
+  const v = await db
+    .selectFrom('record_versions')
+    .innerJoin('records', 'records.id', 'record_versions.record_id')
+    .select(['records.code', 'records.type', 'record_versions.title', 'record_versions.sections'])
+    .where('record_versions.id', '=', versionId)
+    .executeTakeFirst();
+  if (!v || v.type !== 'fdr') return null;
+  const rows = await db
+    .selectFrom('criteria')
+    .select(['code', 'statement', 'verification'])
+    .where('record_version_id', '=', versionId)
+    .orderBy('position')
+    .execute();
+  if (!rows.some((c) => c.verification === 'automatic')) return null;
+  const sections = v.sections as { title: string; content: string }[];
+  const repo = await loadRepoContext(db, projectId).catch(() => null);
+  return {
+    taskCode: v.code,
+    title: v.title,
+    goal: SECTIONS(sections, 'goal'),
+    scope: SECTIONS(sections, 'scope'),
+    criteria: rows,
+    featureBeingBuilt: { code: v.code, title: v.title, goal: SECTIONS(sections, 'goal'), scope: SECTIONS(sections, 'scope') },
+    decisions: (await approvedDecisions(db, projectId)).slice(0, MAX_DECISIONS),
+    features: await otherFeatures(db, projectId, recordId),
     projectStack: repo?.project_stack ?? null,
   };
 }
@@ -380,5 +427,37 @@ export async function classifyTaskTestability(
     });
   } catch (err) {
     services.logger.error('Jev could not check the testability of a task', { recordId, versionId, error: String(err) });
+  }
+}
+
+/**
+ * Checks a feature version's automatic criteria with Jev while it is drafted and stores the probabilities with the
+ * version (same store and thresholds as the task check). Asynchronous after the commit: a failure leaves no data
+ * and never blocks the proposal or the approval.
+ */
+export async function classifyFeatureTestability(
+  services: Services,
+  projectId: string,
+  recordId: string,
+  versionId: string,
+  deps: TestabilityDeps = {},
+): Promise<void> {
+  if (!jevAllowed()) return;
+  try {
+    const input = await (deps.load ?? loadFeatureTestabilityInput)(services.db, projectId, recordId, versionId);
+    if (!input) return;
+    let tokens = 0;
+    const model = JEV_DEFAULT_MODEL;
+    const client = deps.client ?? new TypeSafeClient({ apiKey: process.env.TYPESAFE_API_KEY, defaultModel: model, timeout: 30_000 });
+    const judgments = await recordedCall(services.db, { projectId, question: 'testability', judgmentTable: 'task_testability_opinions', model }, (note) =>
+      judgeTestability(client, input, model, (n) => {
+        tokens += n;
+        note(n);
+      }),
+    );
+    await (deps.store ?? storeJudgments)(services, { projectId, recordId, versionId }, `jev@${model}`, judgments);
+    services.logger.info('Jev checked the testability of a feature version', { projectId, recordId, criteria: judgments.length, input_tokens: tokens, usd: jevCostUsd(tokens) });
+  } catch (err) {
+    services.logger.error('Jev could not check the testability of a feature version', { recordId, versionId, error: String(err) });
   }
 }

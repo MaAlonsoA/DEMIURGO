@@ -595,6 +595,7 @@ function promptParts(
       lines.push(
         `The branch conflicts with main: the merge of origin/main into this branch is in progress and these files have conflict markers: ${f.conflicts.join(', ')}.`,
         'Resolve every conflict (keep what both sides intend), remove all markers, and do not abort or redo the merge. Your changes then conclude it.',
+        'Dependencies, browsers and migrations were not prepared because the conflicted tree cannot be installed: after resolving, run the install and migrate commands of the CI yourself before running tests.',
       );
     }
     if (f.blocking.length > 0) lines.push('The reviewer asked for these changes:', ...f.blocking.map((b) => `- ${b}`));
@@ -889,10 +890,13 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
           .where('project_id', '=', projectId)
           .where('state', 'in', ['requested', 'in_review'])
           .execute();
+        // A tree with merge conflict markers cannot be installed (an unresolved package.json is invalid JSON): the services
+        // and the database are prepared, and install, browsers and migrate are left to the builder once it has resolved them.
+        const conflicted = (worktree.conflicts ?? []).length > 0;
         const result = await d.prepareEnvironment({
           slug,
           id: requestId,
-          ci,
+          ci: conflicted ? { ...ci, install: undefined, browsers: undefined, migrate: undefined } : ci,
           worktreeHostPath: hostPathOf(worktree.path),
           keepDatabases: open.map((x) => databaseName(x.id)),
           signal: control.signal,
@@ -922,6 +926,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
             databases: result.databases,
             variables: Object.keys(result.env).sort(),
             steps: result.steps,
+            ...(conflicted ? { setup_left_to_builder: worktree.conflicts } : {}),
           },
         };
       } finally {

@@ -58,7 +58,7 @@ function describe(n: NeedItem, state: ProductState | undefined): NeedsItem {
       return {
         ...base,
         label: 'Next step',
-        title: TITLES.en.nextStepTitle(n.step.action, n.step.title),
+        title: TITLES.en.nextStepTitle(n.step.action, n.step.title, n.step.key),
         from: TITLES.en.nextStepReason(n.step.title),
         mark: 'proposed',
         target: { to: '/p/$projectId/needs-you', params: {} },

@@ -56,7 +56,7 @@ export function updateTitle(
 export function needTitle(item: NeedItem, rows: readonly ProductRow[], words: Words = TITLES.en): string {
   switch (item.kind) {
     case 'next_step':
-      return words.nextStepTitle(item.step.action, item.step.title);
+      return words.nextStepTitle(item.step.action, item.step.title, item.step.key);
     case 'conflict':
       return conflictTitle(item, rows, words);
     case 'question':

@@ -424,7 +424,7 @@ export type InboxLink = {
 export type NextStepNeed = {
   key: string;
   title: string;
-  action: 'pass_stage' | 'open_stage' | 'design_system' | 'epics' | 'feature' | 'repository' | 'build' | 'plan_backlog' | 'answer_stage';
+  action: 'pass_stage' | 'open_stage' | 'design_system' | 'epics' | 'feature' | 'repository' | 'build' | 'plan_backlog' | 'answer_stage' | 'thread';
   code: string | null;
 };
 

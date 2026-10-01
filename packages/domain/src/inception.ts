@@ -366,6 +366,7 @@ const PERSON_ACTIONS = [
   "build",
   "plan_backlog",
   "answer_stage",
+  "thread",
 ] as const;
 
 export type NextStepNeed = {
@@ -380,14 +381,22 @@ export type NextStepNeed = {
  * The current step as one thing for Needs you, when its action is the person's to take and is not
  * already listed there: the proposals, the drafts to approve and the open questions are their own
  * items (a step «waiting on DEMIURGO» is a thread to continue, not a thing for the person).
- * `visibleQuestions` is how many questions Needs you already lists.
+ * `visibleQuestions` is how many questions Needs you already lists; `busyThreads` are the threads
+ * with a run queued or running.
  */
-export function nextStepNeed(path: InceptionPath, visibleQuestions: number): NextStepNeed | null {
+export function nextStepNeed(
+  path: InceptionPath,
+  visibleQuestions: number,
+  busyThreads: readonly string[] = [],
+): NextStepNeed | null {
   const step = path.steps.find((s) => s.key === path.current && s.state === "current");
   const action = step?.action;
   if (!step || !action) return null;
   if (!(PERSON_ACTIONS as readonly string[]).includes(action.kind)) return null;
   if (action.kind === "answer_stage" && visibleQuestions > 0) return null;
+  // «Continue in its thread» is the person's turn unless DEMIURGO is actually working (a run
+  // queued or running) in that thread: after a rejection nothing is, and the person must steer.
+  if (action.kind === "thread" && busyThreads.includes(action.thread)) return null;
   return {
     key: step.key,
     title: step.title,

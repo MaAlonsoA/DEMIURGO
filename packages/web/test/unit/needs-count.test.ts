@@ -133,9 +133,47 @@ describe('The onboarding step as a thing for the person', () => {
         designSystemThread: 't-ds',
       }),
     );
-    expect(nextStepNeed(working, 0)).toBeNull();
+    expect(nextStepNeed(working, 0, ['t-ds'])).toBeNull();
     const proposed = inceptionPath(input({ definitionProposal: true, definition: { code: 'DEF-1', approved: false } }));
     expect(nextStepNeed(proposed, 0)).toBeNull();
+  });
+
+  it('after a rejection the thread is the person\'s turn unless DEMIURGO is working in it', () => {
+    const passed = [stage('requirements', 'passed'), stage('quality', 'passed'), stage('principles', 'passed')];
+    const def = { code: 'DEF-1', approved: true };
+    // Design system proposal rejected: no draft, no pending, its thread is still active.
+    const rejected = inceptionPath(input({ definition: def, stages: passed, designSystemThread: 't-ds' }));
+    expect(nextStepNeed(rejected, 0)).toMatchObject({ key: 'design_system', action: 'thread' });
+    expect(nextStepNeed(rejected, 0, ['t-other'])).toMatchObject({ action: 'thread' });
+    expect(nextStepNeed(rejected, 0, ['t-ds'])).toBeNull();
+    // Epics map rejected: the capability thread is open again.
+    const ds = { code: 'DS-1', approved: true };
+    const epics = inceptionPath(input({ definition: def, stages: passed, designSystem: ds, capabilityThreads: ['t-cap'] }));
+    expect(nextStepNeed(epics, 0)).toMatchObject({ key: 'backlog', action: 'thread' });
+    expect(nextStepNeed(epics, 0, ['t-cap'])).toBeNull();
+    // Nothing in a thread: map the first version.
+    const none = inceptionPath(input({ definition: def, stages: passed, designSystem: ds }));
+    expect(nextStepNeed(none, 0)).toMatchObject({ key: 'backlog', action: 'plan_backlog' });
+    // Feature draft rejected: the approved epic has no feature left to approve.
+    const feature = inceptionPath(
+      input({ definition: def, stages: passed, designSystem: ds, epics: [{ code: 'EPC-1', approved: true }] }),
+    );
+    expect(nextStepNeed(feature, 0)).toMatchObject({ key: 'first_feature', action: 'epics' });
+    // Screens rejected / task plan rejected: back to the feature to ask again.
+    const base = {
+      definition: def,
+      stages: [...passed, stage('architecture', 'passed'), stage('security', 'passed')],
+      designSystem: ds,
+      epics: [{ code: 'EPC-1', approved: true }],
+      features: [{ code: 'FDR-1', approved: true }],
+      approvedDecisions: 1,
+    };
+    const screens = inceptionPath(input({ ...base, firstFeature: { code: 'FDR-1', screens: null, tasks: [] } }));
+    expect(nextStepNeed(screens, 0)).toMatchObject({ key: 'screens', action: 'feature', code: 'FDR-1' });
+    const tasks = inceptionPath(
+      input({ ...base, firstFeature: { code: 'FDR-1', screens: { code: 'SCR-1', approved: true }, tasks: [] } }),
+    );
+    expect(nextStepNeed(tasks, 0)).toMatchObject({ key: 'tasks', action: 'feature', code: 'FDR-1' });
   });
 
   it('questions already listed in Needs you are not repeated as a next step', () => {

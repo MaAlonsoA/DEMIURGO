@@ -47,7 +47,7 @@ export const TITLES = messages(
     updateChange: "Knowledge couldn't take in a change",
     proposalFallback: 'A proposal',
     linkTitle: (from: string, to: string) => `${from} is based on ${to}`,
-    nextStepTitle: (action: string, title: string): string =>
+    nextStepTitle: (action: string, title: string, key?: string): string =>
       `Next step: ${
         (
           {
@@ -60,6 +60,7 @@ export const TITLES = messages(
             build: 'go to Build',
             plan_backlog: 'map the first version',
             answer_stage: `answer the questions of “${title}”`,
+            thread: key === 'design_system' ? 'ask DEMIURGO for new design system directions' : `continue “${title}” in its thread`,
           } as Record<string, string>
         )[action] ?? title
       }`,
@@ -145,7 +146,7 @@ export const TITLES = messages(
     updateChange: 'El conocimiento no pudo incorporar un cambio',
     proposalFallback: 'Una propuesta',
     linkTitle: (from: string, to: string) => `${from} se basa en ${to}`,
-    nextStepTitle: (action: string, title: string): string =>
+    nextStepTitle: (action: string, title: string, key?: string): string =>
       `Siguiente paso: ${
         (
           {
@@ -158,6 +159,7 @@ export const TITLES = messages(
             build: 'ir a Construir',
             plan_backlog: 'mapear la primera versión',
             answer_stage: `responder a las preguntas de «${title}»`,
+            thread: key === 'design_system' ? 'pedir a DEMIURGO nuevas direcciones del sistema de diseño' : `seguir «${title}» en su hilo`,
           } as Record<string, string>
         )[action] ?? title
       }`,

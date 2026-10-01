@@ -642,7 +642,18 @@ export async function inbox(db: Db, projectId: string) {
   const extra = await pendingKnowledge(db, projectId);
   const suspects = await suspectRecords(db, projectId);
   // The onboarding step that waits on the person, as one more thing of Needs you (when it is theirs to take).
-  const nextStep = nextStepNeed(await inceptionOf(db, projectId), questions.length + open.length);
+  const busy = await db
+    .selectFrom('ai_runs')
+    .select(sql<string | null>`scope->>'id'`.as('thread'))
+    .where('project_id', '=', projectId)
+    .where('state', 'in', ['queued', 'running'])
+    .where(sql<string>`scope->>'type'`, '=', 'exploration')
+    .execute();
+  const nextStep = nextStepNeed(
+    await inceptionOf(db, projectId),
+    questions.length + open.length,
+    busy.flatMap((r) => (r.thread ? [r.thread] : [])),
+  );
   const total =
     batchItems.reduce((n, l) => n + l.proposals.length, 0) +
     questions.length +

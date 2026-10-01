@@ -218,7 +218,7 @@ export async function ensureTaskNeeds(services: Services, projectId: string, cod
               const { state, questions } = buildNeedsRequest(a, s.featureTitle, chunk.map((m) => ({ object: m.object, feature: m.pair.candidate.featureTitle })));
               const r = await client.systemOne({ state, questions, model });
               tokens += r.usage.input_tokens;
-              note(r.usage.input_tokens);
+              note(r.usage.input_tokens, 0, r.model || undefined);
               return r.answers as Record<string, { noul?: number } | undefined>;
             },
           );

@@ -167,7 +167,7 @@ export async function judgeTestability(
   client: Client,
   input: TestabilityInput,
   model: string = JEV_DEFAULT_MODEL,
-  onUsage?: (inputTokens: number) => void,
+  onUsage?: (inputTokens: number, outputTokens?: number, modelReported?: string) => void,
 ): Promise<TestabilityJudgment[]> {
   const automatic = input.criteria.filter((c) => c.verification === 'automatic');
   const out: TestabilityJudgment[] = [];
@@ -175,7 +175,7 @@ export async function judgeTestability(
     const chunk = automatic.slice(at, at + MAX_CRITERIA_PER_REQUEST);
     const { state, questions } = buildTestabilityRequest(input, chunk);
     const r = await client.systemOne({ state, questions, model });
-    onUsage?.(r.usage.input_tokens);
+    onUsage?.(r.usage.input_tokens, 0, r.model || undefined);
     const answers = r.answers as Record<string, { noul?: number; choice?: string } | undefined>;
     chunk.forEach((c, i) => {
       const probability = (k: 'needs_outside_ci' | 'needs_unbuilt_feature'): number => {

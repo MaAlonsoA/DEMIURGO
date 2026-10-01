@@ -85,11 +85,11 @@ export async function judgeLayers(
   client: Client,
   input: LayersInput,
   model: string = JEV_DEFAULT_MODEL,
-  onUsage?: (inputTokens: number) => void,
+  onUsage?: (inputTokens: number, outputTokens?: number, modelReported?: string) => void,
 ): Promise<LayersJudgment> {
   const { state, questions } = buildLayersRequest(input);
   const r = await client.systemOne({ state, questions, model });
-  onUsage?.(r.usage.input_tokens);
+  onUsage?.(r.usage.input_tokens, 0, r.model || undefined);
   const answers = r.answers as Record<string, { score?: number } | undefined>;
   const v = answers.schema_score?.score;
   if (typeof v !== 'number' || Number.isNaN(v)) throw new Error('Jev: the task came back without an answer to the schema score.');

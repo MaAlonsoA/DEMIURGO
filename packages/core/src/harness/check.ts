@@ -224,7 +224,7 @@ export async function runCheck(services: Services, projectId: string, trigger: C
     const previous = await latestCheck(db, projectId);
     await detectEscapes(db, projectId);
 
-    const health = await harnessScorecards(db, projectId, { from: windowFrom, to: now });
+    const health = await harnessScorecards(db, projectId, { from: windowFrom, to: now, engine_cohort: 'current' });
     const prevSnapshot = previous ? snapshotOf(previous) : null;
     const scorecards: CheckScorecard[] = health.pieces.map((p) => ({
       piece: p.piece,

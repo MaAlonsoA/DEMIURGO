@@ -102,12 +102,12 @@ export async function judgeReviewFindings(
   comments: readonly ReviewComment[],
   criteria: readonly ReviewCriterion[] = [],
   model: string = JEV_DEFAULT_MODEL,
-  onUsage?: (inputTokens: number) => void,
+  onUsage?: (inputTokens: number, outputTokens?: number, modelReported?: string) => void,
 ): Promise<(ReviewFinding & { index: number })[]> {
   if (comments.length === 0) return [];
   const { state, questions, comments: list } = buildFindingsRequest(comments, criteria);
   const r = await client.systemOne({ state: state as never, questions, model });
-  onUsage?.(r.usage.input_tokens);
+  onUsage?.(r.usage.input_tokens, 0, r.model || undefined);
   return parseFindings(r.answers as Record<string, unknown>, state, list.length, r.model || model);
 }
 

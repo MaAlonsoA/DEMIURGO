@@ -9,6 +9,7 @@
 import { sql } from 'kysely';
 import { queueDecisionRows as storedQueueDecisionRows, type QueueDecisionRow } from '../build/queue-decisions.ts';
 import type { Db } from '../db/connection.ts';
+import { type CohortSelection, UNKNOWN_COHORT, engineCohortKey, engineMarkOf, selectEngineCohort } from '../harness/engine.ts';
 import { PIECE_NAMES } from '../harness/pieces.ts';
 import { PENDING_ESCAPE_RULES } from '../harness/rules/escapes/index.ts';
 
@@ -86,6 +87,7 @@ export type HarnessCase = {
   task_code: string;
   pr_url: string | null;
   postmortem_id: string;
+  engine_cohort: string;
   computed_at: string;
 };
 
@@ -112,6 +114,8 @@ export type HarnessHealth = {
   requests: number;
   thresholds: { min_decisions: number; precision_helps: number; precision_hurts: number; recall_helps: number };
   pieces: PieceHealth[];
+  /** The engine cohort cut applied (harness/engine.ts): so engines of different versions are never mixed silently. */
+  engine: EngineView;
 };
 
 const mean = (xs: number[]): number | null => (xs.length === 0 ? null : Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100);
@@ -236,7 +240,15 @@ export type HealthOptions = {
   from?: string | Date;
   to?: string | Date;
   piece?: string;
+  /**
+   * Engine cohort to read (harness/engine.ts): `current` (the default) keeps, per piece, the cohort of its newest finding
+   * so engines of different versions are not mixed; `all` keeps every cohort; a cohort key (`claude|claude-sonnet-5-5|2.1`) keeps that one.
+   */
+  engine_cohort?: string;
 };
+
+/** What the engine cut kept: the cohort each piece was cut to, the findings per cohort before the cut and the ones left out. */
+export type EngineView = Pick<CohortSelection<FindingRow>, 'applied' | 'available' | 'excluded'> & { requested: string };
 
 export type FindingRow = {
   id: string;
@@ -253,6 +265,8 @@ export type FindingRow = {
   subject: string | null;
   evidence: unknown;
   harness_version: string | null;
+  /** The engine cohort of the step the finding comes from (`unknown` when it recorded none): `provider|model|cli major.minor`. */
+  engine_cohort: string;
   rules_version: string;
   pr_url: string | null;
   computed_at: string;
@@ -260,6 +274,13 @@ export type FindingRow = {
 };
 
 const iso = (d: unknown): string => new Date(d as Date | string).toISOString();
+
+/** The engine cohort a finding's evidence names (`evidence.engine`), `unknown` when it names none. */
+export function engineCohortOfEvidence(evidence: unknown): string {
+  const e = typeof evidence === 'string' ? (() => { try { return JSON.parse(evidence) as unknown; } catch { return null; } })() : evidence;
+  const mark = e && typeof e === 'object' && !Array.isArray(e) ? engineMarkOf((e as Record<string, unknown>).engine) : null;
+  return mark ? engineCohortKey(mark) : UNKNOWN_COHORT;
+}
 
 /** The rules version to read: the asked one, or the version of the latest post-mortem of the project. */
 async function rulesVersionOf(db: Db, projectId: string, asked: string | undefined): Promise<string | null> {
@@ -276,9 +297,9 @@ async function rulesVersionOf(db: Db, projectId: string, asked: string | undefin
 }
 
 /** Every finding of the latest post-mortem of each request, for one rules version (the rows the scorecards read). */
-export async function harnessFindingRows(db: Db, projectId: string, opts: HealthOptions = {}): Promise<{ rules_version: string | null; requests: number; rows: FindingRow[] }> {
+export async function harnessFindingRows(db: Db, projectId: string, opts: HealthOptions = {}): Promise<{ rules_version: string | null; requests: number; rows: FindingRow[]; engine: EngineView }> {
   const rules = await rulesVersionOf(db, projectId, opts.rules);
-  if (rules === null) return { rules_version: null, requests: 0, rows: [] };
+  if (rules === null) return { rules_version: null, requests: 0, rows: [], engine: { requested: opts.engine_cohort || 'current', applied: {}, available: {}, excluded: 0 } };
   const latest = sql`(select distinct on (build_request_id) id from harness_postmortems where project_id = ${projectId} and rules_version = ${rules} order by build_request_id, computed_at desc, id desc)`;
   let q = db
     .selectFrom('harness_findings as f')
@@ -311,7 +332,7 @@ export async function harnessFindingRows(db: Db, projectId: string, opts: Health
   if (opts.to) q = q.where(sql<boolean>`p.computed_at <= ${new Date(opts.to)}`);
   if (opts.piece) q = q.where('f.piece', '=', opts.piece);
   const found = await q.orderBy('f.created_at', 'desc').orderBy('f.id', 'desc').execute();
-  const rows = found.map(
+  const all = found.map(
     (r): FindingRow => ({
       id: r.id,
       postmortem_id: r.postmortem_id,
@@ -327,12 +348,15 @@ export async function harnessFindingRows(db: Db, projectId: string, opts: Health
       subject: r.subject,
       evidence: r.evidence,
       harness_version: r.harness_version_id,
+      engine_cohort: engineCohortOfEvidence(r.evidence),
       rules_version: r.rules_version,
       pr_url: r.pr_url,
       computed_at: iso(r.computed_at),
       created_at: iso(r.created_at),
     }),
   );
+  const cut = selectEngineCohort(all, opts.engine_cohort);
+  const rows = cut.rows;
   const requests = Number(
     (
       await db
@@ -343,12 +367,12 @@ export async function harnessFindingRows(db: Db, projectId: string, opts: Health
         .executeTakeFirstOrThrow()
     ).n,
   );
-  return { rules_version: rules, requests, rows };
+  return { rules_version: rules, requests, rows, engine: { requested: opts.engine_cohort || 'current', applied: cut.applied, available: cut.available, excluded: cut.excluded } };
 }
 
 /** The scorecards per piece with their cases (newest first, capped per piece). */
 export async function harnessScorecards(db: Db, projectId: string, opts: HealthOptions = {}): Promise<HarnessHealth> {
-  const { rules_version, requests, rows } = await harnessFindingRows(db, projectId, opts);
+  const { rules_version, requests, rows, engine } = await harnessFindingRows(db, projectId, opts);
   const cases = new Map<string, HarnessCase[]>();
   for (const r of rows) {
     if (r.class === 'info') continue;
@@ -368,6 +392,7 @@ export async function harnessScorecards(db: Db, projectId: string, opts: HealthO
         task_code: r.task_code,
         pr_url: r.pr_url,
         postmortem_id: r.postmortem_id,
+        engine_cohort: r.engine_cohort,
         computed_at: r.computed_at,
       },
     ]);
@@ -375,6 +400,7 @@ export async function harnessScorecards(db: Db, projectId: string, opts: HealthO
   return {
     rules_version,
     requests,
+    engine,
     thresholds: { min_decisions: MIN_DECISIONS, precision_helps: PRECISION_HELPS, precision_hurts: PRECISION_HURTS, recall_helps: RECALL_HELPS },
     pieces: scorecardsOf(rows).map((card) => {
       const all = cases.get(card.piece) ?? [];
@@ -410,6 +436,7 @@ export const FINDING_COLUMNS: { key: string; value: (r: FindingRow) => string | 
   { key: 'subject', value: (r) => r.subject },
   { key: 'evidence', value: (r) => JSON.stringify(r.evidence ?? null) },
   { key: 'harness_version', value: (r) => r.harness_version },
+  { key: 'engine_cohort', value: (r) => r.engine_cohort },
   { key: 'rules_version', value: (r) => r.rules_version },
   { key: 'pr_url', value: (r) => r.pr_url },
   { key: 'computed_at', value: (r) => r.computed_at },

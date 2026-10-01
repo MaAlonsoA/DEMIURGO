@@ -3,6 +3,7 @@
 // same call is stored once.
 
 import type { Db } from '../db/connection.ts';
+import { buildEngineMark } from '../harness/engine.ts';
 import { JEV_DEFAULT_MODEL, jevCostUsd } from './jev.ts';
 
 export type CallBase = {
@@ -17,7 +18,7 @@ export type CallBase = {
   model?: string;
 };
 
-export type CallRecord = CallBase & { inputTokens: number; outputTokens?: number; durationMs: number | null; outcome: 'ok' | 'error' };
+export type CallRecord = CallBase & { /** The model Jev's response says answered, when the call reported it. */ modelReported?: string | null; inputTokens: number; outputTokens?: number; durationMs: number | null; outcome: 'ok' | 'error' };
 
 /** Writes one row; never throws. Returns whether a new row was written. */
 export async function recordClassifierCall(db: Pick<Db, 'insertInto'>, call: CallRecord): Promise<boolean> {
@@ -37,6 +38,7 @@ export async function recordClassifierCall(db: Pick<Db, 'insertInto'>, call: Cal
         duration_ms: call.durationMs === null ? null : Math.round(call.durationMs),
         cost_usd: jevCostUsd(call.inputTokens),
         outcome: call.outcome,
+        engine: JSON.stringify(buildEngineMark({ provider: 'jev', model: call.model ?? JEV_DEFAULT_MODEL, modelReported: call.modelReported ?? null, jevModel: call.modelReported ?? null })),
       })
       .onConflict((oc) => oc.columns(['project_id', 'call_key']).where('call_key', 'is not', null).doNothing())
       .returning('id')
@@ -52,22 +54,24 @@ export async function recordClassifierCall(db: Pick<Db, 'insertInto'>, call: Cal
  * `onUsage` hook the classifiers already have). A run that throws is recorded as an `error` and rethrown; a run that
  * returns without reporting usage made no request (no key, nothing to judge) and records nothing.
  */
-export async function recordedCall<T>(db: Pick<Db, 'insertInto'> | null | undefined, base: CallBase, run: (note: (inputTokens: number, outputTokens?: number) => void) => Promise<T>): Promise<T> {
+export async function recordedCall<T>(db: Pick<Db, 'insertInto'> | null | undefined, base: CallBase, run: (note: (inputTokens: number, outputTokens?: number, modelReported?: string) => void) => Promise<T>): Promise<T> {
   const started = Date.now();
   let input = 0;
   let output = 0;
   let noted = false;
-  const note = (inputTokens: number, outputTokens = 0): void => {
+  let modelReported: string | null = null;
+  const note = (inputTokens: number, outputTokens = 0, reported?: string): void => {
     noted = true;
+    if (reported) modelReported = reported;
     input += inputTokens;
     output += outputTokens;
   };
   try {
     const result = await run(note);
-    if (db && noted) await recordClassifierCall(db, { ...base, inputTokens: input, outputTokens: output, durationMs: Date.now() - started, outcome: 'ok' });
+    if (db && noted) await recordClassifierCall(db, { ...base, modelReported, inputTokens: input, outputTokens: output, durationMs: Date.now() - started, outcome: 'ok' });
     return result;
   } catch (e) {
-    if (db) await recordClassifierCall(db, { ...base, inputTokens: input, outputTokens: output, durationMs: Date.now() - started, outcome: 'error' });
+    if (db) await recordClassifierCall(db, { ...base, modelReported, inputTokens: input, outputTokens: output, durationMs: Date.now() - started, outcome: 'error' });
     throw e;
   }
 }

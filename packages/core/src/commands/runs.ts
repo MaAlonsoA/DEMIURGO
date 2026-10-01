@@ -58,6 +58,11 @@ const engineSchema = z
   .object({ provider: z.string().min(1), model: z.string().min(1), effort: z.string().min(1).nullable() })
   .strict();
 
+// The engine mark of the call (harness/engine.ts): evidence for comparing results by engine version.
+const engineMarkSchema = z
+  .object({ provider: z.string().min(1), model: z.string().min(1), model_reported: z.string().nullable().optional(), cli_version: z.string().nullable().optional() })
+  .strict();
+
 // The run ran on the backup engine: which one, the one it replaced and why (it couldn't be reached).
 const fallbackSchema = z.object({ engine: engineSchema, from: engineSchema, reason: z.string().max(2000) }).strict();
 
@@ -355,6 +360,7 @@ registerHandlers({
         model: z.string().nullable(),
         session: sessionSchema.nullable().default(null),
         fallback: fallbackSchema.nullable().default(null),
+        engine: engineMarkSchema.nullable().default(null),
       })
       .strict(),
     async apply(ctx, data, e) {
@@ -367,6 +373,7 @@ registerHandlers({
           model: data.model,
           ...sessionColumns(data.session),
           ...fallbackColumns(data.fallback),
+          ...(data.engine ? { engine: JSON.stringify(data.engine) } : {}),
           finished_at: now(),
         })
         .where('id', '=', id)
@@ -387,6 +394,7 @@ registerHandlers({
         model: z.string().nullable().default(null),
         session: sessionSchema.nullable().default(null),
         fallback: fallbackSchema.nullable().default(null),
+        engine: engineMarkSchema.nullable().default(null),
       })
       .strict(),
     async apply(ctx, data, e) {
@@ -400,6 +408,7 @@ registerHandlers({
           model: data.model,
           ...sessionColumns(data.session),
           ...fallbackColumns(data.fallback),
+          ...(data.engine ? { engine: JSON.stringify(data.engine) } : {}),
           finished_at: now(),
         })
         .where('id', '=', id)

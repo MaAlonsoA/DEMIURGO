@@ -100,6 +100,8 @@ export type RunsTable = {
   fallback: NullableJson;
   /** The harness version the run started under (harness_versions); null for runs from before it existed. */
   harness_version_id: string | null;
+  /** The engine mark of the call (harness/engine.ts): provider, model asked and reported, CLI version. */
+  engine: NullableJson;
 };
 
 export type ProviderCatalogsTable = {
@@ -1040,6 +1042,8 @@ export type ClassifierCallsTable = {
   duration_ms: number | null;
   cost_usd: ColumnType<string, number | string | undefined, number | string>;
   outcome: 'ok' | 'error';
+  /** The engine mark of the call (harness/engine.ts): `jev` and the model asked and the one that answered. */
+  engine: NullableJson;
   created_at: Generated<Timestamp>;
 };
 

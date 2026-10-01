@@ -93,10 +93,10 @@ export function uuid(v: string | undefined, what: string): string {
   return v;
 }
 
-/** The optional filters of the harness routes: ?rules=&piece=&from=&to= (dates as ISO text). */
+/** The optional filters of the harness routes: ?rules=&piece=&from=&to=&engine_cohort= (dates as ISO text; engine_cohort `current` by default, `all` to mix). */
 function harnessFilters(query: Record<string, string>) {
   const date = (v: string | undefined) => (v && !Number.isNaN(Date.parse(v)) ? v : undefined);
-  return { rules: query.rules || undefined, piece: query.piece || undefined, from: date(query.from), to: date(query.to) };
+  return { rules: query.rules || undefined, piece: query.piece || undefined, engine_cohort: query.engine_cohort || undefined, from: date(query.from), to: date(query.to) };
 }
 
 export const QUERIES: QueryRoute[] = [

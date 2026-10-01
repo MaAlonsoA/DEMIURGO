@@ -3,6 +3,7 @@
 
 import type { Row } from '../../db/schema.ts';
 import type { PostmortemInputs } from '../postmortem.ts';
+import { type EngineMark, engineMarkOf } from '../engine.ts';
 
 export type Json = Record<string, unknown>;
 
@@ -72,4 +73,28 @@ export function firstDecisiveCi(inputs: PostmortemInputs, attempt: number): { st
     return { step: s, green: s.outcome === 'ok' };
   }
   return null;
+}
+
+/**
+ * The engine of the builder of an attempt (the latest `builder` step of the attempt that ran an agent, else of the
+ * request): the step's `engine` mark, or the provider and model its detail always had (no CLI version) for older steps.
+ */
+export function builderEngineOf(inputs: PostmortemInputs, attempt?: number | null): EngineMark | null {
+  const ran = (a: number | null | undefined) =>
+    inputs.steps.filter((s) => s.stage === 'builder' && (a === null || a === undefined || s.attempt === a) && (engineMarkOf(detailOf(s).engine) ?? (typeof detailOf(s).provider === 'string' && typeof detailOf(s).model === 'string' ? s : null)));
+  const step = ran(attempt).at(-1) ?? (attempt === null || attempt === undefined ? undefined : ran(null).at(-1));
+  if (!step) return null;
+  const d = detailOf(step);
+  return engineMarkOf(d.engine) ?? engineMarkOf({ provider: d.provider, model: d.model });
+}
+
+/** The engine of the reviewer of an attempt (the latest stored review of the attempt, else the latest review): its run's `engine` mark, else the run's provider and models. */
+export function reviewerEngineOf(inputs: PostmortemInputs, attempt?: number | null): EngineMark | null {
+  const runs = new Map((inputs.reviewRuns ?? []).map((r) => [r.id, r]));
+  const mine = inputs.reviews.filter((r) => runs.has(r.run_id));
+  const ofAttempt = attempt === null || attempt === undefined ? [] : mine.filter((r) => attemptOfReview(inputs, r) === attempt);
+  const review = (ofAttempt.length > 0 ? ofAttempt : mine).at(-1);
+  const run = review ? runs.get(review.run_id) : undefined;
+  if (!run) return null;
+  return engineMarkOf(run.engine) ?? engineMarkOf({ provider: run.provider, model: run.requested_model ?? run.model, model_reported: run.model });
 }

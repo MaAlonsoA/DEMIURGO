@@ -64,6 +64,7 @@ import { PLAYWRIGHT_CONFIGS, environmentFromCi, startCommandOf, startLine } from
 import { pullRequestFootprint } from './footprint.ts';
 import { type OwnershipViolation, checkOwnership, ownershipLine } from './ownership.ts';
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';
+import { buildEngineMark, cliVersionOf } from '../harness/engine.ts';
 import { recordClassifierCall, recordedCall } from '../classifier/calls.ts';
 import { type ReusePair, judgeTestReuse, reuseLines, sameFeatureTests } from '../classifier/test-reuse.ts';
 import { codeToExtend } from './queue.ts';
@@ -1112,6 +1113,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       agent_version: agent.version,
       provider: resolution.provider,
       model: resolution.model,
+      engine: buildEngineMark({ provider: resolution.provider, model: resolution.model, modelReported: result.modelReported ?? null, cliVersion: result.cliVersion ?? (await cliVersionOf(resolution.provider)) }),
       session: { mode: plan.mode, ...(result.sessionId ?? sessionId ? { id: result.sessionId ?? sessionId } : {}), reason: plan.reason, reason_code: plan.reason_code },
       exit_code: result.exitCode,
       ...(result.reattached ? { reattached: true } : {}),

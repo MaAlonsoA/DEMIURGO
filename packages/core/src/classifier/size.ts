@@ -106,7 +106,7 @@ export async function classifyTaskSize(services: Services, projectId: string, re
     const client = deps.client ?? new TypeSafeClient({ apiKey: process.env.TYPESAFE_API_KEY, defaultModel: model, timeout: 30_000 });
     const j = await recordedCall(services.db, { projectId, question: 'size', questionVersion: SIZE_QUESTION_VERSION, judgmentTable: 'task_size_opinions', model }, async (note) => {
       const judged = await judgeSize(client, input, model);
-      note(judged.input_tokens);
+      note(judged.input_tokens, 0, judged.model);
       return judged;
     });
     await services.db

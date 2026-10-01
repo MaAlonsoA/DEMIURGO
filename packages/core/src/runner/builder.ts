@@ -83,6 +83,10 @@ export type BuilderResult = {
   container: string;
   /** Tokens and cost the CLI's whole stream reported (same shape as `ai_runs.usage`); absent when it reported none. */
   usage?: Usage;
+  /** The CLI version the stream announced (Claude's `init` event), when it did. */
+  cliVersion?: string;
+  /** The model the stream announced (Claude's `init` event), when it did. */
+  modelReported?: string;
   /** Input tokens of the last turn of the stream (the size of the session's context at the end); absent when the stream showed none. */
   lastTurnInputTokens?: number;
   /** The agent session this run used or started, when the spec asked for one. */
@@ -499,6 +503,8 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
   const sessionId = spec.session ? (spec.provider === 'codex' && spec.session.mode === 'fresh' ? threadId : spec.session.id) : undefined;
   const usage = usageSeen.usage(Math.round(performance.now() - start));
   const lastTurnInputTokens = usageSeen.lastTurnInputTokens();
+  const cliVersion = usageSeen.cliVersion();
+  const modelReported = usageSeen.modelReported();
   const base = {
     exitCode: code,
     durationMs: Math.round(performance.now() - start),
@@ -508,6 +514,8 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
     container: name,
     ...(usage ? { usage } : {}),
     ...(lastTurnInputTokens !== undefined ? { lastTurnInputTokens } : {}),
+    ...(cliVersion ? { cliVersion } : {}),
+    ...(modelReported ? { modelReported } : {}),
     ...(sessionId ? { sessionId } : {}),
   };
   if (plan === 'collect_and_remove') await runDockerCommand(binary, ['rm', '-f', name], environment);

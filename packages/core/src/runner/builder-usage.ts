@@ -18,7 +18,33 @@ export type UsageCollector = {
    * last `turn.completed`. Undefined when the stream carried no per-turn usage.
    */
   lastTurnInputTokens(): number | undefined;
+  /** The CLI version the stream announced (Claude's `init` event: `claude_code_version`), or undefined (Codex announces none). */
+  cliVersion(): string | undefined;
+  /** The model Claude's `init` event says it runs (`model`), or undefined (Codex never says). */
+  modelReported(): string | undefined;
 };
+
+/** The `model` of a Claude `system` `init` line, or undefined. */
+export function claudeInitModelOf(line: string): string | undefined {
+  if (!line.includes('"init"')) return undefined;
+  try {
+    const e = JSON.parse(line) as { type?: unknown; subtype?: unknown; model?: unknown };
+    return e.type === 'system' && e.subtype === 'init' && typeof e.model === 'string' && e.model ? e.model : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The `claude_code_version` of a Claude `system` `init` line, or undefined. */
+export function claudeInitVersionOf(line: string): string | undefined {
+  if (!line.includes('claude_code_version')) return undefined;
+  try {
+    const e = JSON.parse(line) as { type?: unknown; subtype?: unknown; claude_code_version?: unknown };
+    return e.type === 'system' && e.subtype === 'init' && typeof e.claude_code_version === 'string' ? e.claude_code_version : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
@@ -50,8 +76,12 @@ export function usageCollector(provider: 'claude' | 'codex'): UsageCollector {
   let claudeResult: string | undefined;
   const codexTurns: string[] = [];
   let lastTurn: number | undefined;
+  let version: string | undefined;
+  let reportedModel: string | undefined;
   const take = (line: string) => {
     if (provider === 'claude') {
+      version ??= claudeInitVersionOf(line);
+      reportedModel ??= claudeInitModelOf(line);
       const turn = claudeTurnInputOf(line);
       if (turn !== undefined && turn > 0) lastTurn = turn;
       if (line.includes('"type":"result"') || /"type"\s*:\s*"result"/.test(line)) claudeResult = line;
@@ -66,6 +96,20 @@ export function usageCollector(provider: 'claude' | 'codex'): UsageCollector {
       const lines = pending.split('\n');
       pending = lines.pop() ?? '';
       for (const line of lines) take(line);
+    },
+    modelReported() {
+      if (pending) {
+        take(pending);
+        pending = '';
+      }
+      return reportedModel;
+    },
+    cliVersion() {
+      if (pending) {
+        take(pending);
+        pending = '';
+      }
+      return version;
     },
     lastTurnInputTokens() {
       if (pending) {

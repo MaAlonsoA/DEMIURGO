@@ -42,6 +42,7 @@ import type { Row } from '../db/schema.ts';
 import { traceParentOf } from '../observe/trace-contexts.ts';
 import type { DeferredRunRequest, WorkflowEngine, Services } from '../services.ts';
 import { cancelBuildWorkflow, closeWithdrawnPullRequest, startBuildWorkflow } from '../build/orchestrator.ts';
+import { type EngineMark, buildEngineMark, cliVersionOf } from '../harness/engine.ts';
 import { stepSpan, systemInteraction } from './observe.ts';
 import { starters, reconcilers, setEngineServices, engineServices } from './registry.ts';
 
@@ -461,6 +462,22 @@ function sessionData(r: InvokeResult) {
     : null;
 }
 
+/**
+ * The engine mark of the call that ended the run (salud-del-harness §9.3): the engine that ran it (the backup's when it
+ * ran on the backup), the model the provider reported and the CLI's version (the stream's own, else `<cli> --version`).
+ * Never throws: marking must not stop the run it marks.
+ */
+async function engineMarkOfResult(r: InvokeResult, run: Row<'ai_runs'>): Promise<EngineMark | null> {
+  try {
+    const provider = r.provider || run.provider || '';
+    const model = r.fallback?.engine.model ?? run.requested_model ?? r.model;
+    if (!provider || !model) return null;
+    return buildEngineMark({ provider, model, modelReported: r.model, cliVersion: r.details?.cliVersion ?? (await cliVersionOf(provider)) });
+  } catch {
+    return null;
+  }
+}
+
 function summarizeErrors(issues: readonly { path: readonly PropertyKey[]; message: string }[]): string {
   return issues
     .slice(0, 8)
@@ -526,6 +543,7 @@ async function applyInSpan(s: Services, runId: string, projectId: string, r: Inv
             model: r.model,
             session: sessionData(r),
             fallback: r.fallback ?? null,
+            engine: await engineMarkOfResult(r, run),
           },
         });
         state = 'failed';
@@ -541,6 +559,7 @@ async function applyInSpan(s: Services, runId: string, projectId: string, r: Inv
             model: r.model,
             session: sessionData(r),
             fallback: r.fallback ?? null,
+            engine: await engineMarkOfResult(r, run),
           },
         });
         state = 'failed';
@@ -558,6 +577,7 @@ async function applyInSpan(s: Services, runId: string, projectId: string, r: Inv
               model: r.model,
               session: sessionData(r),
               fallback: r.fallback ?? null,
+              engine: await engineMarkOfResult(r, run),
             },
           });
           state = 'failed';
@@ -573,6 +593,7 @@ async function applyInSpan(s: Services, runId: string, projectId: string, r: Inv
               model: r.model,
               session: sessionData(r),
               fallback: r.fallback ?? null,
+              engine: await engineMarkOfResult(r, run),
             },
           });
           state = 'failed';
@@ -585,7 +606,7 @@ async function applyInSpan(s: Services, runId: string, projectId: string, r: Inv
           await execute({
             ...base,
             command: 'run.complete',
-            data: { output: v.data, usage: r.usage, model: r.model, session: sessionData(r), fallback: r.fallback ?? null },
+            data: { output: v.data, usage: r.usage, model: r.model, session: sessionData(r), fallback: r.fallback ?? null, engine: await engineMarkOfResult(r, run) },
           });
           state = 'completed';
         }

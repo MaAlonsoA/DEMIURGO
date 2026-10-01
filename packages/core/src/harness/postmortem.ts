@@ -13,6 +13,8 @@ import type { Row } from '../db/schema.ts';
 import type { Services } from '../services.ts';
 import { type JudgmentOutcome, deriveOutcomes } from './outcomes.ts';
 import { activeSteps } from './rules/queue.ts';
+import { builderEngineOf, reviewerEngineOf } from './rules/builder-detail.ts';
+import { type EngineMark, engineMarkOf } from './engine.ts';
 import { RULES, RULES_VERSION, type Finding, type Rule } from './rules/index.ts';
 
 export type { Finding, Rule } from './rules/index.ts';
@@ -317,6 +319,31 @@ async function missingOutcomes(db: Db, projectId: string, rulesVersion: string, 
   return outcomes.filter((o) => !have.has(`${o.judgment_table}|${o.judgment_key}|${o.outcome_name}`));
 }
 
+/** The rule families that read a builder step, the reviewer's run and Jev's schema opinion (the others read no engine). */
+const BUILDER_RULES = ['tdd.', 'session.', 'builder.', 'environment.'];
+
+/** The engine behind a finding: the builder's, the reviewer's or Jev's, by the family of its rule; null when it reads none. */
+export function engineOfFinding(inputs: PostmortemInputs, f: Finding): EngineMark | null {
+  if (BUILDER_RULES.some((p) => f.finding.startsWith(p))) return builderEngineOf(inputs, f.attempt);
+  if (f.finding.startsWith('review.')) return reviewerEngineOf(inputs, f.attempt);
+  if (f.finding.startsWith('schema.')) {
+    const id = inputs.layersOpinion?.classifier_id;
+    const model = typeof id === 'string' ? id.replace(/^jev@/, '') : '';
+    return model ? engineMarkOf({ provider: 'jev', model, jev_model: model }) : null;
+  }
+  return null;
+}
+
+/** Adds `evidence.engine` (the engine the finding's step ran on) to the findings with an object as evidence, so a later reading can split by engine version. */
+export function withEngineEvidence(inputs: PostmortemInputs, findings: readonly Finding[]): Finding[] {
+  return findings.map((f) => {
+    const ev = f.evidence;
+    if (!ev || typeof ev !== 'object' || Array.isArray(ev) || 'engine' in ev) return f;
+    const engine = engineOfFinding(inputs, f);
+    return engine ? { ...f, evidence: { ...ev, engine } } : f;
+  });
+}
+
 /**
  * Computes and stores the post-mortem of one request for a rules version. Idempotent: the same inputs and version
  * write nothing. `rules` is only for tests (a different rule set under another version label).
@@ -334,7 +361,7 @@ export async function runPostmortem(
     const outcome = endedOutcome(inputs);
     if (!outcome) return { status: 'not_ended' };
     const inputsHash = inputsHashOf(inputs);
-    const findings: Finding[] = rules.flatMap((rule) => rule(inputs));
+    const findings: Finding[] = withEngineEvidence(inputs, rules.flatMap((rule) => rule(inputs)));
     const outcomes = deriveOutcomes(inputs, findings);
     const exists = await services.db
       .selectFrom('harness_postmortems')

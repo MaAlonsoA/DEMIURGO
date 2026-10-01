@@ -56,6 +56,7 @@ import { environmentFromCi } from './environment.ts';
 import { pullRequestFootprint } from './footprint.ts';
 import { type OwnershipViolation, checkOwnership, ownershipLine } from './ownership.ts';
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';
+import { type ReusePair, judgeTestReuse, reuseLines } from '../classifier/test-reuse.ts';
 import { codeToExtend } from './queue.ts';
 import { checkTestGuard, existingTestsLines, readRepoTests, testGuardFeedback } from './test-guard.ts';
 import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
@@ -702,12 +703,27 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     await storeCodeOpinions(s0.db, { projectId, buildRequestId: requestId, attempt, versionId: info.taskVersionId }, code).catch(() => undefined);
     const affected = await affectedLine(worktree.path, code.files, attempt > 1 && feedback.failing.length > 0);
     // The existing tests of the task's criteria, so the builder extends them (test-guard.ts); help, never a gate.
-    const testLines = await (async () => {
+    const { lines: testLines, reuse: testReuse } = await (async (): Promise<{ lines: string[]; reuse: { criterion: string; path: string; title: string; p: number }[] }> => {
       try {
-        const task = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow();
-        return existingTestsLines(await readRepoTests(worktree.path, 'HEAD'), await taskCoversOf(s0.db, task.task_id));
+        const task = await s0.db.selectFrom('build_requests').select(['task_id', 'feature_version_id']).where('id', '=', requestId).executeTakeFirstOrThrow();
+        const codes = await taskCoversOf(s0.db, task.task_id);
+        const tests = await readRepoTests(worktree.path, 'HEAD');
+        const lines = existingTestsLines(tests, codes);
+        // Tests of other criteria that already check something close (Jev, classifier/test-reuse.ts); no section on any failure.
+        let reuse: ReusePair[] = [];
+        try {
+          if (task.feature_version_id && codes.length > 0) {
+            const rows = await s0.db.selectFrom('criteria').select(['code', 'statement']).where('record_version_id', '=', task.feature_version_id).where('code', 'in', codes).execute();
+            const own = new Set(codes);
+            const candidates = [...tests.values()].flat().filter((t) => !own.has(t.criterion)).map((t) => ({ path: t.path, title: t.title, level: t.level }));
+            reuse = await judgeTestReuse(null, { criteria: rows.map((c) => ({ code: c.code, statement: c.statement })), candidates });
+          }
+        } catch {
+          reuse = [];
+        }
+        return { lines: [...lines, ...reuseLines(reuse)], reuse: reuse.slice(0, 8).map((x) => ({ criterion: x.criterion, path: x.path, title: x.title, p: Math.round(x.p * 100) / 100 })) };
       } catch {
-        return [];
+        return { lines: [], reuse: [] };
       }
     })();
     const codeLines = [...code.lines, ...(affected ? [affected] : []), ...testLines];
@@ -760,6 +776,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       transcript_tail_length: result.transcriptTail.length,
       report: result.report,
       ...(progressText ? { progress: progressText } : {}),
+      ...(testReuse.length > 0 ? { test_reuse: testReuse } : {}),
       ...(code.lines.length > 0 ? { code_to_extend: { commit: code.commit, files: code.files, classifier_id: code.classifier_id, section: codeLines.join('\n') } } : {}),
       ...(wip ? { wip_commit: wip.sha, wip_files: wip.files, ...(wip.pushError ? { wip_push_error: wip.pushError } : {}) } : {}),
       ...(twice ? { timed_out_twice: true, branch: worktree.branch } : {}),

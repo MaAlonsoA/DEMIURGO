@@ -124,6 +124,23 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
   }));
   const diff = input.diff.length > PR_REVIEW_DIFF_MAX ? `${input.diff.slice(0, PR_REVIEW_DIFF_MAX)}\n[diff truncated: ${input.diff.length - PR_REVIEW_DIFF_MAX} more characters not shown]` : input.diff;
   const ci = ciOf(input.ci);
+  // What the builder was told about existing tests that already check something close (build step detail `test_reuse`).
+  const reuseHints = await (async () => {
+    try {
+      const step = await trx
+        .selectFrom('build_steps')
+        .select('detail')
+        .where('build_request_id', '=', request.id)
+        .where('stage', '=', 'builder')
+        .orderBy('created_at', 'desc')
+        .orderBy('id', 'desc')
+        .executeTakeFirst();
+      const list = (step?.detail as { test_reuse?: { criterion: string; path: string; title: string; p: number }[] } | null | undefined)?.test_reuse;
+      return Array.isArray(list) ? list.slice(0, 8) : [];
+    } catch {
+      return [];
+    }
+  })();
   const testCounts = testCountsOf(criteria, testsInDiff(input.diff));
   // Jev's triage: hints and a reading order, pointers only. Best effort: no key or any failure means none.
   let hints: string[] = [];
@@ -168,6 +185,8 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
     manifest.entered({ section: 'hints', source: inputSource('hints'), text: JSON.stringify({ hints, files }), reason: 'triage' });
   if (criteria.length > 0)
     manifest.entered({ section: 'test_counts', source: inputSource('diff'), text: JSON.stringify(testCounts), reason: 'derived' });
+  if (reuseHints.length > 0)
+    manifest.entered({ section: 'reuse_hints', source: inputSource('build_steps'), text: JSON.stringify(reuseHints), reason: 'derived' });
   manifest.entered({ section: 'ci', source: inputSource('ci'), text: JSON.stringify(ci), reason: 'input' });
   return {
     pack: {
@@ -184,6 +203,7 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
         criteria: criteriaContent,
         ci,
         ...(criteria.length > 0 ? { test_counts: testCounts } : {}),
+        ...(reuseHints.length > 0 ? { reuse_hints: reuseHints } : {}),
         ...(hints.length > 0 ? { hints } : {}),
         ...(files.length > 0 && hints.length > 0 ? { files } : {}),
         diff,

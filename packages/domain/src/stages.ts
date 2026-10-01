@@ -12,6 +12,8 @@ export type StageQuestion = {
   question: string;
   reason: string;
   impact: 'high' | 'medium' | 'low';
+  /** The answer is a list (several outcomes, principles, exclusions): the person may pick several options. */
+  multiple?: boolean;
   /** In a stage of principles, the label of its line in the definition section. */
   label?: string;
   /**
@@ -67,18 +69,21 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'outcomes',
+        multiple: true,
         question: 'How will you know it works? Name two or three things you could observe.',
         reason: 'Observable outcomes turn the purpose into something that can be checked.',
         impact: 'high',
       },
       {
         key: 'principles',
+        multiple: true,
         question: 'Which principles should settle a choice between two reasonable options?',
         reason: 'Principles let every proposal be checked against what matters most.',
         impact: 'medium',
       },
       {
         key: 'stakeholders',
+        multiple: true,
         question: 'Who are the users and stakeholders, and which one comes first?',
         reason: 'Every requirement traces back to someone who needs it.',
         impact: 'high',
@@ -91,18 +96,21 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'features',
+        multiple: true,
         question: 'Which features must the first version have? Each one becomes a feature to design, or an epic of several features if it is too big for one.',
         reason: 'The features are where the requirements and their checks live.',
         impact: 'high',
       },
       {
         key: 'scope_out',
+        multiple: true,
         question: 'What is explicitly out of scope for the first version?',
         reason: 'Stating what is left out prevents scope creep and hidden expectations.',
         impact: 'medium',
       },
       {
         key: 'constraints',
+        multiple: true,
         question: 'What constraints are fixed (platform, budget, deadlines, regulations, existing systems)?',
         reason: 'Constraints narrow the design space before choosing anything.',
         impact: 'medium',
@@ -189,6 +197,7 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'forced_decisions',
+        multiple: true,
         label: 'Forced by the constraints',
         question: 'Which hard-to-reverse choices do the constraints and quality goals already force (where it runs, for how many people, where the data lives)?',
         reason: 'Only a choice forced by what is already known can be decided before the features.',
@@ -196,6 +205,7 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'assets',
+        multiple: true,
         label: 'What must be protected',
         question: 'What must be protected (data, credentials, money, reputation)?',
         reason: 'The assets follow from the definition and guide every feature.',
@@ -203,6 +213,7 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'actors',
+        multiple: true,
         label: 'Who could misuse it',
         question: 'Who could attack or misuse the product, and with what access?',
         reason: 'Knowing who threatens it tells each feature what to guard against.',
@@ -233,6 +244,7 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'key_decisions',
+        multiple: true,
         question: 'Which architecture decisions are significant and hard to reverse? Record each one as an ADR, based on a feature, a constraint or the priority quality scenario of the definition (cite it).',
         reason: 'ADRs keep the why of each decision with its alternatives.',
         impact: 'high',
@@ -245,6 +257,7 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'risks',
+        multiple: true,
         question: 'What are the main technical risks and technical debt accepted?',
         reason: 'arc42: risks named early can be mitigated.',
         impact: 'medium',
@@ -261,6 +274,7 @@ export const STAGES: readonly StageDefinition[] = [
     questions: [
       {
         key: 'threats',
+        multiple: true,
         question:
           'For each component, which STRIDE threats apply (spoofing, tampering, repudiation, information disclosure, denial of service, elevation of privilege)?',
         reason: 'STRIDE makes sure no class of threat is forgotten.',
@@ -268,6 +282,7 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'mitigations',
+        multiple: true,
         question: 'What mitigation covers each relevant threat, and which feature (FDR) or task (TSK) builds it as a criterion, so it is verified with evidence?',
         reason: 'A threat without a verified mitigation is an accepted risk.',
         impact: 'high',
@@ -302,6 +317,7 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'failure_modes',
+        multiple: true,
         question: 'What happens when a dependency fails, and how does the system degrade?',
         reason: 'Failure modes must be known before they happen in production.',
         impact: 'high',
@@ -339,6 +355,11 @@ export const COVERED_QUESTION_STATES = ['confirmed', 'discarded'] as const;
 /** The reference answer of a stage question, if it has one. */
 export function stageQuestionReference(stageKey: string, questionKey: string): ReferenceAnswer | undefined {
   return stageDefinition(stageKey)?.questions.find((q) => q.key === questionKey)?.reference;
+}
+
+/** Whether a stage question is a list by nature; the system sets it, the model's guess does not decide it. */
+export function stageQuestionMultiple(stageKey: string, questionKey: string): boolean {
+  return stageDefinition(stageKey)?.questions.find((q) => q.key === questionKey)?.multiple === true;
 }
 
 type ReferenceOptionShape = { answer: string; implies: string; exclusive: boolean; recommended?: boolean; downside?: string };

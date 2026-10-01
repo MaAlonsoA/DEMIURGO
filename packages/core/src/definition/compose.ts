@@ -212,3 +212,30 @@ export async function definitionChangeProposal(
     dependencies: [{ type: 'record', id: current.recordId, code: current.code, version: current.n }],
   };
 }
+
+/**
+ * One turn of the explorer yields at most one `definition_change` per section (two would compete
+ * to rewrite the same text and the second would be out of date once the first is approved): the
+ * last wins, with the quotes of all of them. Order of the rest is kept.
+ */
+export function dedupeDefinitionChanges<T extends { type: string }>(proposals: readonly T[]): T[] {
+  const last = new Map<string, number>();
+  proposals.forEach((p, i) => {
+    if (p.type === 'definition_change') last.set((p as unknown as ProposedChange).section, i);
+  });
+  return proposals.flatMap((p, i) => {
+    if (p.type !== 'definition_change') return [p];
+    const c = p as unknown as ProposedChange;
+    if (last.get(c.section) !== i) return [];
+    const quotes = [
+      ...new Set(
+        proposals.flatMap((q) =>
+          q.type === 'definition_change' && (q as unknown as ProposedChange).section === c.section
+            ? (q as unknown as ProposedChange).quotes
+            : [],
+        ),
+      ),
+    ];
+    return [{ ...p, quotes }];
+  });
+}

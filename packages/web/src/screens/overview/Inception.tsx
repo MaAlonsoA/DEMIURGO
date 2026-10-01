@@ -41,6 +41,7 @@ export const INCEPTION = messages(
     reviewDefinition: 'Review and approve the definition',
     planBacklog: 'Map the first version',
     reviewProposal: 'Review the proposal',
+    decideProposals: (n: number) => `Decide ${n} proposals`,
     continueThread: 'Continue in its thread',
     planBacklogRequest:
       'Map the first version of the product definition as a story map (Jeff Patton, User Story Mapping): its capabilities in the order a person uses them, the thinnest end-to-end slice first (the walking skeleton), and for each capability whether it is one feature or an epic of several. Propose one thread per capability so I can design them one by one, and say where you would start.',
@@ -68,6 +69,7 @@ export const INCEPTION = messages(
     reviewDefinition: 'Revisar y aprobar la definición',
     planBacklog: 'Mapear la primera versión',
     reviewProposal: 'Revisar la propuesta',
+    decideProposals: (n: number) => `Decidir ${n} propuestas`,
     continueThread: 'Seguir en su hilo',
     planBacklogRequest:
       'Mapea la primera versión de la definición del producto como un mapa de historias (Jeff Patton, User Story Mapping): sus capacidades en el orden en que las usa una persona, primero la porción más fina de punta a punta (el walking skeleton), y para cada capacidad si es una funcionalidad o una épica de varias. Propón un hilo por capacidad para diseñarlas una a una, y dime por cuál empezarías.',
@@ -207,7 +209,7 @@ export function InceptionActionButton({ projectId, step }: { projectId: string; 
     case 'plan_backlog':
       return action.thread ? <PlanBacklogButton projectId={projectId} thread={action.thread} /> : link('/p/$projectId/epics', { projectId }, t.epics);
     case 'review_batch':
-      return link('/p/$projectId/batches/$batchId', { projectId, batchId: action.batch }, t.reviewProposal);
+      return link('/p/$projectId/batches/$batchId', { projectId, batchId: action.batch }, action.count && action.count > 1 ? t.decideProposals(action.count) : t.reviewProposal);
     case 'thread':
       return link('/p/$projectId/threads/$explorationId', { projectId, explorationId: action.thread }, t.continueThread);
     case 'review_definition':

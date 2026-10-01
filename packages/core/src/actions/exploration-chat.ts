@@ -13,6 +13,7 @@ import {
   type Section,
   findQuote,
   stageDefinition,
+  stageQuestionMultiple,
   stageQuestionReference,
   system,
   withReferenceOption,
@@ -29,7 +30,7 @@ import { designThreadOf } from './drafting.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
 import { screensOfFeatureVersion } from '../design/screens.ts';
 import { revealQuestions } from '../commands/exploration.ts';
-import { definitionChangeProposal } from '../definition/compose.ts';
+import { definitionChangeProposal, dedupeDefinitionChanges } from '../definition/compose.ts';
 
 const BUILDER = 'exploration_chat@2';
 const BUDGET = { messages: 12_000, decisions: 4_000, records: 16_000, sources: 6_000, knowledge: 4_000 };
@@ -1118,8 +1119,11 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
     // about its own topic.
     if (q.exploration_id !== scope.id) continue;
     let options = suggestion.options;
+    let multiple = suggestion.multiple;
     if (q.stage_id && q.stage_key) {
       const st = await trx.selectFrom('stages').select('stage').where('id', '=', q.stage_id).executeTakeFirst();
+      // Whether a stage question takes several answers is the stage's, not the model's guess.
+      if (st) multiple = stageQuestionMultiple(st.stage, q.stage_key);
       const reference = st ? stageQuestionReference(st.stage, q.stage_key) : undefined;
       if (reference && options.length > 0) {
         const gated = withReferenceOption(options, reference);
@@ -1136,7 +1140,7 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       entityId: suggestion.question_id,
       data: {
         options,
-        multiple: suggestion.multiple,
+        multiple,
         ...(suggestion.question ? { question: suggestion.question } : {}),
         ...(suggestion.reason ? { reason: suggestion.reason } : {}),
       },
@@ -1168,7 +1172,8 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
   // A change to the definition rests, like an inference, on the person's words in this thread, and on
   // the version in force: without either, it is dropped.
   const proposals: { type: string; payload: unknown; dependencies?: unknown[] }[] = [];
-  for (const p of output.proposals) {
+  // One turn, at most one change per section: the last text wins and keeps every quote.
+  for (const p of dedupeDefinitionChanges(output.proposals)) {
     if (p.type === 'exploration') {
       const { type, ...payload } = p;
       proposals.push({ type, payload });
@@ -1206,6 +1211,21 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
     const change = await definitionChangeProposal(trx, run.project_id, p, said);
     if (change) proposals.push(change);
   }
+  // Pending changes to the same sections from earlier turns: the new ones replace them.
+  const changedSections = proposals
+    .filter((p) => p.type === 'definition_change')
+    .map((p) => (p.payload as { section: string }).section);
+  const olderChanges =
+    changedSections.length > 0
+      ? await trx
+          .selectFrom('proposals')
+          .select('id')
+          .where('project_id', '=', run.project_id)
+          .where('type', '=', 'definition_change')
+          .where('state', '=', 'pending')
+          .where(sql<string>`payload->>'section'`, 'in', changedSections)
+          .execute()
+      : [];
   if (proposals.length > 0) {
     await execute({
       ...base,
@@ -1220,5 +1240,14 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
         proposals,
       },
     });
+    for (const older of olderChanges) {
+      await execute({
+        ...base,
+        command: 'proposal.supersede',
+        actor: system('exploration'),
+        entityId: older.id,
+        data: { reason: 'A newer change to the same section of the product definition replaces this one.' },
+      });
+    }
   }
 });

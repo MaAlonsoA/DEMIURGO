@@ -2,7 +2,7 @@
 // questions; opening a stage opens its thread and raises them as the system; passing it is a
 // person's decision, allowed only when every mandatory question is covered.
 
-import { COVERED_QUESTION_STATES, STAGES, formatActor, nextStage, stageDefinition, system } from '@demiurgo/domain';
+import { COVERED_QUESTION_STATES, STAGES, formatActor, nextStage, stageDefinition, stageQuestionMultiple, system } from '@demiurgo/domain';
 import { z } from 'zod';
 import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
@@ -108,6 +108,8 @@ registerHandlers({
             impact: q.impact,
             stage_id: id,
             stage_key: q.key,
+            // A list (outcomes, principles, exclusions…) takes several answers.
+            multiple: stageQuestionMultiple(def.key, q.key),
           },
         });
       }

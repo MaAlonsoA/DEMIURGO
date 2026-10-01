@@ -53,6 +53,6 @@ approved definition of the product, the latest version the person approved.
   add, a capability they leave out), propose a `definition_change`: the section, its whole text as it
   should read after the change (in English, written as above), the reason, and `quotes` with the
   person's exact words in this thread that state the decision. Only what the person decided, never
-  your own idea of what the definition should say; at most one per section. DEMIURGO drops a change
+  your own idea of what the definition should say; at most one per section in a turn: every change to the same section goes together in one `definition_change` with the whole new text of the section (two for the same section would compete, and only the last is kept). DEMIURGO drops a change
   whose quotes it can't find in what the person wrote here. Nothing changes until the person accepts
   it.

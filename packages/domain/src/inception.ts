@@ -44,7 +44,7 @@ export type InceptionAction =
   /** Ask DEMIURGO, in the product's main thread, for the story map of the first version. */
   | { kind: "plan_backlog"; thread: string | null }
   /** A proposal DEMIURGO made for this step waits in its batch. */
-  | { kind: "review_batch"; batch: string }
+  | { kind: "review_batch"; batch: string; count?: number }
   /** The step is being worked on in a thread: continue there. */
   | { kind: "thread"; thread: string };
 
@@ -151,8 +151,16 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
   const first = input.firstFeature;
   const pendingOf = (...types: string[]): InceptionAction | null => {
     const p = input.pending.find((x) => types.includes(x.type));
-    return p ? { kind: "review_batch", batch: p.batch } : null;
+    return p
+      ? {
+          kind: "review_batch",
+          batch: p.batch,
+          count: input.pending.filter((x) => types.includes(x.type)).length,
+        }
+      : null;
   };
+  // A step with proposals of its own kind waiting is not done: the person still has to decide them.
+  const hasPending = (...types: string[]) => input.pending.some((x) => types.includes(x.type));
   const draftEpic = input.epics.find((e) => !e.approved);
   const draftFeature = input.features.find((f) => !f.approved);
 
@@ -173,15 +181,22 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
     {
       key: "quality",
       title: "Quality goals",
-      why: "Quality goals turn «good enough» into scenarios that can be checked.",
+      why: "Quality goals turn «good enough» into scenarios that can be checked. Each measurable quality goal becomes a quality requirement (NFR) you approve; the definition keeps a summary.",
       blocks: null,
       source: "arc42 §10, quality scenarios",
       // Passing the stage proposes its section of the definition: done once that is approved too.
       // A pending definition change belongs to the latest onboarding stage: once «principles» is
       // open, it is that stage's section.
-      done: passed("quality") && !(input.definitionProposal && !stage("principles")),
+      done:
+        passed("quality") &&
+        !(input.definitionProposal && !stage("principles")) &&
+        !hasPending("quality_requirement"),
       action: () =>
-        passed("quality") ? { kind: "review_definition" } : stageAction("quality"),
+        passed("quality")
+          ? input.definitionProposal && !stage("principles")
+            ? { kind: "review_definition" }
+            : (pendingOf("quality_requirement") ?? { kind: "review_definition" })
+          : stageAction("quality"),
     },
     {
       key: "principles",
@@ -262,7 +277,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       source: "arc42, C4 model, MADR",
       // The stage exists to decide: it is done once it has passed with at least one approved ADR
       // (our convention; an Architecture stage with no decision leaves the tasks without a basis).
-      done: passed("architecture") && input.approvedDecisions > 0,
+      done: passed("architecture") && input.approvedDecisions > 0 && !hasPending("adr", "decision"),
       action: () =>
         pendingOf("adr", "decision") ??
         (passed("architecture") ? { kind: "answer_stage", stage: "architecture", thread: stage("architecture")?.thread ?? null } : stageAction("architecture")),
@@ -273,8 +288,8 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       why: "The threats and mitigations the first tasks have to include.",
       blocks: "Build",
       source: "Microsoft SDL, STRIDE",
-      done: passed("security"),
-      action: () => stageAction("security"),
+      done: passed("security") && !hasPending("threat_model"),
+      action: () => pendingOf("threat_model") ?? stageAction("security"),
     },
     {
       key: "tasks",

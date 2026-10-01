@@ -216,4 +216,44 @@ describe("the inception path", () => {
       code: "FDR-X-001",
     });
   });
+
+  it("a stage with its own proposals pending is not done and points to their batch", () => {
+    const base = {
+      ...empty,
+      definition: ok("DEF-PRO-001"),
+      stages: [passed("requirements"), passed("quality"), passed("principles")],
+    };
+    const q = inceptionPath({
+      ...base,
+      pending: [
+        { type: "quality_requirement", batch: "b1" },
+        { type: "quality_requirement", batch: "b1" },
+        { type: "fdr", batch: "b9" },
+      ],
+    });
+    expect(q.steps[1]).toMatchObject({
+      key: "quality",
+      state: "current",
+      action: { kind: "review_batch", batch: "b1", count: 2 },
+    });
+    expect(q.steps[1]?.why).toContain("Each measurable quality goal becomes a quality requirement (NFR) you approve");
+    const done = inceptionPath(base);
+    expect(done.steps[1]?.state).toBe("done");
+
+    const a = inceptionPath({
+      ...base,
+      approvedDecisions: 1,
+      stages: [...base.stages, passed("architecture")],
+      pending: [{ type: "adr", batch: "b2" }],
+    });
+    expect(a.steps.find((s) => s.key === "architecture")?.state).not.toBe("done");
+
+    const sec = inceptionPath({
+      ...base,
+      approvedDecisions: 1,
+      stages: [...base.stages, passed("architecture"), passed("security")],
+      pending: [{ type: "threat_model", batch: "b3" }],
+    });
+    expect(sec.steps.find((s) => s.key === "security")?.state).not.toBe("done");
+  });
 });

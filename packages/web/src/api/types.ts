@@ -271,7 +271,7 @@ export type InceptionAction =
   | { kind: 'build'; code: string | null }
   | { kind: 'review_definition' }
   | { kind: 'plan_backlog'; thread: string | null }
-  | { kind: 'review_batch'; batch: string }
+  | { kind: 'review_batch'; batch: string; count?: number }
   | { kind: 'thread'; thread: string };
 
 export type InceptionStep = {

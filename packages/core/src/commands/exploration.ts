@@ -208,6 +208,13 @@ registerHandlers({
             data: { stage: STAGES[0]?.key ?? '', exploration_id: id },
           });
       }
+      // A thread a person opens from a proposal or a record version (a review, "Review in a thread")
+      // starts with DEMIURGO's first turn, requested once knowledge is up to date (deduplicated by
+      // key): it never opens empty. Threads with another origin get the person's own first message.
+      if (ctx.actor.type === 'human' && (data.origin?.type === 'proposal' || data.origin?.type === 'record_version'))
+        ctx.afterCommit(() =>
+          ctx.services.engine.startDeferredRun(`thread_opened:${id}`, ctx.projectId, id, { thread_opened: true }),
+        );
       return {
         entityId: id,
         after: { purpose: data.purpose, origin: data.origin ?? null, parent: data.parent_id ?? null },

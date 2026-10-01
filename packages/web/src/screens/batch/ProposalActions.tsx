@@ -6,6 +6,7 @@
 // button with the reason next to it, instead of vanishing (R76). Never an "accept all".
 
 import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { useId, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
@@ -73,6 +74,7 @@ export function ProposalDecision({
   const aspectWords = useMessages(ASPECT_WORDS);
   const locale = useLocale();
   const command = useCommand(projectId);
+  const navigate = useNavigate();
   const client = useQueryClient();
   const allows = useAllows('proposal', p.state);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -104,9 +106,13 @@ export function ProposalDecision({
   // bar unmounts before the callbacks would run; the promise still resolves.
   const run = (name: string, data: Record<string, unknown>, said: string) => {
     void command.mutateAsync({ command: name, entityId: p.id, data }).then(
-      () => {
+      (response) => {
         setDialog(null);
         setDraft(null);
+        // A review opens a thread: go to it, where DEMIURGO's first turn explains the conflict.
+        const effect = response.result as { type?: string; id?: string } | null;
+        if (p.type === 'review' && name.startsWith('proposal.accept') && effect?.type === 'exploration' && effect.id)
+          void navigate({ to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: effect.id } });
         if (onDone) onDone(said);
         else announce(said);
       },

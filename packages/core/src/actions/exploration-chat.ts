@@ -255,10 +255,23 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
     about?.type === 'fdr'
       ? await screensOfFeatureVersion(trx, projectId, { code: about.code, version: about.n })
       : null;
+  // The version in force, where a change to this record lands: `definition_change` for the product
+  // definition, `record_change` for the rest. Said outright so a review thread never guesses it.
+  const aboutApproved = about
+    ? await trx
+        .selectFrom('record_versions')
+        .select('n')
+        .where('record_id', '=', about.recordId)
+        .where('state', '=', 'approved')
+        .orderBy('n', 'desc')
+        .executeTakeFirst()
+    : undefined;
   const aboutRecord = about
     ? {
         code: about.code,
         type: about.type,
+        change_with: about.type === 'product_definition' ? 'definition_change' : 'record_change',
+        approved_version: aboutApproved?.n ?? null,
         // The name an epic's features share: the `domain` their proposals carry.
         domain: about.domain,
         version: about.n,

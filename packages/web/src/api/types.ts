@@ -1222,6 +1222,7 @@ export type DeliverySummary = {
   ci_median: number | null;
   review_median: number | null;
   first_pass: { merged_first_try: number; of: number } | null;
+  flow_median: number | null;
 };
 
 /** Delivery metrics computed from the build steps (DORA lead time and change failure rate). */
@@ -1233,12 +1234,15 @@ export type DeliveryMetrics = {
     attempts: number;
     stage_minutes: { builder: number; environment: number; ci: number; review: number };
     model: string | null;
+    flow_pct: number | null;
   }[];
   last10: DeliverySummary;
   all: DeliverySummary;
   by_model_last10: { model: string; tasks: number; lead_median: number | null; builder_median: number | null; ci_median: number | null; review_median: number | null }[];
   by_model_all: { model: string; tasks: number; lead_median: number | null; builder_median: number | null; ci_median: number | null; review_median: number | null }[];
   running: { code: string; elapsed_minutes: number; stage: string; outcome: string; attempt: number }[];
+  flow_trend: number[];
+  context: { tasks: number; recall: number | null; precision: number | null };
 };
 
 export type TimelineSegment = { stage: string; kind: 'prep' | 'builder' | 'light' | 'review' | 'wait' | 'main'; start: string; end: string; outcome: string };
@@ -1278,6 +1282,7 @@ export type TimelineAttempt = {
     notes: string | null;
     tests_written: number | null;
     wip_files: number;
+    wip_file_names: string[];
     test_reuse: { count: number; first: { criterion: string; path: string }[] } | null;
   } | null;
   out: {
@@ -1309,6 +1314,16 @@ export type TimelineRequest = {
   running: boolean;
   merged_at: string | null;
   attempts: TimelineAttempt[];
+  flow: { active_ms: number; wait_ms: number; active_pct: number } | null;
+  context: TimelineContext | null;
+};
+
+export type TimelineContext = {
+  hits: string[];
+  missed: string[];
+  unused: string[];
+  counts: { touched: number; given: number; hits: number };
+  reuse: { suggested: number; touched: number } | null;
 };
 
 /** The build timeline of the last hours (Lanes and Path); absent on a server that does not send it yet. */

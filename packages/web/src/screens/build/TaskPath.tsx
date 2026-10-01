@@ -4,8 +4,8 @@
 // All of it comes from the build steps the server already keeps; where a fact was not kept the view says so.
 
 import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
-import type { TimelineAttempt, TimelineRequest } from "../../api/types.ts";
+import { type ReactNode, useState } from "react";
+import type { TimelineAttempt, TimelineContext, TimelineRequest } from "../../api/types.ts";
 import { Code } from "../../components/Badge.tsx";
 import { Who } from "../../components/Who.tsx";
 import { cn } from "../../lib/cn.ts";
@@ -307,23 +307,120 @@ function Came({ request, attempt, t }: { request: TimelineRequest; attempt: Time
   );
 }
 
+/** File names, compact: the first few and how many more. */
+function Names({ files, total, t }: { files: string[]; total: number; t: Words }) {
+  if (total === 0) return <span className="text-fg-2">{t.tpContextNone}</span>;
+  return (
+    <span className="break-all font-code text-xs">
+      {files.join(" · ")}
+      {total > files.length ? <span className="text-fg-3">{` · ${t.tpContextMore(total - files.length)}`}</span> : null}
+    </span>
+  );
+}
+
+/** What the merged attempt's builder was given against what the pull request touched. */
+function Context({ context, t }: { context: TimelineContext; t: Words }) {
+  const c = context.counts;
+  return (
+    <section className="flex flex-col gap-2" aria-label={t.tpContext} data-task-context>
+      <h4 className="text-xs font-medium text-fg-3">{t.tpContext}</h4>
+      <Dl label={t.tpContext}>
+        <Row label={`${t.tpContextHits} (${c.hits})`}>
+          <Names files={context.hits} total={c.hits} t={t} />
+        </Row>
+        <Row label={`${t.tpContextMissed} (${c.touched - c.hits})`}>
+          <Names files={context.missed} total={c.touched - c.hits} t={t} />
+        </Row>
+        <Row label={`${t.tpContextUnused} (${c.given - c.hits})`}>
+          <Names files={context.unused} total={c.given - c.hits} t={t} />
+        </Row>
+        {context.reuse ? <Row label={t.tpReuse}>{t.tpContextReuse(context.reuse.suggested, context.reuse.touched)}</Row> : null}
+      </Dl>
+    </section>
+  );
+}
+
+/** One attempt against the one before: what it received, what changed and how it ended. Only what the steps kept. */
+function Compare({ attempt, previous, t, stages }: { attempt: TimelineAttempt; previous: TimelineAttempt | undefined; t: Words; stages: Stages }) {
+  const b = attempt.builder;
+  const pb = previous?.builder ?? null;
+  const prev = previous?.ended_by ?? null;
+  const changes: string[] = [];
+  if (previous) {
+    const model = (x: TimelineAttempt["builder"]) => (x?.model ? [x.provider, x.model].filter(Boolean).join(" · ") : null);
+    if (model(b) && model(pb) && model(b) !== model(pb)) changes.push(t.tpCmpModel(model(pb) as string, model(b) as string));
+    if (b?.session && pb?.session && b.session.mode !== pb.session.mode) {
+      const label = (m: string) => (m === "resumed" ? t.tpSessionResumed : t.tpSessionFresh);
+      changes.push(t.tpCmpSession(label(pb.session.mode), label(b.session.mode)));
+    }
+    if (b?.code_to_extend && pb?.code_to_extend && b.code_to_extend.files !== pb.code_to_extend.files) changes.push(t.tpCmpFiles(pb.code_to_extend.files, b.code_to_extend.files));
+  }
+  if (b && b.wip_file_names.length > 0) changes.push(t.tpCmpWip(b.wip_file_names.join(", ")));
+  const e = attempt.ended_by;
+  return (
+    <div className="flex flex-col gap-1 pb-3 pl-9 text-sm" data-attempt-compare={attempt.n}>
+      {!previous ? <p className="text-fg-3">{t.tpCmpFirst}</p> : null}
+      {previous ? (
+        <p>
+          <span className="text-fg-3">{t.tpCmpFeedback}: </span>
+          {prev
+            ? t.tpFeedbackLine({
+                n: previous.n,
+                stage: word(stages, "s_", prev.stage),
+                outcome: word(stages, "o_", prev.outcome),
+                reason: prev.reason,
+                comments: prev.comments,
+                blocking: prev.blocking,
+                behind: prev.behind_by,
+              })
+            : t.tpFeedbackNone}
+        </p>
+      ) : null}
+      {previous ? (
+        <div>
+          <span className="text-fg-3">{t.tpCmpChanged}: </span>
+          {changes.length > 0 ? changes.join(" · ") : <span className="text-fg-2">{t.tpCmpSame}</span>}
+        </div>
+      ) : changes.length > 0 ? (
+        <p>{changes.join(" · ")}</p>
+      ) : null}
+      <p>
+        <span className="text-fg-3">{t.tpCmpEnded}: </span>
+        {t.tpCmpEnd(t[`tlResult_${attempt.result}` as const], e ? (e.reason ?? `${word(stages, "s_", e.stage)}: ${word(stages, "o_", e.outcome)}`) : null)}
+      </p>
+    </div>
+  );
+}
+
 /** The bar of an attempt scaled to the longest one: filled = work, hollow = waiting. */
-function Ladder({ request, selected, onSelect, t }: { request: TimelineRequest; selected: number; onSelect: (n: number) => void; t: Words }) {
+function Ladder({ request, selected, onSelect, t, stages }: { request: TimelineRequest; selected: number; onSelect: (n: number) => void; t: Words; stages: Stages }) {
+  const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
+  const toggle = (n: number) => setOpen((o) => { const next = new Set(o); if (!next.delete(n)) next.add(n); return next; });
   const longest = Math.max(1, ...request.attempts.map((a) => ms(a.end) - ms(a.start)));
   return (
     <ol className="flex flex-col divide-y divide-edge-subtle" data-attempt-ladder>
-      {request.attempts.map((a) => {
+      {request.attempts.map((a, i) => {
         const dur = ms(a.end) - ms(a.start);
         const result = t[`tlResult_${a.result}` as const];
         return (
           <li key={a.n}>
+            <div className="flex items-start gap-2">
+            <button
+              type="button"
+              aria-expanded={open.has(a.n)}
+              aria-label={t.tpToggle(a.n)}
+              onClick={() => toggle(a.n)}
+              className="w-6 shrink-0 py-2 text-left text-fg-3 outline-none hover:text-fg focus-visible:outline-2 focus-visible:outline-focus"
+            >
+              <span aria-hidden="true">{open.has(a.n) ? "▾" : "▸"}</span>
+            </button>
             <button
               type="button"
               aria-pressed={a.n === selected}
               aria-label={t.tpAttemptButton(a.n, result)}
               onClick={() => onSelect(a.n)}
               className={cn(
-                "flex w-full flex-wrap items-center gap-x-4 gap-y-1 py-2 text-left text-sm outline-none focus-visible:outline-2 focus-visible:outline-focus",
+                "flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 py-2 text-left text-sm outline-none focus-visible:outline-2 focus-visible:outline-focus",
                 a.n === selected ? "font-medium" : "",
               )}
             >
@@ -353,6 +450,8 @@ function Ladder({ request, selected, onSelect, t }: { request: TimelineRequest; 
               {a.builder?.model ? <span className="text-fg-3">{a.builder.model}</span> : null}
               {a.ended_by?.reason ? <span className="min-w-0 basis-full break-words text-xs text-fg-3 sm:basis-auto sm:flex-1">{a.ended_by.reason}</span> : null}
             </button>
+            </div>
+            {open.has(a.n) ? <Compare attempt={a} previous={request.attempts[i - 1]} t={t} stages={stages} /> : null}
           </li>
         );
       })}
@@ -418,11 +517,12 @@ export function TaskPath({
           <Came request={request} attempt={attempt} t={t} />
         </section>
       </div>
+      {attempt.merged_at && request.context ? <Context context={request.context} t={t} /> : null}
       {request.attempts.length > 1 ? (
         <section className="flex flex-col gap-1" aria-label={t.tpAttempts}>
           <h4 className="text-xs font-medium text-fg-3">{t.tpAttempts}</h4>
           <p className="text-xs text-fg-3 max-w-prose">{t.tpAttemptsNote}</p>
-          <Ladder request={request} selected={attempt.n} onSelect={(n) => onSelect({ request: request.id, attempt: n })} t={t} />
+          <Ladder request={request} selected={attempt.n} onSelect={(n) => onSelect({ request: request.id, attempt: n })} t={t} stages={stages} />
         </section>
       ) : null}
     </div>

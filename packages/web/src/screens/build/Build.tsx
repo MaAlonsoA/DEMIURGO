@@ -550,6 +550,16 @@ function Delivery({ d, t, hotspots, bounces }: { d: DeliveryMetrics; t: Words; h
               of: s.first_pass.of,
             })}
           </p>
+          {s.flow_median !== null ? (
+            <p className="text-sm text-fg-2 tabular-nums" data-delivery-flow>
+              {t.flowSummary({ median: fmt(s.flow_median), trend: d.flow_trend.join(", ") })}
+            </p>
+          ) : null}
+          {d.context.recall !== null && d.context.precision !== null ? (
+            <p className="text-sm text-fg-2 tabular-nums" data-delivery-context>
+              {t.contextSummary({ n: d.context.tasks, recall: d.context.recall, precision: d.context.precision })}
+            </p>
+          ) : null}
           {hotspots && hotspots.length > 0 ? (
             <div className="flex flex-col gap-0.5 text-sm text-fg-2 tabular-nums" data-delivery-hotspots>
               <span className="text-xs font-medium text-fg-3">{t.hotspots}</span>

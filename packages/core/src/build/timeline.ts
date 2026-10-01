@@ -7,6 +7,7 @@
 
 import { sql } from 'kysely';
 import type { Db } from '../db/connection.ts';
+import { ACTIVE_STAGES, type ContextHit, type Flow, contextHit, flowOf, unionMs } from './flow.ts';
 
 export type TimelineStepRow = {
   build_request_id: string;
@@ -79,6 +80,8 @@ export type TimelineAttempt = {
     notes: string | null;
     tests_written: number | null;
     wip_files: number;
+    /** Names of the files kept from the previous attempt's unfinished work (first few). */
+    wip_file_names: string[];
     /** Existing tests of other criteria that already check something close (the builder was told to extend them). */
     test_reuse: { count: number; first: { criterion: string; path: string }[] } | null;
   } | null;
@@ -115,6 +118,10 @@ export type TimelineRequest = {
   running: boolean;
   merged_at: string | null;
   attempts: TimelineAttempt[];
+  /** Active vs wait from the first start to the merge (or to now); see flow.ts. */
+  flow: Flow | null;
+  /** What the merged attempt's builder was given vs what the pull request touched; null unless merged and both are known. */
+  context: ContextHit | null;
 };
 
 export type BuildTimeline = {
@@ -206,6 +213,7 @@ function builderOf(rows: TimelineStepRow[]): TimelineAttempt['builder'] {
     notes: cut(report.notes, NOTES),
     tests_written: Array.isArray(report.tests) ? report.tests.length : null,
     wip_files: Array.isArray(d.wip_files) ? d.wip_files.length : 0,
+    wip_file_names: Array.isArray(d.wip_files) ? d.wip_files.filter((f): f is string => typeof f === 'string').slice(0, FILES).map((f) => cut(f, 120) ?? '') : [],
     test_reuse: Array.isArray(d.test_reuse) && d.test_reuse.length > 0
       ? {
           count: d.test_reuse.length,
@@ -332,6 +340,19 @@ function attemptOf(n: number, rows: TimelineStepRow[], previousEnd: number | nul
   };
 }
 
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+
+/** Files given to the builder of the merged attempt vs files of the merge footprint. */
+function contextOf(rows: TimelineStepRow[], mergedAttempt: number): ContextHit | null {
+  const merge = [...rows].reverse().find((r) => r.attempt === mergedAttempt && r.stage === 'merge' && r.outcome === 'ok');
+  const footprint = obj(obj(merge?.detail).footprint);
+  const touched = Array.isArray(footprint.files) ? footprint.files.map((f) => obj(f).path).filter((p): p is string => typeof p === 'string') : [];
+  const builder = [...rows].reverse().find((r) => r.stage === 'builder' && r.outcome === 'ok' && r.attempt <= mergedAttempt);
+  const d = obj(builder?.detail);
+  const reuse = Array.isArray(d.test_reuse) ? d.test_reuse.map((x) => obj(x).path).filter((p): p is string => typeof p === 'string') : [];
+  return contextHit({ given: strings(obj(d.code_to_extend).files), touched, reuse });
+}
+
 /**
  * Pure: the timeline of the given requests. A request is `running` while its state is open (requested, in_review)
  * and its latest attempt has not ended; its latest attempt is then the one in progress.
@@ -360,6 +381,10 @@ export function buildTimeline(
     }
     const shown = attempts.slice(-TIMELINE_MAX_ATTEMPTS);
     const merged = [...attempts].reverse().find((a) => a.merged_at)?.merged_at ?? null;
+    const mergedAttempt = [...attempts].reverse().find((a) => a.merged_at)?.n ?? null;
+    const leadStart = ms((attempts[0] as TimelineAttempt).start);
+    const leadEnd = merged ? ms(merged) : ms((attempts.at(-1) as TimelineAttempt).end);
+    const activeIntervals = attempts.flatMap((a) => a.segments.filter((sg) => ACTIVE_STAGES.has(sg.stage)).map((sg) => ({ start: ms(sg.start), end: ms(sg.end) })));
     out.push({
       id: r.id,
       task_code: r.task_code,
@@ -373,6 +398,8 @@ export function buildTimeline(
       running: attempts.at(-1)?.result === 'running',
       merged_at: merged,
       attempts: shown,
+      flow: flowOf(unionMs(activeIntervals, leadStart, leadEnd), leadEnd - leadStart),
+      context: mergedAttempt === null ? null : contextOf(rows, mergedAttempt),
     });
   }
   out.sort((a, b) => ms(a.start) - ms(b.start));

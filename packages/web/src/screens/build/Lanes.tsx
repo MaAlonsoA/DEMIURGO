@@ -13,7 +13,10 @@ import type { BUILD } from "./words.i18n.ts";
 type Words = typeof BUILD.en;
 
 const HEAD_H = 26;
-const ROW_H = 40;
+const ROW_H = 48;
+/** The bars are drawn in a 40-high lane centred in the row. */
+const LANE_H = 40;
+const LANE_PAD = (ROW_H - LANE_H) / 2;
 const MAIN_H = 40;
 const LABEL_W = 144;
 const MIN_PX = 1.5;
@@ -66,7 +69,7 @@ function Attempt({
   t: Words;
   onSelect: () => void;
 }) {
-  const top = HEAD_H + row * ROW_H;
+  const top = HEAD_H + row * LANE_H + LANE_PAD;
   const x0 = x(ms(attempt.start));
   const x1 = Math.max(x(ms(attempt.end)), x0 + 6);
   const result = t[`tlResult_${attempt.result}` as const];
@@ -77,8 +80,8 @@ function Attempt({
         <line
           x1={x(ms(previous.end))}
           x2={x0}
-          y1={top + ROW_H / 2}
-          y2={top + ROW_H / 2}
+          y1={top + LANE_H / 2}
+          y2={top + LANE_H / 2}
           className="stroke-edge-strong"
           strokeWidth={1}
           strokeDasharray="1 3"
@@ -101,12 +104,12 @@ function Attempt({
           }
         }}
       >
-        <rect x={x0 - 3} y={top + 3} width={x1 - x0 + 6} height={ROW_H - 6} rx={3} className="fill-transparent" />
+        <rect x={x0 - 3} y={top + 3} width={x1 - x0 + 6} height={LANE_H - 6} rx={3} className="fill-transparent" />
         <rect
           x={x0 - 3}
           y={top + 5}
           width={x1 - x0 + 6}
-          height={ROW_H - 10}
+          height={LANE_H - 10}
           rx={3}
           className={cn(
             "fill-none",
@@ -234,7 +237,7 @@ export function Lanes({
                 aria-pressed={chosen}
                 aria-label={t.tlTaskLabel(r.task_code, r.task_title)}
                 onClick={() => last && onSelect({ request: r.id, attempt: last.n })}
-                className="flex w-full flex-col items-start justify-center gap-0.5 pr-2 text-left outline-none focus-visible:outline-2 focus-visible:outline-focus"
+                className="flex w-full flex-col items-start justify-center pr-2 text-left outline-none focus-visible:outline-2 focus-visible:outline-focus"
                 style={{ height: ROW_H }}
                 data-lane-task={r.task_code}
               >
@@ -242,6 +245,11 @@ export function Lanes({
                   {r.task_code}
                 </span>
                 {r.feature ? <span className="font-code text-xs text-fg-3">{r.feature.code}</span> : null}
+                {r.flow ? (
+                  <span className="text-xs tabular-nums text-fg-3" title={t.flowTitle} data-lane-flow={r.task_code}>
+                    {t.flowLabel(r.flow.active_pct)}
+                  </span>
+                ) : null}
               </button>
             );
           })}

@@ -304,6 +304,125 @@ export function importSpecifiers(source: string): string[] {
   return [...out];
 }
 
+/** What a file takes from another module: the imported names, or null when it takes all of it (namespace, side effect, require, `import()`). */
+type NameUse = Set<string> | null;
+type Reexport = { target: string; star: boolean; /** [exported name, name in the target]; the target name is `*` for `export * as ns`. */ pairs: Array<[string, string]> };
+/** Per file, with specifiers resolved to repository paths: named uses and re-exports (a file with re-exports is a barrel). */
+type Links = { uses: Map<string, NameUse>; reexports: Reexport[] };
+type RawLinks = { uses: Array<{ spec: string; names: string[] | null }>; reexports: Array<{ spec: string; star: boolean; pairs: Array<[string, string]> }> };
+
+const bracePairs = (inner: string): Array<[string, string]> =>
+  inner
+    .split(',')
+    .map((part) => part.trim().replace(/^type\s+/, ''))
+    .filter((part) => part !== '')
+    .map((part) => {
+      const [local = '', exported] = part.split(/\s+as\s+/);
+      return [(exported ?? local).trim(), local.trim()] as [string, string];
+    });
+
+/** Names an import clause takes (`D, { A, B as C }` gives `default, A, B`), or null for a namespace import. */
+function clauseNames(clause: string): string[] | null {
+  if (/\*\s*as\s+/.test(clause)) return null;
+  const brace = /\{([^}]*)\}/.exec(clause);
+  const names = brace ? bracePairs(brace[1] as string).map(([, local]) => local) : [];
+  if ((brace ? clause.replace(brace[0], '') : clause).replace(/[,\s]/g, '') !== '') names.push('default');
+  return names;
+}
+
+/** Named imports and re-exports of a source file (regex based, like the rest of the map). */
+export function parseLinks(source: string): RawLinks {
+  const text = stripComments(source);
+  const out: RawLinks = { uses: [], reexports: [] };
+  for (const m of text.matchAll(/(?:^|[\s;])import\s+(?:type\s+)?([^'";]+?)\s+from\s*['"]([^'"]+)['"]/g)) out.uses.push({ spec: m[2] as string, names: clauseNames(m[1] as string) });
+  for (const m of text.matchAll(/(?:^|[\s;])import\s*['"]([^'"]+)['"]/g)) out.uses.push({ spec: m[1] as string, names: null });
+  for (const m of text.matchAll(/\b(?:require|import)\(\s*['"]([^'"]+)['"]\s*\)/g)) out.uses.push({ spec: m[1] as string, names: null });
+  for (const m of text.matchAll(/(?:^|[\s;])export\s+(?:type\s+)?\*\s*(?:as\s+([\w$]+)\s+)?from\s*['"]([^'"]+)['"]/g)) {
+    out.reexports.push(m[1] ? { spec: m[2] as string, star: false, pairs: [[m[1], '*']] } : { spec: m[2] as string, star: true, pairs: [] });
+  }
+  for (const m of text.matchAll(/(?:^|[\s;])export\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g)) out.reexports.push({ spec: m[2] as string, star: false, pairs: bracePairs(m[1] as string) });
+  return out;
+}
+
+/**
+ * Narrows the import edges that go through barrels (files that re-export). A file that imports `{ A }` from a
+ * barrel depends on the barrel and on the files that provide `A`, not on everything the barrel re-exports; a
+ * namespace import, a side-effect import or a name nothing provides keeps every re-exported file (fail safe).
+ * The barrel itself keeps only its own imports, so a change to a file reaches the barrel's importers only
+ * through the names they take. Practice: Bazel/TAP-style reverse dependencies are only as precise as the
+ * edges, so the edge must say which symbols it uses (Memon et al., ICSE-SEIP 2017).
+ */
+export function refineBarrelImports(files: CodeFile[], links: ReadonlyMap<string, Links>): void {
+  const byPath = new Map(files.map((f) => [f.path, f]));
+  const isBarrel = (p: string) => (links.get(p)?.reexports.length ?? 0) > 0;
+  const allOf = (p: string, seen = new Set<string>()): Set<string> => {
+    for (const r of links.get(p)?.reexports ?? []) {
+      if (seen.has(r.target)) continue;
+      seen.add(r.target);
+      allOf(r.target, seen);
+    }
+    return seen;
+  };
+  const exportsName = (p: string, name: string) => byPath.get(p)?.symbols.some((s) => s.exported && (s.name === name || (name === 'default' && s.kind === 'default'))) ?? false;
+  /** Files that provide `name` as exported by `p`; null when unknown. A named reference is trusted; a star needs the symbol. */
+  const provide = (p: string, name: string, strict: boolean, visiting: Set<string>): string[] | null => {
+    if (!isBarrel(p)) return !strict || exportsName(p, name) ? [p] : null;
+    if (visiting.has(p)) return null;
+    visiting.add(p);
+    const found = new Set<string>();
+    const reexports = links.get(p)?.reexports ?? [];
+    for (const r of reexports) {
+      for (const [exported, local] of r.pairs) {
+        if (exported !== name) continue;
+        if (local === '*') for (const t of [r.target, ...allOf(r.target)]) found.add(t);
+        else for (const t of provide(r.target, local, false, new Set(visiting)) ?? [r.target, ...allOf(r.target)]) found.add(t);
+      }
+    }
+    if (found.size === 0 && exportsName(p, name) && !reexports.some((r) => r.pairs.some(([e]) => e === name))) found.add(p);
+    if (found.size === 0) for (const r of reexports) if (r.star) for (const t of provide(r.target, name, true, new Set(visiting)) ?? []) found.add(t);
+    visiting.delete(p);
+    return found.size > 0 ? [...found] : null;
+  };
+  const refined = new Map<string, string[]>();
+  for (const f of files) {
+    const l = links.get(f.path);
+    if (!l) continue;
+    const reexported = new Set(l.reexports.map((r) => r.target));
+    const next = new Set<string>();
+    for (const dep of f.imports) {
+      const names = l.uses.get(dep);
+      if (names === undefined) {
+        // Only re-exported by this file: the barrel does not depend on them by use.
+        if (reexported.has(dep)) continue;
+        next.add(dep);
+        continue;
+      }
+      next.add(dep);
+      if (!isBarrel(dep)) continue;
+      const provided = names === null ? null : new Set<string>();
+      if (provided && names) {
+        for (const n of names) {
+          const hit = provide(dep, n, false, new Set());
+          if (hit === null) {
+            provided.clear();
+            provided.add('*');
+            break;
+          }
+          for (const t of hit) provided.add(t);
+        }
+      }
+      if (provided === null || provided.has('*')) for (const t of allOf(dep)) next.add(t);
+      else for (const t of provided) next.add(t);
+    }
+    next.delete(f.path);
+    refined.set(f.path, [...next]);
+  }
+  for (const f of files) {
+    const r = refined.get(f.path);
+    if (r) f.imports = r;
+  }
+}
+
 type Aliases = Array<{ prefix: string; suffix: string; targets: string[] }>;
 
 function aliasesOf(tsconfig: string | undefined): Aliases {
@@ -428,13 +547,41 @@ export async function buildCodeMap(repoPath: string, commitish: string): Promise
   // Stylesheets are import targets too (`import styles from './x.module.css'`).
   const codePaths = new Set(entries.filter((e) => isCode(e.path) || isCss(e.path)).map((e) => e.path));
   const files: CodeFile[] = [];
+  const links = new Map<string, Links>();
   for (const { path, blob } of entries.sort((a, b) => (a.path < b.path ? -1 : 1))) {
     const source = blobs.get(blob) ?? '';
     const kind = kindOfPath(path, source);
     const symbols = isSql(path) ? extractSql(source) : isPrisma(path) ? extractPrisma(source) : isCss(path) ? extractCss(source) : extractSymbols(path, source);
-    const imports = isCode(path)
-      ? [...new Set(importSpecifiers(source).map((s) => resolveImport(path, s, codePaths, aliases)).filter((p): p is string => p !== null && p !== path))]
-      : [];
+    let imports: string[] = [];
+    if (isCode(path)) {
+      const raw = parseLinks(source);
+      const resolve = (s: string) => resolveImport(path, s, codePaths, aliases);
+      const uses = new Map<string, NameUse>();
+      const reexports: Reexport[] = [];
+      const use = (target: string, names: string[] | null) => {
+        const had = uses.get(target);
+        uses.set(target, names === null || (uses.has(target) && had === null) ? null : new Set([...(had ?? []), ...names]));
+      };
+      const specs = importSpecifiers(source);
+      const parsedSpecs = new Set(raw.uses.map((u) => u.spec));
+      const reexportSpecs = new Set(raw.reexports.map((r) => r.spec));
+      for (const u of raw.uses) {
+        const t = resolve(u.spec);
+        if (t && t !== path) use(t, u.names);
+      }
+      for (const r of raw.reexports) {
+        const t = resolve(r.spec);
+        if (t && t !== path) reexports.push({ target: t, star: r.star, pairs: r.pairs });
+      }
+      // A specifier the parser did not understand counts as a use of everything.
+      for (const s of specs) {
+        if (parsedSpecs.has(s) || reexportSpecs.has(s)) continue;
+        const t = resolve(s);
+        if (t && t !== path) use(t, null);
+      }
+      imports = [...new Set(specs.map(resolve).filter((p): p is string => p !== null && p !== path))];
+      links.set(path, { uses, reexports });
+    }
     const route = kind === 'page' || kind === 'route' ? (routeOfPath(path) ?? undefined) : undefined;
     const file: CodeFile = { path, kind, modules: [], symbols, imports, ...(route ? { route } : {}) };
     // Drizzle-style `pgTable(...)` in a TypeScript file is a table too.
@@ -442,6 +589,7 @@ export async function buildCodeMap(repoPath: string, commitish: string): Promise
     file.modules = moduleIdsOf(file);
     files.push(file);
   }
+  refineBarrelImports(files, links);
   const map = assemble(sha, files);
   cache.set(key, map);
   while (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value as string);

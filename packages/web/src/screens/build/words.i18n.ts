@@ -28,6 +28,9 @@ export const BUILD = messages(
     confirmTitle: (code: string) => `Start build of ${code}?`,
     confirmBody:
       'This records a build request with the current brief, your name and the time. Nothing is launched yet: an agent only starts when you choose «Build with an agent».',
+    confirmBodyAgent:
+      "This records a build request with the current brief, your name and the time, and starts DEMIURGO's builder agent right away. It uses your subscription quota.",
+    confirmAgent: 'Start the build',
     confirm: 'Record the request',
     requestedDone: (code: string) => `Build of ${code} requested.`,
     withdrawn: (code: string) => `Build request of ${code} withdrawn.`,
@@ -103,6 +106,9 @@ export const BUILD = messages(
     confirmTitle: (code: string) => `¿Empezar la construcción de ${code}?`,
     confirmBody:
       'Esto apunta una petición de construcción con el encargo actual, tu nombre y la hora. Todavía no se lanza nada: un agente solo arranca cuando eliges «Construir con un agente».',
+    confirmBodyAgent:
+      'Esto apunta una petición de construcción con el encargo actual, tu nombre y la hora, y arranca enseguida al agente constructor de DEMIURGO. Consume la cuota de tu suscripción.',
+    confirmAgent: 'Empezar la construcción',
     confirm: 'Apuntar la petición',
     requestedDone: (code: string) => `Construcción de ${code} pedida.`,
     withdrawn: (code: string) => `Petición de construcción de ${code} retirada.`,

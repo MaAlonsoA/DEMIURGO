@@ -140,24 +140,42 @@ function Actions({
 }) {
   const [confirming, setConfirming] = useState(false);
   const request = useCommand(projectId);
+  const agent = useCommand(projectId);
   const withdraw = useCommand(projectId);
   const review = useCommand(projectId);
   const [pr, setPr] = useState("");
   const client = useQueryClient();
+  const a = useMessages(AGENT_BUILD);
   // The queue changes with the request: refresh it now, not only when the live event arrives.
   const refresh = () =>
     void client.invalidateQueries({
       queryKey: buildQueueQuery(projectId).queryKey,
     });
+  // With an agent able to build (GitHub connected) one click records the request and starts the build.
+  const agentCanBuild = !!task.github;
   const start = () => {
-    if (request.isPending) return;
+    if (request.isPending || agent.isPending) return;
     request.mutate(
       { command: "build_request.request", data: { task: task.code } },
       {
         onSuccess: () => {
-          setConfirming(false);
           refresh();
           announce(t.requestedDone(task.code));
+          if (!agentCanBuild) {
+            setConfirming(false);
+            return;
+          }
+          agent.mutate(
+            { command: "build.start", data: { task: task.code } },
+            {
+              onSuccess: () => {
+                void client.invalidateQueries({ queryKey: ["p", projectId] });
+                announce(a.build);
+              },
+              // The request is recorded: the dialog closes and «Build with an agent» offers the retry.
+              onSettled: () => setConfirming(false),
+            },
+          );
         },
       },
     );
@@ -280,6 +298,7 @@ function Actions({
             data-start-build={task.code}
             onClick={() => {
               request.reset();
+              agent.reset();
               setConfirming(true);
             }}
           >
@@ -288,17 +307,18 @@ function Actions({
         ) : null}
       </div>
       {review.error ? <ErrorNotice error={review.error} compact /> : null}
+      {agent.error ? <ErrorNotice error={agent.error} compact /> : null}
       {withdraw.error ? <ErrorNotice error={withdraw.error} compact /> : null}
       <ConfirmDialog
         open={confirming}
         onOpenChange={(open) => {
-          if (!request.isPending) setConfirming(open);
+          if (!request.isPending && !agent.isPending) setConfirming(open);
         }}
         title={t.confirmTitle(task.code)}
-        description={<p>{t.confirmBody}</p>}
-        confirm={t.confirm}
+        description={<p>{agentCanBuild ? t.confirmBodyAgent : t.confirmBody}</p>}
+        confirm={agentCanBuild ? t.confirmAgent : t.confirm}
         onConfirm={start}
-        pending={request.isPending}
+        pending={request.isPending || agent.isPending}
         error={request.error}
       />
     </div>

@@ -4,7 +4,7 @@
 // Primer (one banner per page), GitHub pull request checks (a small state glyph + word per criterion).
 // What is computed here is only reading of what the server sends; nothing is stored.
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useId, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
@@ -93,7 +93,7 @@ export type Primary =
   | { kind: 'draft_tasks' }
   | { kind: 'design_screens'; code: string; review?: boolean }
   | { kind: 'build_next'; code: string }
-  | { kind: 'start_build'; code: string; title: string }
+  | { kind: 'start_build'; code: string; title: string; github?: boolean }
   | { kind: 'follow_build' }
   | { kind: 'agent_build'; code: string; again: boolean; review?: boolean }
   | { kind: 'pr'; url: string }
@@ -193,7 +193,7 @@ export function deliveryOf(input: {
       else if (next) primary = { kind: 'build_next', code: next.code };
     } else if (record.type === 'task' && record.build) {
       const b = record.build;
-      if (b.state === 'to_do' && ready?.ready && input.canRequestBuild) primary = { kind: 'start_build', code: record.code, title: version.title };
+      if (b.state === 'to_do' && ready?.ready && input.canRequestBuild) primary = { kind: 'start_build', code: record.code, title: version.title, github: !!b.github };
       else if (b.state === 'requested' && b.github) {
         // Running: no primary, the stages are shown. Otherwise build (or build again after a stop).
         if (!isBuildRunning(b.steps)) primary = { kind: 'agent_build', code: record.code, again: needsRebuild(b.steps) };
@@ -247,6 +247,8 @@ export function PrimaryAction({
   const w = useMessages(KNOWLEDGE_WAIT);
   const [confirming, setConfirming] = useState(false);
   const request = useCommand(projectId);
+  const agentStart = useCommand(projectId);
+  const client = useQueryClient();
   switch (primary.kind) {
     case 'draft_tasks':
       return (
@@ -326,21 +328,34 @@ export function PrimaryAction({
           <ConfirmDialog
             open={confirming}
             onOpenChange={(o) => {
-              if (!o) {
+              if (!o && !agentStart.isPending) {
                 request.reset();
+                agentStart.reset();
                 setConfirming(false);
               }
             }}
             title={t.startBuildTitle(primary.title)}
-            description={t.startBuildText}
+            description={primary.github ? t.startBuildAgentText : t.startBuildText}
             confirm={t.startBuild}
             pendingLabel={t.starting}
-            pending={request.isPending}
-            error={confirming ? request.error : null}
+            pending={request.isPending || agentStart.isPending}
+            error={confirming ? (request.error ?? agentStart.error) : null}
             onConfirm={() =>
               request.mutate(
                 { command: 'build_request.request', data: { task: primary.code } },
-                { onSuccess: () => setConfirming(false) },
+                {
+                  onSuccess: () => {
+                    if (!primary.github) return setConfirming(false);
+                    // An agent can build: record the request and start it in the same click.
+                    agentStart.mutate(
+                      { command: 'build.start', data: { task: primary.code } },
+                      {
+                        onSuccess: () => void client.invalidateQueries({ queryKey: ['p', projectId] }),
+                        onSettled: () => setConfirming(false),
+                      },
+                    );
+                  },
+                },
               )
             }
           />

@@ -1436,7 +1436,7 @@ export type BuildQueue = {
     /** Ready tasks that wait for the person; the queue skips them and goes on. */
     stopped_waiting?: {
       code: string;
-      kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red';
+      kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red' | 'withdrawn';
       tried: number | null;
       failure_kind?: string | null;
     }[];
@@ -1454,7 +1454,7 @@ export type BuildQueue = {
     testability_waiting?: string[];
     stopped: {
       code: string;
-      kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red';
+      kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red' | 'withdrawn';
       tried: number | null;
       failure_kind?: string | null;
     } | null;

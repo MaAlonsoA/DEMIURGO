@@ -145,7 +145,7 @@ export const BUILD = messages(
     autoStoppedWaiting: (items: { code: string; reason: string }[]) =>
       `${items.map((i) => `${i.code} waits for you: ${i.reason}`).join('; ')}; the rest of the queue continues.`,
     autoStoppedReason: (kind: string, tried: number | null) =>
-      ({ needs_you: tried ? `DEMIURGO tried ${tried} times` : 'it needs you', ended: 'the last attempt ended', stale: 'its request is out of date', manual_review: 'a pull request pasted by hand is waiting', waiting: 'the builder hit a usage limit', main_red: 'main is red' })[kind] ?? kind,
+      ({ needs_you: tried ? `DEMIURGO tried ${tried} times` : 'it needs you', ended: 'the last attempt ended', stale: 'its request is out of date', manual_review: 'a pull request pasted by hand is waiting', waiting: 'the builder hit a usage limit', main_red: 'main is red', withdrawn: 'you withdrew its request (request it again to build it)' })[kind] ?? kind,
     autoIdle: 'Nothing ready to build. The next task that becomes ready starts when you turn this on again or when a build merges.',
     autoNeedsYou: (code: string, n: number | null) =>
       `Stopped: ${code} needs you.${n ? ` DEMIURGO tried ${n} ${n === 1 ? 'time' : 'times'}.` : ''} Address the review or withdraw the request; the queue does not skip ahead.`,
@@ -480,7 +480,7 @@ export const BUILD = messages(
     autoStoppedWaiting: (items: { code: string; reason: string }[]) =>
       `${items.map((i) => `${i.code} te espera: ${i.reason}`).join('; ')}; el resto de la cola continúa.`,
     autoStoppedReason: (kind: string, tried: number | null) =>
-      ({ needs_you: tried ? `DEMIURGO lo intentó ${tried} veces` : 'te necesita', ended: 'terminó el último intento', stale: 'su petición está desactualizada', manual_review: 'hay una pull request pegada a mano esperando', waiting: 'el constructor llegó al límite de uso', main_red: 'main está en rojo' })[kind] ?? kind,
+      ({ needs_you: tried ? `DEMIURGO lo intentó ${tried} veces` : 'te necesita', ended: 'terminó el último intento', stale: 'su petición está desactualizada', manual_review: 'hay una pull request pegada a mano esperando', waiting: 'el constructor llegó al límite de uso', main_red: 'main está en rojo', withdrawn: 'retiraste su petición (vuelve a pedirla para construirla)' })[kind] ?? kind,
     autoIdle: 'No hay nada listo para construir. La próxima tarea que quede lista empieza cuando vuelvas a activarlo o cuando se fusione una construcción.',
     autoNeedsYou: (code: string, n: number | null) =>
       `Detenida: ${code} te necesita.${n ? ` DEMIURGO lo intentó ${n} ${n === 1 ? 'vez' : 'veces'}.` : ''} Atiende la revisión o retira la petición; la cola no se salta tareas.`,

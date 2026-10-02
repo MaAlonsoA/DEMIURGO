@@ -34,9 +34,10 @@ export type AutoStopped = {
    * needs_you: «DEMIURGO tried N times; it needs you»; ended: the last attempt failed or was cancelled;
    * stale: the request is out of date; manual_review: a pull request pasted by hand is waiting;
    * waiting: the builder hit a transient limit (the subscription's usage limit): the queue is paused, not given up;
-   * main_red: CI on the base branch failed after DEMIURGO merged `code` (stop the line: nothing new starts).
+   * main_red: CI on the base branch failed after DEMIURGO merged `code` (stop the line: nothing new starts);
+   * withdrawn: a person withdrew its request: the queue does not ask for it again until a person does, or the task changes.
    */
-  kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red';
+  kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red' | 'withdrawn';
   tried: number | null;
   /** The builder's failure kind (usage_limit, auth, other…) when the last attempt failed in the builder. */
   failure_kind?: string | null;
@@ -147,9 +148,22 @@ async function quarantinedTests(db: Db, projectId: string): Promise<string[]> {
 }
 
 /** One ready task, from the stored state only: it starts, or it waits for the person (the queue skips it). */
-async function taskState(db: Db, t: QueueTask): Promise<{ kind: 'start'; hasRequest: boolean } | { kind: 'stopped'; stopped: AutoStopped }> {
+async function taskState(db: Db, projectId: string, t: QueueTask): Promise<{ kind: 'start'; hasRequest: boolean } | { kind: 'stopped'; stopped: AutoStopped }> {
   const request = t.request;
-  if (!request) return { kind: 'start', hasRequest: false };
+  if (!request) {
+    // A person withdrew the latest request on this task version: asking for it again would undo their decision.
+    const last = await db
+      .selectFrom('build_requests')
+      .innerJoin('records', 'records.id', 'build_requests.task_id')
+      .innerJoin('record_versions as v', 'v.id', 'build_requests.task_version_id')
+      .select(['build_requests.withdrawn_by', 'v.n'])
+      .where('records.code', '=', t.code)
+      .where('build_requests.project_id', '=', projectId)
+      .orderBy('build_requests.requested_at', 'desc')
+      .executeTakeFirst();
+    if (last?.withdrawn_by?.startsWith('human:') && last.n === t.version) return { kind: 'stopped', stopped: { code: t.code, kind: 'withdrawn', tried: null } };
+    return { kind: 'start', hasRequest: false };
+  }
   if (request.stale) return { kind: 'stopped', stopped: { code: t.code, kind: 'stale', tried: null } };
   const latest = await db
     .selectFrom('build_steps')
@@ -451,7 +465,7 @@ export async function plan(db: Db, projectId: string, queue: BuildQueue, limit: 
       // a prediction that cannot be made never stops the queue
     }
   }
-  const picked = await selectStarts({ ready: queue.ready, running, limit, index, featureOf, stateOf: (t) => taskState(db, t), schema, ...module });
+  const picked = await selectStarts({ ready: queue.ready, running, limit, index, featureOf, stateOf: (t) => taskState(db, projectId, t), schema, ...module });
   return { ...result, ...picked, ...(moduleContext ? { moduleContext } : {}) };
 }
 

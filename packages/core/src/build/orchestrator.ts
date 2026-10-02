@@ -281,7 +281,7 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   };
 }
 
-type Feedback = { tdd?: string[]; blocking: string[]; fixes: string[]; failing: string[]; failures: CiFailureDetail[]; design: string[]; ownership: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string; history?: string[] };
+type Feedback = { unprepared?: boolean; tdd?: string[]; blocking: string[]; fixes: string[]; failing: string[]; failures: CiFailureDetail[]; design: string[]; ownership: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string; history?: string[] };
 
 const NO_FEEDBACK: Feedback = { blocking: [], fixes: [], failing: [], failures: [], design: [], ownership: [], flaky: [], conflicts: [] };
 
@@ -580,6 +580,15 @@ function promptParts(
     if (progress) lines.push('Progress notes from the previous attempt:', progress.trim(), `(${PROGRESS_PATH} holds the notes of every earlier attempt under "## Attempt N"; add yours under "## Attempt ${attempt}".)`);
     if (f.tdd && f.tdd.length > 0) lines.push(...f.tdd);
     if (history.length > 0) lines.push(...history);
+    if (f.unprepared) {
+      // The first task of a new project (its walking skeleton) has no CI to prepare the environment from: it is the task
+      // that creates it. Without this, the builder's «do not install packages» rule left the skeleton unbuildable.
+      lines.push(
+        'Nothing was prepared for this attempt: the project has no CI workflow DEMIURGO can read yet (usually the first task of a new project, its walking skeleton, which is the one that creates it).',
+        "So the rule about not installing packages does not apply to the project's own dependencies here: create the project's manifest and lockfile, install its dependencies with its package manager (the registry is reachable), and write the CI workflow following the rules above, so later tasks start with a prepared environment.",
+        'Still do not install system packages and do not start databases or other services. Write the tests that need a database or a browser as usual, run what you can here, and say in the notes which tests only CI could run: CI is their check.',
+      );
+    }
     if (f.conflicts.length > 0) {
       lines.push(
         `The branch conflicts with main: the merge of origin/main into this branch is in progress and these files have conflict markers: ${f.conflicts.join(', ')}.`,
@@ -1033,7 +1042,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
         return { history: [], fresh: [], sections: [] } as BuilderContext;
       }
     })();
-    const feedback: Feedback = { ...feedbackBase, history: earlierContext.history };
+    const feedback: Feedback = { ...feedbackBase, history: earlierContext.history, ...(!resume && prepared === null ? { unprepared: true } : {}) };
     const promptArgs = [agent.body, briefText, attempt, feedback, designSystem, codeLines, plan.mode === 'resumed', earlierContext.fresh] as const;
     const builderPrompt = promptOf(...promptArgs);
     const told = capTold(promptExtras(...promptArgs), TOLD_MAX);

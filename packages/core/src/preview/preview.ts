@@ -387,6 +387,19 @@ export async function startPreview(services: Services, projectId: string, exec: 
   const secretEnv = Object.fromEntries(secretNames.map((n) => [n, randomBytes(32).toString('base64url')]));
   const appEnv = { ...prepared.env, ...secretEnv };
 
+  // The CI may not apply migrations itself (the tests do, in their setup): then the project's own migrate script does.
+  const migrateScript = ci.migrate ? null : (['migrate', 'db:migrate'] as const).find((n) => typeof scriptsOf(files.packageJson)[n] === 'string');
+  if (migrateScript) {
+    step('Applying the migrations');
+    const migrateCommand = runScript(managerOf(ci), migrateScript);
+    const args = setupArguments({ worktreeHostPath: hostPathOf(path), command: migrateCommand, network: prepared.network, storeVolume: prepared.storeVolume, env: appEnv, limits: LIMITS }, `demiurgo-setup-preview-${projectId}-migrate`);
+    const r = await exec(args, { timeoutMs: 300_000 });
+    if (r.code !== 0) {
+      await teardownEnvironment(slug, projectId, exec, database);
+      throw new PreviewFailure(`The migrations failed (${migrateCommand}).`, tail(r.stderr || r.stdout));
+    }
+  }
+
   let seed: string | undefined;
   let accounts: PreviewAccount[] = [];
   const seedScript = seedScriptOf(files.packageJson);

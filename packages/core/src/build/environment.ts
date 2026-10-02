@@ -117,6 +117,8 @@ const INSTALL = /^\s*(pnpm|npm|yarn)\s+(install|i|ci)\b/m;
 /** A global install sets up a tool (`npm install --global pnpm@…`), not the project's dependencies: the image has the tools. */
 const GLOBAL_INSTALL = /\s(-g|--global)\b/;
 const BROWSERS = /\bplaywright\s+install(?![-\w])/;
+/** A step that checks or lints migrations (names, order) rather than applying them. */
+const CHECK_STEP = /\b(check|lint|verify|validate|well formed|names?)\b|check:/i;
 const MIGRATE = /\b(?:pnpm|npm|yarn)(?:\s+run)?\s+[\w:-]*migrate[\w:-]*\b/;
 
 /** `playwright install --with-deps` needs root for system packages: the image already has them. */
@@ -169,7 +171,7 @@ export function environmentFromCi(yamlText: string, files: StartFiles = {}): CiE
       Object.assign(env, variablesOf(step.env));
     } else if (result.browsers === undefined && BROWSERS.test(run)) {
       result.browsers = withoutDeps(browsersLine(run) ?? run);
-    } else if (result.migrate === undefined && (/migrat/i.test(label) || MIGRATE.test(run))) {
+    } else if (result.migrate === undefined && (MIGRATE.test(run) || (/migrat/i.test(label) && !CHECK_STEP.test(`${label} ${run}`)))) {
       result.migrate = run;
       Object.assign(env, variablesOf(step.env));
     }
@@ -200,8 +202,11 @@ export function rewriteForNetwork(env: Record<string, string>, services: CiServi
     }
     if (database !== undefined) {
       for (const service of services) {
-        if (service.port === null || !/(^|\/)postgres(:|@|$)/.test(service.image)) continue;
-        next = next.replace(new RegExp(`^(postgres(?:ql)?://[^/@\\s]*@?${service.name}:${service.port})/[^?\\s]*`), `$1/${database}`);
+        if (!/(^|\/)postgres(:|@|$)/.test(service.image)) continue;
+        // A job container reaches the service by its label with no published port (GitHub Docs, «About service
+        // containers»): the port is then Postgres' default, 5432 (PostgreSQL docs, «Connection Settings», port).
+        const port = service.port ?? 5432;
+        next = next.replace(new RegExp(`^(postgres(?:ql)?://[^/@\\s]*@?${service.name}:${port})/[^?\\s]*`), `$1/${database}`);
       }
     }
     out[key] = next;

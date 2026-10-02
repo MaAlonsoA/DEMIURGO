@@ -102,6 +102,23 @@ export async function originExploration(db: Db, versionId: string, hops = 6): Pr
   return null;
 }
 
+/**
+ * A feature's readiness as its tasks read it: every task of a feature asked for the same one, once per task, on the
+ * pages that read all of them. Kept per database handle for a moment (a transaction is its own handle).
+ */
+const FEATURE_READINESS_TTL_MS = 2_000;
+const featureReadinesses = new WeakMap<object, Map<string, { at: number; readiness: Promise<Readiness> }>>();
+function featureReadiness(db: Db, projectId: string, versionId: string): Promise<Readiness> {
+  const byVersion = featureReadinesses.get(db) ?? new Map<string, { at: number; readiness: Promise<Readiness> }>();
+  featureReadinesses.set(db, byVersion);
+  const hit = byVersion.get(versionId);
+  if (hit && Date.now() - hit.at < FEATURE_READINESS_TTL_MS) return hit.readiness;
+  const readiness = versionReadiness(db, projectId, versionId);
+  byVersion.set(versionId, { at: Date.now(), readiness });
+  readiness.catch(() => byVersion.delete(versionId));
+  return readiness;
+}
+
 export async function versionReadiness(db: Db, projectId: string, versionId: string): Promise<Readiness> {
   const v = await db
     .selectFrom('record_versions')
@@ -274,7 +291,7 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
         .where('record_versions.n', '=', b.current)
         .executeTakeFirst();
       if (!feature) continue;
-      const f = await versionReadiness(db, projectId, feature.id);
+      const f = await featureReadiness(db, projectId, feature.id);
       // The feature's «It needs FDR-X, which is not built yet» gives way to the tasks this task really needs (task-deps.ts).
       const replaced = new Set((taskWaits?.replacesNeeds ?? []).map(needNotBuiltReason));
       for (const reason of f.reasons) if (!replaced.has(reason)) own.reasons.push(`Feature ${b.code}: ${reason}`);

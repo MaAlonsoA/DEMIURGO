@@ -37,7 +37,43 @@ const unique = <T>(xs: T[]): T[] => [...new Set(xs)];
  * Loads the dependencies of the project's tasks. `own` makes one task read its links from a given
  * version (the one whose readiness is being computed) instead of its current approved one.
  */
+/**
+ * The index of a project is the same for every task read at its current approved version, and a page that reads
+ * the readiness of every task (Product, Build) asked for it once per task (125 loads of ~45 ms each). It is kept
+ * per database handle for a moment (a transaction is its own handle, so a command never reads a stale one).
+ */
+const INDEX_TTL_MS = 2_000;
+const indexes = new WeakMap<object, Map<string, { at: number; index: Promise<TaskDependencyIndex> }>>();
+
 export async function loadTaskDependencies(
+  db: Db,
+  projectId: string,
+  own?: { code: string; versionId: string },
+): Promise<TaskDependencyIndex> {
+  if (own) {
+    // A task read at its current approved version needs no index of its own.
+    const current = await db
+      .selectFrom('record_versions')
+      .innerJoin('records', 'records.id', 'record_versions.record_id')
+      .select('record_versions.id')
+      .where('records.project_id', '=', projectId)
+      .where('records.code', '=', own.code)
+      .where('record_versions.state', '=', 'approved')
+      .orderBy('record_versions.n', 'desc')
+      .executeTakeFirst();
+    if (current?.id !== own.versionId) return buildTaskDependencies(db, projectId, own);
+  }
+  const byProject = indexes.get(db) ?? new Map<string, { at: number; index: Promise<TaskDependencyIndex> }>();
+  indexes.set(db, byProject);
+  const hit = byProject.get(projectId);
+  if (hit && Date.now() - hit.at < INDEX_TTL_MS) return hit.index;
+  const index = buildTaskDependencies(db, projectId);
+  byProject.set(projectId, { at: Date.now(), index });
+  index.catch(() => byProject.delete(projectId));
+  return index;
+}
+
+async function buildTaskDependencies(
   db: Db,
   projectId: string,
   own?: { code: string; versionId: string },

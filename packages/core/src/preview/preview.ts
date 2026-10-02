@@ -375,6 +375,10 @@ export async function startPreview(services: Services, projectId: string, exec: 
   if (!command) throw new PreviewFailure('The project does not say how to start the app (no Playwright webServer, no start or dev script).');
 
   step('Preparing the database and installing dependencies');
+  // Every start begins with a fresh database: a restart must not re-seed onto the previous preview's rows (seeds are
+  // rarely idempotent), and the throwaway accounts change with each start.
+  await removeContainer(projectId, exec).catch(() => undefined);
+  await teardownEnvironment(slug, projectId, exec, database).catch(() => undefined);
   const prepared = await prepareEnvironment({ slug, id: projectId, database, ci, worktreeHostPath: hostPathOf(path), keepDatabases: [] });
   if (!prepared.ok) throw new PreviewFailure(`${prepared.reason} (step: ${prepared.failedStep})`);
 

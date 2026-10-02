@@ -17,7 +17,7 @@ import {
   isDomainError,
   allowedForQuery,
 } from '@demiurgo/domain';
-import { HANDLERS, type InteractionRoot, SETTINGS, type Services, executeCommand, runProgress } from '@demiurgo/core';
+import { HANDLERS, type InteractionRoot, SETTINGS, type Services, beginPreview, executeCommand, previewStatus, runProgress, stopPreview } from '@demiurgo/core';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
@@ -356,6 +356,29 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
       unsubscribe();
     });
     await send();
+  });
+
+  // «Open the app»: the project's main running in its own container (core preview/preview.ts). An operation on
+  // the person's machine, not a change of authority: plain routes, only for a person's session.
+  const previewActor = (req: FastifyRequest): void => {
+    if (actorOf(req).type !== 'human') throw new DomainError('forbidden', 'Only a person can open or stop the app.');
+  };
+  app.get('/api/projects/:projectId/preview', async (req) => {
+    previewActor(req);
+    return previewStatus((req.params as { projectId: string }).projectId);
+  });
+  app.post('/api/projects/:projectId/preview', async (req, reply) => {
+    previewActor(req);
+    const { projectId } = req.params as { projectId: string };
+    await beginPreview(services, projectId);
+    reply.code(202);
+    return previewStatus(projectId);
+  });
+  app.delete('/api/projects/:projectId/preview', async (req) => {
+    previewActor(req);
+    const { projectId } = req.params as { projectId: string };
+    await stopPreview(services, projectId);
+    return { state: 'stopped' };
   });
 
   for (const c of QUERIES) registerQuery(app, services, c);

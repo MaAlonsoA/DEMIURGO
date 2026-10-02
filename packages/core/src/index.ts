@@ -90,3 +90,4 @@ export * from './translation/index.ts';
 export { type GlossaryEntry, projectGlossary } from './commands/glossary.ts';
 export * from './translation/records.ts';
 export * from './github/index.ts';
+export * from './preview/preview.ts';

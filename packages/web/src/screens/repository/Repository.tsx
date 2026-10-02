@@ -20,6 +20,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { whoOf } from '../../words.ts';
 import { CodeMapSection } from './CodeMap.tsx';
+import { PreviewSection } from './Preview.tsx';
 import { REPOSITORY } from './words.i18n.ts';
 
 function GithubSection({ projectId, data }: { projectId: string; data: ProjectCommits }) {
@@ -95,6 +96,7 @@ export function RepositoryScreen() {
             <Section title={t.folder}>
               <Code className="text-sm text-fg">{q.data.dir}</Code>
             </Section>
+            <PreviewSection projectId={projectId} />
             <CodeMapSection projectId={projectId} />
             <Section title={t.commits}>
               <ol data-commits className="flex flex-col divide-y divide-edge">

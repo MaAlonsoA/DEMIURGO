@@ -328,6 +328,19 @@ export const commitsQuery = (p: string) =>
     refetchInterval: 5000,
   });
 
+/** The project's app running from main («Open the app»); it polls while the app is starting. */
+export type PreviewState =
+  | { state: 'stopped' }
+  | { state: 'starting'; step: string }
+  | { state: 'running'; url: string; port: number; started_at: string; commit: string; seed?: string }
+  | { state: 'failed'; reason: string; log?: string };
+export const previewQuery = (p: string) =>
+  queryOptions({
+    queryKey: ['p', p, 'preview'] as const,
+    queryFn: () => get<PreviewState>(`${P(p)}/preview`),
+    refetchInterval: (q) => (q.state.data?.state === 'starting' ? 2000 : false),
+  });
+
 /** How features map onto code: files per feature, hotspots and owners of tables and routes. */
 export const codeMapQuery = (p: string) =>
   queryOptions({

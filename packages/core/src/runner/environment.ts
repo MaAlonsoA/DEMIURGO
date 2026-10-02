@@ -29,6 +29,8 @@ export const pnpmStoreVolumeName = (slug: string): string => `demiurgo-env-${slu
 /** Name of a build's database: `b_` plus the last 12 characters of the request id (the random part of a uuid). */
 export const databaseName = (id: string): string => `b_${id.replace(/[^0-9a-f]/gi, '').toLowerCase().slice(-12).padStart(12, '0')}`;
 const DATABASE_NAME = /^b_[0-9a-f]{12}$/;
+/** A database a caller names itself (the preview's `p_…`): the build sweep leaves it alone. */
+const OWN_DATABASE_NAME = /^[bp]_[0-9a-f]{12}$/;
 const checkSlug = (slug: string): void => {
   if (!SLUG.test(slug)) throw new Error(`Invalid project slug: ${JSON.stringify(slug)}.`);
 };
@@ -75,6 +77,8 @@ export type PrepareInput = {
   id: string;
   ci: CiEnvironment;
   worktreeHostPath: string;
+  /** A database name of the caller's own (`p_` + 12 hex), instead of the build's `b_…`: the sweep of build databases keeps it. */
+  database?: string;
   /** Databases (`databaseName`) of the project's builds still open: the sweep keeps them and drops any other `b_*`. */
   keepDatabases?: string[];
   limits?: EnvironmentLimits;
@@ -161,9 +165,10 @@ async function postgresServers(slug: string, exec: DockerExec): Promise<{ contai
 }
 
 /** Drops the build's database (idempotent, best effort). The project's containers, network and store stay. */
-export async function teardownEnvironment(slug: string, id: string, exec: DockerExec = dockerExec): Promise<void> {
+export async function teardownEnvironment(slug: string, id: string, exec: DockerExec = dockerExec, ownDatabase?: string): Promise<void> {
   checkSlug(slug);
-  const database = databaseName(id);
+  const database = ownDatabase ?? databaseName(id);
+  if (!OWN_DATABASE_NAME.test(database)) throw new Error('Invalid database name.');
   for (const { container, user } of await postgresServers(slug, exec)) {
     await exec(psql(container, user, `DROP DATABASE IF EXISTS ${database} WITH (FORCE)`), { timeoutMs: 30_000 });
   }
@@ -211,12 +216,13 @@ export async function prepareEnvironment(input: PrepareInput, options: PrepareOp
   const storeVolume = pnpmStoreVolumeName(slug);
   if (!NAME_PATTERN.test(network) || !NAME_PATTERN.test(storeVolume)) throw new Error(`Invalid project slug: ${JSON.stringify(slug)}.`);
   const readyMs = options.readyTimeoutMs ?? 60_000;
-  const database = databaseName(id);
+  const database = input.database ?? databaseName(id);
+  if (!OWN_DATABASE_NAME.test(database)) throw new Error('Invalid database name.');
   const steps: { step: string; ms: number }[] = [];
   const started: PreparedEnvironment['services'] = [];
   const databases: string[] = [];
   const fail = async (failedStep: string, reason: string): Promise<PrepareResult> => {
-    await teardownEnvironment(slug, id, exec);
+    await teardownEnvironment(slug, id, exec, database);
     return { ok: false, reason, failedStep };
   };
   const timed = async <T>(step: string, work: () => Promise<T>): Promise<T> => {

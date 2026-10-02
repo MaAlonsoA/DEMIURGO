@@ -114,6 +114,8 @@ function portsOf(raw: unknown): { port: number | null; hostPort: number | null }
 }
 
 const INSTALL = /^\s*(pnpm|npm|yarn)\s+(install|i|ci)\b/m;
+/** A global install sets up a tool (`npm install --global pnpm@…`), not the project's dependencies: the image has the tools. */
+const GLOBAL_INSTALL = /\s(-g|--global)\b/;
 const BROWSERS = /\bplaywright\s+install(?![-\w])/;
 const MIGRATE = /\b(?:pnpm|npm|yarn)(?:\s+run)?\s+[\w:-]*migrate[\w:-]*\b/;
 
@@ -162,7 +164,7 @@ export function environmentFromCi(yamlText: string, files: StartFiles = {}): CiE
     if (!isRecord(step) || typeof step.run !== 'string') continue;
     const run = step.run.trim();
     const label = typeof step.name === 'string' ? step.name : '';
-    if (result.install === undefined && INSTALL.test(run)) {
+    if (result.install === undefined && INSTALL.test(run) && !GLOBAL_INSTALL.test(run)) {
       result.install = run;
       Object.assign(env, variablesOf(step.env));
     } else if (result.browsers === undefined && BROWSERS.test(run)) {

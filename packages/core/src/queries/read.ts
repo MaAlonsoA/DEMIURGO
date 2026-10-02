@@ -180,7 +180,7 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
     }
     // A feature based on another feature needs it built first (the map draws it as "needs").
     if (e.type === 'based_on' && v.type === 'fdr' && e.targetType === 'fdr') {
-      needs.push({ code: e.code, implementation: await implementationOf(db, e.recordId) });
+      needs.push({ code: e.code, implementation: (await builtInCi(db, e.recordId)) ? 'implemented' : await implementationOf(db, e.recordId) });
     }
     if (e.state === 'needs_review') linksUnderReview.push(`${e.code} v${e.n}`);
   }
@@ -414,6 +414,32 @@ export async function implementationOf(db: Db, recordId: string): Promise<string
   for (const c of criteria) if (await evidenceOf(db, c.id)) checked++;
   if (checked === 0) return 'not implemented';
   return checked === criteria.length ? 'implemented' : 'in progress';
+}
+
+/**
+ * Whether a needed feature is built as far as the features that need it are concerned: every automatic criterion
+ * of its current version has evidence. Its `manual` and `release` criteria are checked later, by a person or
+ * against the release candidate (Humble & Farley, Continuous Delivery: later pipeline stages run on a candidate
+ * and do not hold back the commit stage of the next piece), so they never keep a dependent from being built.
+ */
+async function builtInCi(db: Db, recordId: string): Promise<boolean> {
+  const current = await db
+    .selectFrom('record_versions')
+    .select('id')
+    .where('record_id', '=', recordId)
+    .where('state', '=', 'approved')
+    .orderBy('n', 'desc')
+    .executeTakeFirst();
+  if (!current) return false;
+  const automatic = await db
+    .selectFrom('criteria')
+    .select('id')
+    .where('record_version_id', '=', current.id)
+    .where('verification', '=', 'automatic')
+    .execute();
+  if (automatic.length === 0) return false;
+  for (const c of automatic) if (!(await evidenceOf(db, c.id))) return false;
+  return true;
 }
 
 /** The based_on targets of a version: what it rests on and, for a feature, the features it needs. */

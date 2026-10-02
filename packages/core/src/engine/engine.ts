@@ -986,8 +986,8 @@ export type EngineOptions = {
   /** Only for tests: how long an answer waits for knowledge before it is abandoned. */
   responsePatienceMs?: number;
   /**
-   * A process beside the API (the CLI): its own DBOS executor, so launching it never recovers the API's pending
-   * workflows; no queues, so it never takes the API's work; and none of the API's reconciliation (orphan calls,
+   * A process beside the API (the CLI): its own DBOS application and executor, so launching it never recovers the API's
+   * pending workflows and no queue of the API (the internal one included) hands it the API's work; and none of the API's reconciliation (orphan calls,
    * runs, answers), which would act on runs the API is still executing. It only executes what it starts itself.
    */
   sidecar?: boolean;
@@ -1077,10 +1077,13 @@ export async function startEngine(
   onStepComplete = options.onStepComplete;
   responsePatienceMs = options.responsePatienceMs ?? RESPONSE_PATIENCE_MS;
   DBOS.setConfig({
-    name: 'demiurgo',
+    // A sidecar is its own DBOS application: dequeues (the internal queue too, which ignores `listenQueues`) only see
+    // rows of their own application, so it never takes a workflow of the API (a pull request review was taken once).
+    name: options.sidecar ? 'demiurgo-cli' : 'demiurgo',
     systemDatabaseUrl: baseUrl,
     systemDatabaseSchemaName: 'dbos',
-    applicationVersion: WORKFLOWS_VERSION,
+    // DBOS wants version names unique across the applications of one system database.
+    applicationVersion: options.sidecar ? `${WORKFLOWS_VERSION}-cli` : WORKFLOWS_VERSION,
     executorID: options.sidecar ? `sidecar-${randomUUID()}` : 'local',
     ...(options.sidecar ? { listenQueues: [] } : {}),
     logLevel: 'warn',

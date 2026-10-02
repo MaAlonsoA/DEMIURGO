@@ -163,7 +163,7 @@ registerHandlers({
         ...new Set(
           [...outcomes]
             .filter(([, o]) => o.has("pass") && o.has("fail"))
-            .map(([name]) => /^AC-[A-Z]{3}-\d{3}-\d{2}/.exec(name)?.[0] ?? name),
+            .map(([name]) => criterionCodeOf(name) ?? name),
         ),
       ];
       await storeTestRuns(ctx, cases, {
@@ -262,7 +262,7 @@ export function failuresOf(cases: TestCase[]): CiFailure[] {
     seen.add(t.name);
     const message = (t.failure ?? "(no failure message in the report)").slice(0, Math.max(0, FAILURES_TOTAL_MAX - total));
     total += message.length;
-    out.push({ code: /^AC-[A-Z]{3}-\d{3}-\d{2}/.exec(t.name)?.[0] ?? null, test: t.name, file: t.file ?? null, message });
+    out.push({ code: criterionCodeOf(t.name) ?? null, test: t.name, file: t.file ?? null, message });
   }
   return out;
 }
@@ -308,7 +308,7 @@ async function storeTestRuns(
     ci_run_id: from.ciRunId,
     test_name: t.name.slice(0, 1000),
     file: t.file ?? null,
-    criterion_code: /^AC-[A-Z]{3}-\d{3}-\d{2}/.exec(t.name)?.[0] ?? null,
+    criterion_code: criterionCodeOf(t.name) ?? null,
     outcome: (t.outcome === "skipped" ? "skip" : t.outcome) as "pass" | "fail" | "skip",
     duration_ms: t.durationMs ?? null,
     failure: t.failure ?? null,
@@ -318,11 +318,20 @@ async function storeTestRuns(
   }
 }
 
+/**
+ * The criterion a test case checks: the code its own title starts with. JUnit reporters put the enclosing suites
+ * first (Vitest «suite > title», Playwright «suite › title»), so the title is the last segment of the name.
+ */
+export function criterionCodeOf(name: string): string | undefined {
+  const title = name.split(/\s+[>›]\s+/).pop() ?? name;
+  return /^AC-[A-Z]{3}-\d{3}-\d{2}/.exec(title)?.[0] ?? /^AC-[A-Z]{3}-\d{3}-\d{2}/.exec(name)?.[0];
+}
+
 function groupByCriterion(cases: TestCase[]): { byCode: Map<string, Group>; ignored: number } {
   const byCode = new Map<string, Group>();
   let ignored = 0;
   for (const t of cases) {
-    const code = /^AC-[A-Z]{3}-\d{3}-\d{2}/.exec(t.name)?.[0];
+    const code = criterionCodeOf(t.name);
     if (!code) {
       ignored++;
       continue;

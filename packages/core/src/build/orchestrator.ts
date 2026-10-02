@@ -62,6 +62,7 @@ import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/bui
 import { databaseName, prepareEnvironment, projectSlug, teardownEnvironment } from '../runner/environment.ts';
 import { PLAYWRIGHT_CONFIGS, environmentFromCi, startCommandOf, startLine } from './environment.ts';
 import { pullRequestFootprint } from './footprint.ts';
+import './evidence-backfill.ts';
 import { BREAKER_ATTEMPTS, tripped } from './breaker.ts';
 import { type OwnershipViolation, checkOwnership, ownershipLine } from './ownership.ts';
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';

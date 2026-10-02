@@ -159,9 +159,24 @@ export async function runGit(dir: string, args: string[], opts: { network?: bool
 
 const git = (dir: string, args: string[]) => runGit(dir, args);
 
-/** Pushes a branch; the credential lives only in this child process's environment. */
-export async function pushBranch(repoDir: string, branch: string, _cfg?: GithubConfig): Promise<void> {
-  await runGit(repoDir, ['push', 'origin', branch], { network: true });
+/**
+ * Pushes a branch; the credential lives only in this child process's environment. With the worktree that has the
+ * branch checked out, a push GitHub refuses because the remote branch moved ahead (DEMIURGO updated it with main
+ * on GitHub while the attempt ran on the local copy) brings that remote tip in with a merge and pushes again.
+ */
+export async function pushBranch(repoDir: string, branch: string, _cfg?: GithubConfig, workDir?: string): Promise<void> {
+  try {
+    await runGit(repoDir, ['push', 'origin', branch], { network: true });
+  } catch (e) {
+    const behind = /non-fast-forward|fetch first|tip of your current branch is behind|is behind its remote/i.test(e instanceof Error ? e.message : String(e));
+    if (!workDir || !behind) throw e;
+    await runGit(workDir, ['fetch', 'origin', branch], { network: true });
+    await runGit(workDir, ['-c', 'user.name=DEMIURGO', '-c', 'user.email=demiurgo@demiurgo.local', '-c', 'commit.gpgsign=false', 'merge', '--no-edit', `origin/${branch}`]).catch(async (m: unknown) => {
+      await runGit(workDir, ['merge', '--abort']).catch(() => undefined);
+      throw m;
+    });
+    await runGit(repoDir, ['push', 'origin', branch], { network: true });
+  }
 }
 
 /**

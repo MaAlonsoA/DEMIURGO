@@ -179,17 +179,18 @@ async function taskState(db: Db, projectId: string, t: QueueTask): Promise<{ kin
       ? { kind: 'start', hasRequest: true }
       : { kind: 'stopped', stopped: { code: t.code, kind: 'manual_review', tried: null } };
   }
-  // Preparing the repository failed (GitHub refused the push of main because it moved meanwhile, for instance):
-  // nothing of the task was tried yet, so the queue starts it again, up to three such failures (convención nuestra).
-  if (latest.stage === 'repo' && latest.outcome === 'failed') {
-    const repoFailures = await db
+  // Preparing the repository or pushing the branch failed (GitHub refused it because main or the branch moved
+  // meanwhile, for instance): a git hiccup, not the task's fault, so the queue starts it again, up to three such
+  // failures (convención nuestra).
+  if ((latest.stage === 'repo' || latest.stage === 'push') && latest.outcome === 'failed') {
+    const gitFailures = await db
       .selectFrom('build_steps')
       .select((eb) => eb.fn.countAll().as('n'))
       .where('build_request_id', '=', request.id)
-      .where('stage', '=', 'repo')
+      .where('stage', 'in', ['repo', 'push'])
       .where('outcome', '=', 'failed')
       .executeTakeFirst();
-    if (Number(repoFailures?.n ?? 0) < 3) return { kind: 'start', hasRequest: true };
+    if (Number(gitFailures?.n ?? 0) < 3) return { kind: 'start', hasRequest: true };
   }
   // The builder failed on something transient (a usage limit): the queue waits, it does not give up.
   const d = latest.detail as { failure_kind?: string } | null;

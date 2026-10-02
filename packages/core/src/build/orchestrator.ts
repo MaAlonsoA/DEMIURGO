@@ -852,7 +852,7 @@ async function keepWork(
   if (!sha) return null;
   const files = await commitFiles(worktree.path, sha).catch(() => []);
   try {
-    await github.pushBranch(info.repoDir, worktree.branch, cfg);
+    await github.pushBranch(info.repoDir, worktree.branch, cfg, worktree.path);
     return { sha, files };
   } catch (e) {
     return { sha, files, pushError: messageOf(e) };
@@ -1248,7 +1248,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
 
   // push
   const pushed = await stage(r, 'push', async () => {
-    await d.github.pushBranch(info.repoDir, worktree.branch, cfg);
+    await d.github.pushBranch(info.repoDir, worktree.branch, cfg, worktree.path);
     return { value: true, detail: { branch: worktree.branch } };
   });
   if (!pushed.ok) return stop('push', pushed.outcome);

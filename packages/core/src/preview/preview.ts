@@ -7,6 +7,7 @@
 // Convention nuestra: ports 4100-4199 on 127.0.0.1, the database `p_<12 hex of the project id>` (the build
 // sweep never drops it) and the seed scripts `seed` and `db:seed`.
 
+import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -27,7 +28,50 @@ const SEED_SCRIPTS = ['seed', 'db:seed'] as const;
 const SEED_NOTE_MAX = 200;
 const LIMITS = { cpus: 2, memoryMb: 2048, pids: 512 };
 
-export type PreviewInfo = { url: string; port: number; started_at: string; commit: string; seed?: string };
+export type PreviewAccount = { role: string; email: string; password: string };
+export type PreviewInfo = { url: string; port: number; started_at: string; commit: string; seed?: string; accounts?: PreviewAccount[] };
+
+/**
+ * The SEED_* variables the seed script reads (`process.env.SEED_OWNER_EMAIL`, `process.env['SEED_VET_PASSWORD']`), from the
+ * files its package.json command names. A preview has no secrets of its own, so DEMIURGO gives them throwaway values.
+ */
+export function seedVariablesOf(command: string, sources: string[]): string[] {
+  void command;
+  const names = new Set<string>();
+  for (const src of sources)
+    for (const m of src.matchAll(/process\.env(?:\.(SEED_[A-Z0-9_]+)|\[\s*['"](SEED_[A-Z0-9_]+)['"]\s*\])/g)) names.add((m[1] ?? m[2]) as string);
+  return [...names].toSorted();
+}
+
+/** Throwaway values for the seed variables, and the accounts they make (SEED_<ROLE>_EMAIL with SEED_<ROLE>_PASSWORD). */
+export function seedValuesFor(names: string[], random: () => string = () => randomBytes(12).toString('base64url')): { env: Record<string, string>; accounts: PreviewAccount[] } {
+  const env: Record<string, string> = {};
+  for (const n of names) {
+    const role = n.replace(/^SEED_/, '').replace(/_(EMAIL|PASSWORD|NAME|PHONE)$/, '').toLowerCase().replace(/_/g, '-') || 'user';
+    if (n.endsWith('_EMAIL')) env[n] = `${role}@preview.test`;
+    else if (n.endsWith('_PASSWORD')) env[n] = `Pv-${random()}-9a`;
+    else if (n.endsWith('_NAME')) env[n] = `Preview ${role}`;
+    else if (n.endsWith('_PHONE')) env[n] = '+34600000000';
+    else env[n] = `preview-${role}`;
+  }
+  const accounts: PreviewAccount[] = [];
+  for (const n of names.filter((x) => x.endsWith('_EMAIL'))) {
+    const password = env[n.replace(/_EMAIL$/, '_PASSWORD')];
+    if (password) accounts.push({ role: n.replace(/^SEED_/, '').replace(/_EMAIL$/, '').toLowerCase().replace(/_/g, ' '), email: env[n] as string, password });
+  }
+  return { env, accounts };
+}
+
+const accountsLabel = (accounts: PreviewAccount[]): string => Buffer.from(JSON.stringify(accounts)).toString('base64');
+function accountsOf(label: string | undefined): PreviewAccount[] | undefined {
+  if (!label) return undefined;
+  try {
+    const v = JSON.parse(Buffer.from(label, 'base64').toString('utf8')) as unknown;
+    return Array.isArray(v) && v.length > 0 ? (v as PreviewAccount[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
 export type PreviewStatus =
   | { state: 'stopped' }
   | { state: 'starting'; step: string }
@@ -213,12 +257,12 @@ async function startFilesOf(path: string): Promise<StartFiles> {
 }
 
 async function found(projectId: string, exec: DockerExec) {
-  const format = ['{{.Names}}', '{{.State}}', '{{.Label "demiurgo.preview-port"}}', '{{.Label "demiurgo.preview-commit"}}', '{{.Label "demiurgo.preview-started"}}', '{{.Label "demiurgo.preview-seed"}}'].join('\t');
+  const format = ['{{.Names}}', '{{.State}}', '{{.Label "demiurgo.preview-port"}}', '{{.Label "demiurgo.preview-commit"}}', '{{.Label "demiurgo.preview-started"}}', '{{.Label "demiurgo.preview-seed"}}', '{{.Label "demiurgo.preview-accounts"}}'].join('\t');
   const r = await exec(['ps', '-a', '--filter', `label=${PREVIEW_LABEL}`, '--filter', `label=demiurgo.preview-project=${projectId}`, '--format', format], { timeoutMs: 15_000 });
   const line = r.stdout.split('\n').find((l) => l.trim());
   if (!line) return null;
-  const [name, state, port, commit, startedAt, seed] = line.split('\t');
-  return { name: name as string, running: state === 'running', port: Number(port), commit: commit ?? '', startedAt: startedAt ?? '', seed: seed || undefined };
+  const [name, state, port, commit, startedAt, seed, accounts] = line.split('\t');
+  return { name: name as string, running: state === 'running', port: Number(port), commit: commit ?? '', startedAt: startedAt ?? '', seed: seed || undefined, accounts: accountsOf(accounts) };
 }
 
 /** Running, stopped or failed, from the in-memory progress and the labelled container. */
@@ -227,7 +271,7 @@ export async function previewStatus(projectId: string, exec: DockerExec = docker
   if (p && 'step' in p) return { state: 'starting', step: p.step };
   const c = await found(projectId, exec);
   if (c?.running) {
-    return { state: 'running', url: `http://127.0.0.1:${c.port}`, port: c.port, started_at: c.startedAt, commit: c.commit, ...(c.seed ? { seed: c.seed } : {}) };
+    return { state: 'running', url: `http://127.0.0.1:${c.port}`, port: c.port, started_at: c.startedAt, commit: c.commit, ...(c.seed ? { seed: c.seed } : {}), ...(c.accounts ? { accounts: c.accounts } : {}) };
   }
   if (c) {
     const logs = await exec(['logs', '--tail', '40', c.name], { timeoutMs: 10_000 });
@@ -301,11 +345,21 @@ export async function startPreview(services: Services, projectId: string, exec: 
   if (!prepared.ok) throw new PreviewFailure(`${prepared.reason} (step: ${prepared.failedStep})`);
 
   let seed: string | undefined;
+  let accounts: PreviewAccount[] = [];
   const seedScript = seedScriptOf(files.packageJson);
   if (seedScript) {
     step('Seeding the database');
     const seedCommand = runScript(managerOf(ci), seedScript);
-    const args = setupArguments({ worktreeHostPath: hostPathOf(path), command: seedCommand, network: prepared.network, storeVolume: prepared.storeVolume, env: prepared.env, limits: LIMITS }, `demiurgo-setup-preview-${projectId}-seed`);
+    // The files the seed command names, to learn which SEED_* variables it reads and give them throwaway values.
+    const scriptLine = String(scriptsOf(files.packageJson)[seedScript] ?? '');
+    const sources: string[] = [];
+    for (const f of scriptLine.match(/[\w./-]+\.(?:ts|mts|js|mjs|cjs)\b/g) ?? []) {
+      const src = await readWorktreeFile(path, f.replace(/^\.\//, ''));
+      if (src) sources.push(src);
+    }
+    const values = seedValuesFor(seedVariablesOf(scriptLine, sources));
+    accounts = values.accounts;
+    const args = setupArguments({ worktreeHostPath: hostPathOf(path), command: seedCommand, network: prepared.network, storeVolume: prepared.storeVolume, env: { ...prepared.env, ...values.env }, limits: LIMITS }, `demiurgo-setup-preview-${projectId}-seed`);
     const r = await exec(args, { timeoutMs: 300_000 });
     if (r.code !== 0) {
       await teardownEnvironment(slug, projectId, exec, database);
@@ -340,6 +394,7 @@ export async function startPreview(services: Services, projectId: string, exec: 
           'demiurgo.preview-commit': commit,
           'demiurgo.preview-started': startedAt,
           ...(seed ? { 'demiurgo.preview-seed': seed.replace(/[\n\r\0]/g, ' ') } : {}),
+          ...(accounts.length > 0 ? { 'demiurgo.preview-accounts': accountsLabel(accounts) } : {}),
         },
       }),
       { timeoutMs: 60_000 },
@@ -366,5 +421,5 @@ export async function startPreview(services: Services, projectId: string, exec: 
     await teardownEnvironment(slug, projectId, exec, database);
     throw new PreviewFailure('The app stopped right after starting.', tail(logs.stdout + logs.stderr));
   }
-  return { url: `http://127.0.0.1:${hostPort}`, port: hostPort, started_at: startedAt, commit, ...(seed ? { seed } : {}) };
+  return { url: `http://127.0.0.1:${hostPort}`, port: hostPort, started_at: startedAt, commit, ...(seed ? { seed } : {}), ...(accounts.length > 0 ? { accounts } : {}) };
 }

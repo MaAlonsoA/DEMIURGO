@@ -33,9 +33,20 @@ export function PreviewView({ state, pending, error, onStart, onStop }: { state:
             <p className="text-fg-2">
               {t.previewCommit} <Code>{state.commit.slice(0, 7)}</Code>
             </p>
-            <p data-preview-seed className="text-fg-2">
-              {state.seed ? t.previewSeeded(state.seed) : t.previewSeedNote}
-            </p>
+            {state.accounts && state.accounts.length > 0 ? (
+              <div data-preview-accounts className="mt-2 flex flex-col gap-1">
+                <p className="text-fg-2">{t.previewAccounts}</p>
+                {state.accounts.map((a) => (
+                  <p key={a.email}>
+                    {a.role}: <Code>{a.email}</Code> · <Code>{a.password}</Code>
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p data-preview-seed className="text-fg-2">
+                {state.seed ? t.previewSeeded(state.seed) : t.previewSeedNote}
+              </p>
+            )}
           </div>
         ) : null}
         {state.state === 'failed' ? (

@@ -332,7 +332,7 @@ export const commitsQuery = (p: string) =>
 export type PreviewState =
   | { state: 'stopped' }
   | { state: 'starting'; step: string }
-  | { state: 'running'; url: string; port: number; started_at: string; commit: string; seed?: string; accounts?: { role: string; email: string; password: string }[] }
+  | { state: 'running'; url: string; port: number; started_at: string; commit: string; seed?: string; accounts?: { role: string; email: string; password: string }[]; secrets?: string[] }
   | { state: 'failed'; reason: string; log?: string };
 export const previewQuery = (p: string) =>
   queryOptions({

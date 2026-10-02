@@ -33,6 +33,11 @@ export function PreviewView({ state, pending, error, onStart, onStop }: { state:
             <p className="text-fg-2">
               {t.previewCommit} <Code>{state.commit.slice(0, 7)}</Code>
             </p>
+            {state.secrets && state.secrets.length > 0 ? (
+              <p data-preview-secrets className="text-fg-2">
+                {t.previewSecrets} {state.secrets.map((n) => <Code key={n}>{n}</Code>)}
+              </p>
+            ) : null}
             {state.accounts && state.accounts.length > 0 ? (
               <div data-preview-accounts className="mt-2 flex flex-col gap-1">
                 <p className="text-fg-2">{t.previewAccounts}</p>

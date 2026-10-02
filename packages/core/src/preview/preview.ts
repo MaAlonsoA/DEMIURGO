@@ -9,7 +9,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, readdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { DomainError } from '@demiurgo/domain';
 import { type CiEnvironment, PLAYWRIGHT_CONFIGS, type StartFiles, environmentFromCi } from '../build/environment.ts';
@@ -29,7 +29,32 @@ const SEED_NOTE_MAX = 200;
 const LIMITS = { cpus: 2, memoryMb: 2048, pids: 512 };
 
 export type PreviewAccount = { role: string; email: string; password: string };
-export type PreviewInfo = { url: string; port: number; started_at: string; commit: string; seed?: string; accounts?: PreviewAccount[] };
+export type PreviewInfo = { url: string; port: number; started_at: string; commit: string; seed?: string; accounts?: PreviewAccount[]; secrets?: string[] };
+
+const SECRET_NAME = /(?:^|_)(KEY|SECRET|TOKEN|SALT|PEPPER)$/;
+const SOURCE_FILE = /\.(?:ts|tsx|mts|js|mjs|cjs|jsx)$/;
+const SKIP_DIR = /(?:^|\/)(node_modules|\.next|\.git|dist|build|coverage|e2e|tests?|scripts)(?:\/|$)/;
+
+/**
+ * The secret-like variables the app's source reads (`process.env.SECOND_FACTOR_KEY`) that the CI does not set: a preview
+ * has no production secrets, so DEMIURGO gives each a throwaway random value (never shown) instead of letting the app fail.
+ */
+export function secretVariablesOf(sources: string[], known: Record<string, string>): string[] {
+  const names = new Set<string>();
+  for (const src of sources)
+    for (const m of src.matchAll(/process\.env(?:\.([A-Z][A-Z0-9_]*)|\[\s*['"]([A-Z][A-Z0-9_]*)['"]\s*\])/g)) {
+      const n = (m[1] ?? m[2]) as string;
+      if (SECRET_NAME.test(n) && !n.startsWith('NEXT_PUBLIC_') && !(n in known)) names.add(n);
+    }
+  return [...names].toSorted();
+}
+
+async function appSources(path: string, max = 2000): Promise<string[]> {
+  const files = (await readdir(path, { recursive: true }).catch(() => [] as string[])).filter((f) => SOURCE_FILE.test(f) && !SKIP_DIR.test(f)).slice(0, max);
+  const out: string[] = [];
+  for (const f of files) out.push(await readFile(join(path, f), 'utf8').catch(() => ''));
+  return out;
+}
 
 /**
  * The SEED_* variables the seed script reads (`process.env.SEED_OWNER_EMAIL`, `process.env['SEED_VET_PASSWORD']`), from the
@@ -266,12 +291,12 @@ async function startFilesOf(path: string): Promise<StartFiles> {
 }
 
 async function found(projectId: string, exec: DockerExec) {
-  const format = ['{{.Names}}', '{{.State}}', '{{.Label "demiurgo.preview-port"}}', '{{.Label "demiurgo.preview-commit"}}', '{{.Label "demiurgo.preview-started"}}', '{{.Label "demiurgo.preview-seed"}}', '{{.Label "demiurgo.preview-accounts"}}'].join('\t');
+  const format = ['{{.Names}}', '{{.State}}', '{{.Label "demiurgo.preview-port"}}', '{{.Label "demiurgo.preview-commit"}}', '{{.Label "demiurgo.preview-started"}}', '{{.Label "demiurgo.preview-seed"}}', '{{.Label "demiurgo.preview-accounts"}}', '{{.Label "demiurgo.preview-secrets"}}'].join('\t');
   const r = await exec(['ps', '-a', '--filter', `label=${PREVIEW_LABEL}`, '--filter', `label=demiurgo.preview-project=${projectId}`, '--format', format], { timeoutMs: 15_000 });
   const line = r.stdout.split('\n').find((l) => l.trim());
   if (!line) return null;
-  const [name, state, port, commit, startedAt, seed, accounts] = line.split('\t');
-  return { name: name as string, running: state === 'running', port: Number(port), commit: commit ?? '', startedAt: startedAt ?? '', seed: seed || undefined, accounts: accountsOf(accounts) };
+  const [name, state, port, commit, startedAt, seed, accounts, secrets] = line.split('\t');
+  return { name: name as string, running: state === 'running', port: Number(port), commit: commit ?? '', startedAt: startedAt ?? '', seed: seed || undefined, accounts: accountsOf(accounts), secrets: secrets ? secrets.split(',').filter(Boolean) : undefined };
 }
 
 /** Running, stopped or failed, from the in-memory progress and the labelled container. */
@@ -280,7 +305,7 @@ export async function previewStatus(projectId: string, exec: DockerExec = docker
   if (p && 'step' in p) return { state: 'starting', step: p.step };
   const c = await found(projectId, exec);
   if (c?.running) {
-    return { state: 'running', url: `http://127.0.0.1:${c.port}`, port: c.port, started_at: c.startedAt, commit: c.commit, ...(c.seed ? { seed: c.seed } : {}), ...(c.accounts ? { accounts: c.accounts } : {}) };
+    return { state: 'running', url: `http://127.0.0.1:${c.port}`, port: c.port, started_at: c.startedAt, commit: c.commit, ...(c.seed ? { seed: c.seed } : {}), ...(c.accounts ? { accounts: c.accounts } : {}), ...(c.secrets?.length ? { secrets: c.secrets } : {}) };
   }
   if (c) {
     const logs = await exec(['logs', '--tail', '40', c.name], { timeoutMs: 10_000 });
@@ -353,6 +378,11 @@ export async function startPreview(services: Services, projectId: string, exec: 
   const prepared = await prepareEnvironment({ slug, id: projectId, database, ci, worktreeHostPath: hostPathOf(path), keepDatabases: [] });
   if (!prepared.ok) throw new PreviewFailure(`${prepared.reason} (step: ${prepared.failedStep})`);
 
+  // Throwaway values for the secrets the app reads and CI does not set (a preview never gets production secrets).
+  const secretNames = secretVariablesOf(await appSources(path), prepared.env);
+  const secretEnv = Object.fromEntries(secretNames.map((n) => [n, randomBytes(32).toString('base64url')]));
+  const appEnv = { ...prepared.env, ...secretEnv };
+
   let seed: string | undefined;
   let accounts: PreviewAccount[] = [];
   const seedScript = seedScriptOf(files.packageJson);
@@ -368,7 +398,7 @@ export async function startPreview(services: Services, projectId: string, exec: 
     }
     const values = seedValuesFor(seedVariablesOf(scriptLine, sources));
     accounts = values.accounts;
-    const args = setupArguments({ worktreeHostPath: hostPathOf(path), command: seedCommand, network: prepared.network, storeVolume: prepared.storeVolume, env: { ...prepared.env, ...values.env }, limits: LIMITS }, `demiurgo-setup-preview-${projectId}-seed`);
+    const args = setupArguments({ worktreeHostPath: hostPathOf(path), command: seedCommand, network: prepared.network, storeVolume: prepared.storeVolume, env: { ...appEnv, ...values.env }, limits: LIMITS }, `demiurgo-setup-preview-${projectId}-seed`);
     const r = await exec(args, { timeoutMs: 300_000 });
     if (r.code !== 0) {
       await teardownEnvironment(slug, projectId, exec, database);
@@ -394,7 +424,7 @@ export async function startPreview(services: Services, projectId: string, exec: 
         command,
         network: prepared.network,
         storeVolume: prepared.storeVolume,
-        env: prepared.env,
+        env: appEnv,
         appPort,
         hostPort,
         labels: {
@@ -404,6 +434,7 @@ export async function startPreview(services: Services, projectId: string, exec: 
           'demiurgo.preview-started': startedAt,
           ...(seed ? { 'demiurgo.preview-seed': seed.replace(/[\n\r\0]/g, ' ') } : {}),
           ...(accounts.length > 0 ? { 'demiurgo.preview-accounts': accountsLabel(accounts) } : {}),
+          ...(secretNames.length > 0 ? { 'demiurgo.preview-secrets': secretNames.join(',') } : {}),
         },
       }),
       { timeoutMs: 60_000 },
@@ -430,5 +461,5 @@ export async function startPreview(services: Services, projectId: string, exec: 
     await teardownEnvironment(slug, projectId, exec, database);
     throw new PreviewFailure('The app stopped right after starting.', tail(logs.stdout + logs.stderr));
   }
-  return { url: `http://127.0.0.1:${hostPort}`, port: hostPort, started_at: startedAt, commit, ...(seed ? { seed } : {}), ...(accounts.length > 0 ? { accounts } : {}) };
+  return { url: `http://127.0.0.1:${hostPort}`, port: hostPort, started_at: startedAt, commit, ...(seed ? { seed } : {}), ...(accounts.length > 0 ? { accounts } : {}), ...(secretNames.length > 0 ? { secrets: secretNames } : {}) };
 }

@@ -203,6 +203,37 @@ export async function integrateOriginMain(repoDir: string): Promise<void> {
 
 // ---------------------------------------------------------------------------------- repository
 
+/** One main sync at a time per local repository: parallel builds of a project share it (convención nuestra). */
+const mainSyncs = new Map<string, Promise<unknown>>();
+
+/**
+ * Integrates origin's main and pushes the local main, one build at a time per repository. Origin's main moves
+ * while this runs (a pull request merged by GitHub, another build), which GitHub refuses as a stale ref; the
+ * sync then integrates again and retries, up to three times.
+ */
+async function syncMain(repoDir: string, cfg: GithubConfig): Promise<void> {
+  const run = async () => {
+    for (let tries = 1; ; tries++) {
+      await integrateOriginMain(repoDir);
+      try {
+        await pushBranch(repoDir, 'main', cfg);
+        return;
+      } catch (e) {
+        const stale = /cannot lock ref|non-fast-forward|fetch first|stale info|\[rejected\]|remote rejected/i.test(e instanceof Error ? e.message : String(e));
+        if (!stale || tries >= 3) throw e;
+      }
+    }
+  };
+  const previous = mainSyncs.get(repoDir) ?? Promise.resolve();
+  const mine = previous.catch(() => undefined).then(run);
+  mainSyncs.set(repoDir, mine);
+  try {
+    await mine;
+  } finally {
+    if (mainSyncs.get(repoDir) === mine) mainSyncs.delete(repoDir);
+  }
+}
+
 export const repoNameFor = (dir: string) =>
   dir
     .normalize('NFD')
@@ -258,8 +289,7 @@ export async function provisionProjectRepo(db: Db, projectId: string, cfg: Githu
   const url = `https://github.com/${owner}/${repo}.git`;
   const remotes = (await git(repoDir, ['remote'])).split('\n').map((r) => r.trim());
   await git(repoDir, remotes.includes('origin') ? ['remote', 'set-url', 'origin', url] : ['remote', 'add', 'origin', url]);
-  await integrateOriginMain(repoDir);
-  await pushBranch(repoDir, 'main', cfg);
+  await syncMain(repoDir, cfg);
 
   try {
     await call(cfg, 'PUT', `/repos/${owner}/${repo}/branches/main/protection`, {

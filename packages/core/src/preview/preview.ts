@@ -38,8 +38,17 @@ export type PreviewInfo = { url: string; port: number; started_at: string; commi
 export function seedVariablesOf(command: string, sources: string[]): string[] {
   void command;
   const names = new Set<string>();
-  for (const src of sources)
-    for (const m of src.matchAll(/process\.env(?:\.(SEED_[A-Z0-9_]+)|\[\s*['"](SEED_[A-Z0-9_]+)['"]\s*\])/g)) names.add((m[1] ?? m[2]) as string);
+  const KNOWN = /_(EMAIL|PASSWORD|NAME|PHONE)$/;
+  for (const src of sources) {
+    // Names written whole, and prefixes completed by a template (`process.env[`${prefix}_EMAIL`]` with 'SEED_OWNER').
+    const suffixes = [...new Set([...src.matchAll(/\}_(EMAIL|PASSWORD|NAME|PHONE)`/g)].map((m) => m[1] as string))];
+    for (const m of src.matchAll(/\bSEED_[A-Z0-9_]*[A-Z0-9]\b/g)) {
+      const token = m[0];
+      if (KNOWN.test(token)) names.add(token);
+      else if (suffixes.length > 0) for (const x of suffixes) names.add(`${token}_${x}`);
+      else if (/process\.env/.test(src)) names.add(token);
+    }
+  }
   return [...names].toSorted();
 }
 

@@ -242,7 +242,7 @@ describe('the vault, from the forensics', () => {
   it('validationsDue counts distinct tasks, only forensics after the claim whose task ran after it, and none with an occurrence', () => {
     const ke = {
       id: 'k', code: 'KE-001', version: 1, title: 't', description: 'd', error_class: 'E01', phase: 'P10', dimension: 'rules', signature: 's', pieces: ['stage:review'], status: 'fix_claimed' as const,
-      fix: { description: 'f', commits: ['abc1234'], piece_versions: {}, claimed_at: '2026-10-01T00:00:00.000Z' }, origin_project_id: 'p', created_by: 'x', created_at: new Date(0),
+      fix: { description: 'f', commits: ['abc1234'], piece_versions: {}, claimed_at: '2026-10-01T00:00:00.000Z' }, merged_into: null, merge_note: null, origin_project_id: 'p', created_by: 'x', created_at: new Date(0),
     };
     const f = (id: string, task: string, over: Partial<{ created_at: Date; task_ended_at: Date | null; involved: Set<string> }> = {}) => ({
       id, task_id: task, created_at: new Date('2026-10-02T00:00:00Z'), task_ended_at: new Date('2026-10-01T12:00:00Z'), involved: new Set(['stage:review']), ...over,
@@ -432,5 +432,79 @@ describe('seeding the vault from the forensics that predate it', () => {
     expect((await check([{ ...entry, covers: [{ forensic: 'f-nope', went_wrong_index: 0 }] }]))?.join(' ')).toContain('not in `groups`');
     expect((await check([{ ...entry, covers: all, known_error: 'KE-777' }]))?.join(' ')).toContain('KE-777');
     expect((await check([{ ...entry, covers: all, pieces: ['piece:ZZZ'] }]))?.join(' ')).toContain('piece:ZZZ');
+  });
+});
+
+describe('merging a duplicate known error into another', () => {
+  const asSystem = (command: Cmd, data: unknown) => executeCommand(services(), { command, actor: system('cli'), projectId, data });
+  const open = async (title: string) =>
+    ((await asSystem('known_error.open', { title, description: `${title} description`, dimension: 'rules', signature: `${title} signature in the evidence`, pieces: [], error_class: 'E01', phase: 'P10' })).result as { code: string }).code;
+  const merge = (code: string, into: string, note = 'Same defect.') => asSystem('known_error.merge', { code, into, note });
+  const occur = (code: string, forensic_id: string) => asSystem('known_error.occurrence', { code, forensic_id, went_wrong_index: 0, recurrence_why: null });
+  const codes = async () => (await knownErrorsOverview(db())).entries.map((e) => e.code);
+  let a = '';
+  let b = '';
+  let c = '';
+  let forensicId = '';
+
+  it('moves the occurrences to the target and hides the source from the list and the counts', async () => {
+    const task = tasks[0] as (typeof tasks)[number];
+    await build(task, past(20), { review: true });
+    expect((await analyze(task)).status).toBe('analyzed');
+    forensicId = (await latestRow(task.id)).id;
+    a = await open('Duplicate A');
+    b = await open('Target B');
+    await occur(a, forensicId);
+    await occur(b, forensicId);
+    const before = await knownErrorsOverview(db());
+    expect(before.entries.find((e) => e.code === a)?.occurrences).toBe(1);
+    expect(before.entries.find((e) => e.code === b)?.occurrences).toBe(1);
+    const done = await merge(a, b, 'A is the same as B.');
+    expect(done.result).toMatchObject({ code: a, version: 2, merged_into: b });
+    const after = await knownErrorsOverview(db());
+    expect(after.entries.map((e) => e.code)).not.toContain(a);
+    expect(after.total).toBe(before.total - 1);
+    expect(after.entries.find((e) => e.code === b)).toMatchObject({ occurrences: 2, tasks: [task.code] });
+    expect(await versions(a)).toEqual(['1:open', '2:merged']);
+    const event = await db().selectFrom('events').select(['actor', 'after']).where('command', '=', 'known_error.merge').executeTakeFirstOrThrow();
+    expect(event.actor.startsWith('system:cli')).toBe(true);
+    expect(event.after).toMatchObject({ code: a, merged_into: b, note: 'A is the same as B.' });
+    const detailA = await knownErrorDetail(db(), a);
+    expect(detailA.entry).toMatchObject({ status: 'merged', merged_into: b, merge_note: 'A is the same as B.' });
+    const detailB = await knownErrorDetail(db(), b);
+    expect(detailB.occurrences.map((o) => o.ke_code).toSorted()).toEqual([a, b]);
+  });
+
+  it('refuses itself, a missing entry, a merged source and a merged target', async () => {
+    await expect(merge(b, b)).rejects.toThrow(/itself/);
+    await expect(merge('KE-998', b)).rejects.toThrow(/does not exist/);
+    await expect(merge(b, 'KE-998')).rejects.toThrow(/does not exist/);
+    await expect(merge(a, b)).rejects.toThrow(/already merged/);
+    c = await open('Target C');
+    await expect(merge(c, a)).rejects.toThrow(/merge into that one/);
+    expect(await versions(c)).toEqual(['1:open']);
+    await expect(asSystem('known_error.claim_fix', { code: a, description: 'x', commits: ['abc1234'], piece_versions: {} })).rejects.toThrow(/merged into/);
+  });
+
+  it('follows the chain when a target is merged later', async () => {
+    await merge(b, c, 'B is C.');
+    const overview = await knownErrorsOverview(db());
+    expect(overview.entries.map((e) => e.code)).toContain(c);
+    expect(overview.entries.map((e) => e.code)).not.toContain(b);
+    expect(overview.entries.find((e) => e.code === c)?.occurrences).toBe(2);
+    expect((await knownErrorDetail(db(), c)).occurrences.map((o) => o.ke_code).toSorted()).toEqual([a, b]);
+    expect(await codes()).not.toContain(a);
+  });
+
+  it('the vault the forensic agent receives leaves merged entries out', async () => {
+    const task = tasks[0] as (typeof tasks)[number];
+    expect((await analyze(task)).status).toBe('analyzed');
+    const row = await latestRow(task.id);
+    const run = await db().selectFrom('ai_runs').select('context_pack_id').where('id', '=', row.ai_run_id).executeTakeFirstOrThrow();
+    const pack = (await db().selectFrom('context_packs').select('content').where('id', '=', run.context_pack_id ?? '').executeTakeFirstOrThrow()).content as { known_errors: { code: string }[] };
+    const inPack = pack.known_errors.map((k) => k.code);
+    expect(inPack).toContain(c);
+    expect(inPack).not.toContain(a);
+    expect(inPack).not.toContain(b);
   });
 });

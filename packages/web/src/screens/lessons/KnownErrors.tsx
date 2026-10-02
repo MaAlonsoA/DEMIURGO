@@ -158,6 +158,14 @@ export function KnownErrorDetailView({ projectId, data }: { projectId: string; d
   const e = data.entry;
   return (
     <div className="flex flex-col divide-y divide-edge" data-known-error-page={e.code}>
+      {e.status === 'merged' && e.merged_into ? (
+        <Part title={t.keMergedInto}>
+          <p className="max-w-prose text-sm" data-merged-into={e.merged_into}>
+            <KnownErrorLink projectId={projectId} code={e.merged_into} />
+            {e.merge_note ? <span className="ml-2 text-fg-2">{e.merge_note}</span> : null}
+          </p>
+        </Part>
+      ) : null}
       <Part title={t.keDescription}>
         <p className="max-w-prose text-sm text-fg">{e.description}</p>
         <dl className="mt-2 grid max-w-prose grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
@@ -231,6 +239,7 @@ export function KnownErrorDetailView({ projectId, data }: { projectId: string; d
                 </td>
                 <td className={`${td} whitespace-nowrap text-fg-2`}>
                   <DayTime iso={o.occurred_at} />
+                  {o.ke_code && o.ke_code !== e.code ? <span className="block text-xs text-fg-3">{t.keMergedAs(o.ke_code)}</span> : null}
                   {o.current ? null : <span className="block text-xs text-fg-3">{t.keReplaced}</span>}
                 </td>
                 <td className={`${td} whitespace-nowrap`}>{o.after_fix ? t.yes : t.no}</td>

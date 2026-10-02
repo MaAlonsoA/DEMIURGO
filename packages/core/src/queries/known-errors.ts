@@ -2,9 +2,9 @@
 // whether it came back after its fix, and one entry with all its versions and occurrences. Occurrences of a forensic
 // that a later forensic of the same task replaced are listed in the detail (marked) but not counted.
 
-import { DomainError, type KnownErrorStatus } from '@demiurgo/domain';
+import { DomainError, type KnownErrorLiveStatus, type KnownErrorStatus } from '@demiurgo/domain';
 import type { Db } from '../db/connection.ts';
-import { type KnownErrorFix, type KnownErrorRow, knownErrorVersions, latestForensicIds, latestKnownError, latestKnownErrors, occurrencesOf } from '../forensics/vault.ts';
+import { type KnownErrorFix, type KnownErrorRow, knownErrorVersions, latestForensicIds, latestKnownError, latestKnownErrorsAll, mergeTarget, occurrencesOf } from '../forensics/vault.ts';
 
 export type KnownErrorSummary = {
   code: string;
@@ -16,7 +16,7 @@ export type KnownErrorSummary = {
   dimension: string;
   signature: string;
   pieces: string[];
-  status: KnownErrorStatus;
+  status: KnownErrorLiveStatus;
   fix: KnownErrorFix | null;
   origin_project_id: string;
   created_at: string;
@@ -29,7 +29,7 @@ export type KnownErrorSummary = {
   tasks: string[];
 };
 
-export type KnownErrorsOverview = { total: number; by_status: Record<KnownErrorStatus, number>; entries: KnownErrorSummary[] };
+export type KnownErrorsOverview = { total: number; by_status: Record<KnownErrorLiveStatus, number>; entries: KnownErrorSummary[] };
 
 const iso = (d: Date) => d.toISOString();
 
@@ -46,6 +46,8 @@ function entryOf(k: KnownErrorRow) {
     pieces: k.pieces,
     status: k.status,
     fix: k.fix,
+    merged_into: k.merged_into,
+    merge_note: k.merge_note,
     origin_project_id: k.origin_project_id,
     created_by: k.created_by,
     created_at: iso(k.created_at),
@@ -58,15 +60,17 @@ async function taskCodes(db: Db, ids: string[]): Promise<Map<string, { code: str
   return new Map(rows.map((r) => [r.id, { code: r.code, project_id: r.project_id }]));
 }
 
-/** Every entry, latest version, most recently seen first within each status (`GET /api/observability/known-errors.json`). */
+/** Every entry that stands on its own, latest version (duplicates merged into another are hidden and their occurrences count for the target), most recently seen first within each status (`GET /api/observability/known-errors.json`). */
 export async function knownErrorsOverview(db: Db, filter: { status?: string } = {}): Promise<KnownErrorsOverview> {
-  const all = await latestKnownErrors(db);
+  const everything = await latestKnownErrorsAll(db);
+  const all = everything.filter((k) => k.status !== 'merged');
   const current = await latestForensicIds(db);
-  const history = await occurrencesOf(db);
+  // An occurrence recorded under a merged code belongs to the entry that code leads to.
+  const history = (await occurrencesOf(db)).map((o) => ({ ...o, ke_code: mergeTarget(everything, o.ke_code) }));
   const occurrences = history.filter((o) => current.has(o.forensic_id));
   const codes = await taskCodes(db, [...new Set(occurrences.map((o) => o.task_id))]);
-  const by_status: Record<KnownErrorStatus, number> = { open: 0, fix_claimed: 0, validated: 0, recurred: 0 };
-  for (const k of all) by_status[k.status]++;
+  const by_status: Record<KnownErrorLiveStatus, number> = { open: 0, fix_claimed: 0, validated: 0, recurred: 0 };
+  for (const k of all) by_status[k.status as KnownErrorLiveStatus]++;
   const entries = all
     .filter((k) => !filter.status || k.status === filter.status)
     .map((k): KnownErrorSummary => {
@@ -74,6 +78,7 @@ export async function knownErrorsOverview(db: Db, filter: { status?: string } = 
       const last = mine.map((o) => o.occurred_at.getTime()).toSorted((a, b) => b - a)[0];
       return {
         ...entryOf(k),
+        status: k.status as KnownErrorLiveStatus,
         occurrences: mine.length,
         last_seen: last === undefined ? null : new Date(last).toISOString(),
         after_fix_recurrences: new Set(history.filter((o) => o.ke_code === k.code && o.after_fix).map((o) => o.task_id)).size,
@@ -89,6 +94,8 @@ export type KnownErrorDetail = {
   versions: ReturnType<typeof entryOf>[];
   occurrences: {
     id: string;
+    /** The code it was recorded under: a merged duplicate's code when it was merged into this entry. */
+    ke_code: string;
     project: { id: string; name: string };
     task: { id: string; code: string };
     forensic_id: string;
@@ -108,7 +115,9 @@ export async function knownErrorDetail(db: Db, code: string): Promise<KnownError
   const latest = await latestKnownError(db, code);
   if (!latest) throw new DomainError('not_found', `The known error ${code} does not exist.`);
   const versions = await knownErrorVersions(db, code);
-  const occurrences = await occurrencesOf(db, code);
+  // The entry's own occurrences and those of the duplicates merged into it (chains followed).
+  const everything = await latestKnownErrorsAll(db);
+  const occurrences = (await occurrencesOf(db)).filter((o) => mergeTarget(everything, o.ke_code) === code);
   const current = await latestForensicIds(db);
   const tasks = await taskCodes(db, [...new Set(occurrences.map((o) => o.task_id))]);
   const projectIds = [...new Set(occurrences.map((o) => o.project_id))];
@@ -119,6 +128,7 @@ export async function knownErrorDetail(db: Db, code: string): Promise<KnownError
     versions: versions.map(entryOf),
     occurrences: occurrences.map((o) => ({
       id: o.id,
+      ke_code: o.ke_code,
       project: { id: o.project_id, name: name.get(o.project_id) ?? o.project_id },
       task: { id: o.task_id, code: tasks.get(o.task_id)?.code ?? o.task_id },
       forensic_id: o.forensic_id,

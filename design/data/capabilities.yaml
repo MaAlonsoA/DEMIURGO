@@ -162,6 +162,7 @@ commands:
   known_error.claim_fix: { entity: known_error, allowed: [system], decisive: false, description: "Record that a fix for a known error was made (commits, note and the versions of its pieces at that moment); run by the operator through the CLI." }
   known_error.validate: { entity: known_error, allowed: [system], decisive: false, description: "Mark a known error with a claimed fix as validated after later forensics of tasks that involved its pieces show no occurrence of it." }
   known_error.recur: { entity: known_error, allowed: [system], decisive: false, description: "Mark a known error as recurred: a task ran with its fix in place and the error happened again." }
+  known_error.merge: { entity: known_error, allowed: [system], decisive: false, description: "Merge a duplicate known error into another one (the source becomes merged, with the target code and the reason); run by the operator through the CLI." }
   known_error.occurrence: { entity: known_error_occurrence, allowed: [system], decisive: false, description: "Record one occurrence of a known error in a task forensic, with whether the task ran with the fix in place." }
 
   issue.open: { entity: issue, allowed: [human, system], decisive: false, description: "Open an issue: a bug a person reports, or a review escalation DEMIURGO opens when the reviewer hands over something only a person can resolve." }

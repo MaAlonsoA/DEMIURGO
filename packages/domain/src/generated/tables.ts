@@ -1072,6 +1072,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Mark a known error as recurred: a task ran with its fix in place and the error happened again."
     },
+    "known_error.merge": {
+      "entity": "known_error",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Merge a duplicate known error into another one (the source becomes merged, with the target code and the reason); run by the operator through the CLI."
+    },
     "known_error.occurrence": {
       "entity": "known_error_occurrence",
       "allowed": [
@@ -2745,7 +2753,8 @@ export const TRANSITIONS = {
         "open": "Open",
         "fix_claimed": "Fix claimed",
         "validated": "Validated",
-        "recurred": "Recurred"
+        "recurred": "Recurred",
+        "merged": "Merged"
       },
       "authority": [],
       "transitions": [
@@ -2768,6 +2777,11 @@ export const TRANSITIONS = {
           "command": "known_error.recur",
           "from": "new",
           "to": "recurred"
+        },
+        {
+          "command": "known_error.merge",
+          "from": "new",
+          "to": "merged"
         }
       ]
     },

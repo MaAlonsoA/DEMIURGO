@@ -92,7 +92,7 @@ export const LESSONS = messages(
     keLoading: 'Loading the known errors',
     keEmpty: 'No known error yet. They open when a post-mortem finds a defect of DEMIURGO that matches none.',
     keNote: 'Every defect of DEMIURGO the post-mortems have seen, with its status and how often it came back.',
-    keStatus: (k: string) => ({ open: 'Open', fix_claimed: 'Fix claimed', validated: 'Validated', recurred: 'Recurred' } as Record<string, string>)[k] ?? k,
+    keStatus: (k: string) => ({ open: 'Open', fix_claimed: 'Fix claimed', validated: 'Validated', recurred: 'Recurred', merged: 'Merged' } as Record<string, string>)[k] ?? k,
     keLegend: (k: string) =>
       ({
         open: 'seen, no fix claimed yet',
@@ -130,6 +130,8 @@ export const LESSONS = messages(
     keRecordedAt: 'Recorded',
     keOccurrences: 'Occurrences',
     keNoOccurrences: 'No occurrences recorded.',
+    keMergedInto: 'Merged into',
+    keMergedAs: (code: string) => `recorded as ${code}`,
     colProject: 'Project',
     colDate: 'Date',
     colAfterFix: 'After the fix',
@@ -234,7 +236,7 @@ export const LESSONS = messages(
     keLoading: 'Cargando los errores conocidos',
     keEmpty: 'Todavía no hay errores conocidos. Se abren cuando un análisis encuentra un defecto de DEMIURGO que no encaja con ninguno.',
     keNote: 'Cada defecto de DEMIURGO que han visto los análisis, con su estado y cuántas veces ha vuelto.',
-    keStatus: (k: string) => ({ open: 'Abierto', fix_claimed: 'Corrección declarada', validated: 'Validado', recurred: 'Reapareció' } as Record<string, string>)[k] ?? k,
+    keStatus: (k: string) => ({ open: 'Abierto', fix_claimed: 'Corrección declarada', validated: 'Validado', recurred: 'Reapareció', merged: 'Fusionado' } as Record<string, string>)[k] ?? k,
     keLegend: (k: string) =>
       ({
         open: 'visto, sin corrección declarada todavía',
@@ -272,6 +274,8 @@ export const LESSONS = messages(
     keRecordedAt: 'Registrada',
     keOccurrences: 'Apariciones',
     keNoOccurrences: 'No hay apariciones registradas.',
+    keMergedInto: 'Fusionado en',
+    keMergedAs: (code: string) => `registrada como ${code}`,
     colProject: 'Proyecto',
     colDate: 'Fecha',
     colAfterFix: 'Tras la corrección',

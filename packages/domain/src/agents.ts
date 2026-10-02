@@ -788,8 +788,10 @@ const forensicCost = z
   .strict();
 
 /** The statuses of an entry of the known-error vault (a Known Error Database in the sense of ITIL Problem Management). */
-export const KNOWN_ERROR_STATUSES = ['open', 'fix_claimed', 'validated', 'recurred'] as const;
+export const KNOWN_ERROR_STATUSES = ['open', 'fix_claimed', 'validated', 'recurred', 'merged'] as const;
 export type KnownErrorStatus = (typeof KNOWN_ERROR_STATUSES)[number];
+/** The statuses of an entry that stands on its own: a merged one is a duplicate that points at another. */
+export type KnownErrorLiveStatus = Exclude<KnownErrorStatus, 'merged'>;
 /** A code of the vault: `KE-001`… (three digits at least). */
 export const KNOWN_ERROR_CODE = /^KE-\d{3,}$/;
 

@@ -29,6 +29,23 @@ export async function vaultFix(services: Services, code: string, fix: { commits:
   return { code, status: 'fix_claimed' as const, version: r.version, claimed_at: r.claimed_at, commits: fix.commits, piece_versions, pieces_missing_from_catalog: ke.pieces.filter((p) => marks[p] === undefined) };
 }
 
+/**
+ * Merges a duplicate known error into another one (the source becomes `merged`): later reads, the vault the forensic
+ * agent receives and the counts leave the source out and credit its occurrences to the target.
+ */
+export async function vaultMerge(services: Services, code: string, into: string, note: string) {
+  const ke = await latestKnownError(services.db, code);
+  if (!ke) throw new DomainError('not_found', `The known error ${code} does not exist.`);
+  const done = await executeCommand(services, {
+    command: 'known_error.merge',
+    actor: system('cli'),
+    projectId: ke.origin_project_id,
+    data: { code, into, note },
+  });
+  const r = done.result as { version: number; merged_into: string };
+  return { code, status: 'merged' as const, version: r.version, merged_into: r.merged_into, note };
+}
+
 export type VaultSeedResult = {
   status: 'seeded' | 'nothing_to_seed' | 'failed' | 'refused';
   run_id?: string;

@@ -21,6 +21,7 @@
 //   node packages/api/src/cli.ts forensics playbooks --project <id> [--force]   (one playbook_write per error class seen in the latest forensics; spends quota)
 //   node packages/api/src/cli.ts vault list [--status open|fix_claimed|validated|recurred]   (the known-error vault, latest version of each entry, as JSON: read-only)
 //   node packages/api/src/cli.ts vault fix KE-001 --commits sha1,sha2 --note "…"   (records the fix of a known error, with the versions its pieces have now: status fix_claimed)
+//   node packages/api/src/cli.ts vault merge KE-001 --into KE-002 --note "…"   (merges a duplicate known error into another: the source is hidden and its occurrences count for the target)
 //   node packages/api/src/cli.ts vault seed --project <id>   (builds the vault from the project's existing forensics with the error_vault_curator agent; spends quota)
 //   node packages/api/src/cli.ts own-files-backfill --project <projectId>   (records, from git, the files each attempt's commit changed on its own where the commit step lacks own_files)
 //   node packages/api/src/cli.ts build-footprint-backfill --project <projectId>   (records the merge commit and files of merged tasks that lack them; needs GitHub env)
@@ -91,6 +92,7 @@ import {
   runPlaybooks,
   knownErrorsOverview,
   vaultFix,
+  vaultMerge,
   vaultSeed,
   readDrain,
   setDrain,
@@ -712,7 +714,7 @@ commands.vault = async () => {
     const i = rest.indexOf(name);
     return i >= 0 ? rest[i + 1] : undefined;
   };
-  const usage = 'Usage: vault list [--status <status>] | vault fix KE-xxx --commits sha1,sha2 --note "…" | vault seed --project <id>';
+  const usage = 'Usage: vault list [--status <status>] | vault fix KE-xxx --commits sha1,sha2 --note "…" | vault merge KE-xxx --into KE-yyy --note "…" | vault seed --project <id>';
   if (sub === 'list') {
     await withDatabase(async (c) => {
       const status = flag('--status');
@@ -738,6 +740,28 @@ commands.vault = async () => {
         observer: createObserver(config.observe, cliLogger),
       };
       console.log(JSON.stringify(await vaultFix(services, code, { commits, note: note.trim() })));
+      await services.observer.flush(5000);
+    });
+    return;
+  }
+  if (sub === 'merge') {
+    const code = rest[0];
+    const into = flag('--into');
+    const note = flag('--note');
+    if (!code || !/^KE-\d{3,}$/.test(code) || !into || !/^KE-\d{3,}$/.test(into) || !note?.trim()) throw new Error(usage);
+    // Merging calls no model either: same inert engine.
+    await withDatabase(async (c) => {
+      const services = {
+        db: c.db,
+        clock: () => new Date(),
+        providers: createProviders(config),
+        classifierFor: () => Promise.reject(new Error('Merging classifies nothing.')),
+        agentSessionsDir: config.agentSessionsDir,
+        engine: inertEngine(),
+        logger: cliLogger,
+        observer: createObserver(config.observe, cliLogger),
+      };
+      console.log(JSON.stringify(await vaultMerge(services, code, into, note.trim())));
       await services.observer.flush(5000);
     });
     return;

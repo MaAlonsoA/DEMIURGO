@@ -4,7 +4,7 @@
 // Defect Classification (Chillarege et al. 1992). Reads of the append-only tables (the latest version of a code
 // wins) and the pure rules; the writes go through the bus (commands/known-errors.ts).
 
-import type { KnownErrorStatus } from '@demiurgo/domain';
+import type { KnownErrorLiveStatus, KnownErrorStatus } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import type { Db, Tx } from '../db/connection.ts';
 
@@ -30,6 +30,9 @@ export type KnownErrorRow = {
   pieces: string[];
   status: KnownErrorStatus;
   fix: KnownErrorFix | null;
+  /** The code this duplicate was merged into (status `merged`), else null. */
+  merged_into: string | null;
+  merge_note: string | null;
   origin_project_id: string;
   created_by: string;
   created_at: Date;
@@ -65,6 +68,8 @@ function asKnownError(r: Record<string, unknown>): KnownErrorRow {
     pieces: (r.pieces as string[] | null) ?? [],
     status: r.status as KnownErrorStatus,
     fix: (r.fix as KnownErrorFix | null) ?? null,
+    merged_into: (r.merged_into as string | null) ?? null,
+    merge_note: (r.merge_note as string | null) ?? null,
     origin_project_id: r.origin_project_id as string,
     created_by: r.created_by as string,
     created_at: new Date(r.created_at as Date),
@@ -87,8 +92,8 @@ function asOccurrence(r: Record<string, unknown>): OccurrenceRow {
   };
 }
 
-/** The latest version of every entry, by code. */
-export async function latestKnownErrors(db: Reader): Promise<KnownErrorRow[]> {
+/** The latest version of every entry, merged ones included. */
+export async function latestKnownErrorsAll(db: Reader): Promise<KnownErrorRow[]> {
   const rows = await db.selectFrom('known_errors').selectAll().orderBy('code').orderBy('version', 'desc').execute();
   const seen = new Set<string>();
   const out: KnownErrorRow[] = [];
@@ -98,6 +103,27 @@ export async function latestKnownErrors(db: Reader): Promise<KnownErrorRow[]> {
     out.push(asKnownError(r));
   }
   return out;
+}
+
+/** The latest version of every entry that stands on its own: the duplicates merged into another are left out. */
+export async function latestKnownErrors(db: Reader): Promise<KnownErrorRow[]> {
+  return (await latestKnownErrorsAll(db)).filter((k) => k.status !== 'merged');
+}
+
+/**
+ * The code that stands for `code` once merges are followed (a target merged later hands on to its own target). Pure over
+ * the latest rows; a cycle cannot happen (a merge refuses a merged target) but is cut anyway.
+ */
+export function mergeTarget(rows: readonly Pick<KnownErrorRow, 'code' | 'status' | 'merged_into'>[], code: string): string {
+  const byCode = new Map(rows.map((r) => [r.code, r]));
+  const seen = new Set<string>();
+  let at = code;
+  for (;;) {
+    const r = byCode.get(at);
+    if (!r || r.status !== 'merged' || !r.merged_into || seen.has(at)) return at;
+    seen.add(at);
+    at = r.merged_into;
+  }
 }
 
 /** The latest version of one entry, or null. */
@@ -165,7 +191,7 @@ export type CompactKnownError = {
   title: string;
   error_class: string;
   signature: string;
-  status: KnownErrorStatus;
+  status: KnownErrorLiveStatus;
   pieces: string[];
   fix: { description: string; piece_versions: Record<string, string>; claimed_at: string } | null;
 };
@@ -173,7 +199,9 @@ export type CompactKnownError = {
 /** What an agent reads of the vault: the latest version of each entry, the open and recurred ones first. Bounded by `cap` characters. */
 export function compactKnownErrors(rows: readonly KnownErrorRow[], cap: number): { entries: CompactKnownError[]; omitted: number } {
   const rank = { recurred: 0, open: 1, fix_claimed: 2, validated: 3 } as const;
-  const sorted = [...rows].toSorted((a, b) => rank[a.status] - rank[b.status] || a.code.localeCompare(b.code));
+  const sorted = rows
+    .filter((k): k is KnownErrorRow & { status: KnownErrorLiveStatus } => k.status !== 'merged')
+    .toSorted((a, b) => rank[a.status] - rank[b.status] || a.code.localeCompare(b.code));
   const entries: CompactKnownError[] = sorted.map((k) => ({
     code: k.code,
     title: k.title,

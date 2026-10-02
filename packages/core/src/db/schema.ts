@@ -879,6 +879,9 @@ export type KnownErrorsTable = {
   pieces: Generated<string[]>;
   status: string;
   fix: NullableJson;
+  /** Set when the status is `merged`: the code of the entry this duplicate was merged into. */
+  merged_into: string | null;
+  merge_note: string | null;
   origin_project_id: string;
   created_by: string;
   created_at: Generated<Timestamp>;

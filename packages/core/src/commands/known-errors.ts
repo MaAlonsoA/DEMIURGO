@@ -8,7 +8,7 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { Tx } from '../db/connection.ts';
-import { type KnownErrorRow, latestKnownError, needsRecurrenceWhy, occurredAtOf, ranWithFix } from '../forensics/vault.ts';
+import { type KnownErrorRow, latestKnownError, latestKnownErrorsAll, mergeTarget, needsRecurrenceWhy, occurredAtOf, ranWithFix } from '../forensics/vault.ts';
 
 const code = z.string().regex(KNOWN_ERROR_CODE);
 const forensicPhase = z.string().regex(/^P(0|1[0-3]|[1-9])$/);
@@ -20,7 +20,7 @@ async function mustFind(trx: Tx, c: string): Promise<KnownErrorRow> {
 }
 
 /** Appends the next version of an entry with some columns changed. */
-async function nextVersion(trx: Tx, ke: KnownErrorRow, actor: string, change: { status: KnownErrorRow['status']; fix?: KnownErrorRow['fix'] }): Promise<{ id: string; version: number }> {
+async function nextVersion(trx: Tx, ke: KnownErrorRow, actor: string, change: { status: KnownErrorRow['status']; fix?: KnownErrorRow['fix']; merged_into?: string; merge_note?: string }): Promise<{ id: string; version: number }> {
   const version = ke.version + 1;
   const fix = change.fix === undefined ? ke.fix : change.fix;
   const { id } = await trx
@@ -37,6 +37,8 @@ async function nextVersion(trx: Tx, ke: KnownErrorRow, actor: string, change: { 
       pieces: ke.pieces,
       status: change.status,
       fix: fix === null ? null : JSON.stringify(fix),
+      merged_into: change.merged_into ?? null,
+      merge_note: change.merge_note ?? null,
       origin_project_id: ke.origin_project_id,
       created_by: actor,
     })
@@ -90,6 +92,7 @@ registerHandlers({
       .strict(),
     async apply(ctx, data) {
       const ke = await mustFind(ctx.trx, data.code);
+      if (ke.status === 'merged') throw refuse(`${ke.code} was merged into ${ke.merged_into}: record the fix there.`, 'A merged entry takes no fix.');
       // The moment of the claim is what later tasks are compared with: a task that ran after it ran with the fix.
       const fix = { description: data.description, commits: data.commits, piece_versions: data.piece_versions, claimed_at: new Date().toISOString() };
       const v = await nextVersion(ctx.trx, ke, formatActor(ctx.actor), { status: 'fix_claimed', fix });
@@ -117,6 +120,21 @@ registerHandlers({
     },
   }),
 
+  'known_error.merge': handler({
+    data: z.object({ code, into: code, note: z.string().trim().min(1).max(600) }).strict(),
+    async apply(ctx, data) {
+      if (data.code === data.into) throw new DomainError('validation', `${data.code} cannot be merged into itself.`);
+      // One writer at a time, so two merges cannot point at each other.
+      await sql`select pg_advisory_xact_lock(hashtext('known_errors'))`.execute(ctx.trx);
+      const ke = await mustFind(ctx.trx, data.code);
+      const target = await mustFind(ctx.trx, data.into);
+      if (ke.status === 'merged') throw refuse(`${ke.code} was already merged into ${ke.merged_into}.`, 'A merged entry is not merged again.');
+      if (target.status === 'merged') throw refuse(`${target.code} was merged into ${target.merged_into}: merge into that one.`, `${ke.code} cannot be merged into a merged entry.`);
+      const v = await nextVersion(ctx.trx, ke, formatActor(ctx.actor), { status: 'merged', merged_into: target.code, merge_note: data.note });
+      return { entityId: v.id, after: { code: ke.code, version: v.version, from: ke.status, merged_into: target.code, note: data.note }, result: { id: v.id, code: ke.code, version: v.version, merged_into: target.code } };
+    },
+  }),
+
   'known_error.occurrence': handler({
     data: z
       .object({
@@ -127,7 +145,9 @@ registerHandlers({
       })
       .strict(),
     async apply(ctx, data) {
-      const ke = await mustFind(ctx.trx, data.code);
+      // An occurrence of a merged duplicate is an occurrence of the entry that stands for it.
+      const asked = await mustFind(ctx.trx, data.code);
+      const ke = asked.status === 'merged' ? await mustFind(ctx.trx, mergeTarget(await latestKnownErrorsAll(ctx.trx), asked.code)) : asked;
       const f = await ctx.trx
         .selectFrom('task_forensics')
         .select(['id', 'task_id', 'created_at', 'task_ended_at', 'analysis'])

@@ -78,8 +78,11 @@ export type KnownErrorEntry = {
   dimension: string;
   signature: string;
   pieces: string[];
-  status: KnownErrorStatus;
+  status: KnownErrorStatus | 'merged';
   fix: KnownErrorFix | null;
+  /** Set when the status is merged: the entry this duplicate was merged into, and why. */
+  merged_into?: string | null;
+  merge_note?: string | null;
   origin_project_id: string;
   created_by: string;
   created_at: string;
@@ -94,6 +97,7 @@ export type KnownErrorSummary = Omit<KnownErrorEntry, 'created_by'> & {
 export type KnownErrorsOverview = { total: number; by_status: Record<KnownErrorStatus, number>; entries: KnownErrorSummary[] };
 export type KnownErrorOccurrence = {
   id: string;
+  ke_code?: string;
   project: { id: string; name: string };
   task: { id: string; code: string };
   forensic_id: string;

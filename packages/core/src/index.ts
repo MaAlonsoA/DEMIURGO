@@ -60,7 +60,7 @@ export { buildTaskEvidence, EVIDENCE_MAX_CHARS, type EvidenceBundle } from './fo
 export { runForensics, runTaskForensic, runPlaybooks, forensicTasks, type TaskResult, type PlaybookResult } from './forensics/run.ts';
 export { enableAutoForensics } from './forensics/register.ts';
 export { sweepForensics, dueForensics, FORENSICS_SWEEP_MS, FORENSICS_PER_SWEEP, type SweepResult, type ForensicDue } from './forensics/auto.ts';
-export { vaultFix, vaultSeed, type VaultSeedResult } from './forensics/vault-ops.ts';
+export { vaultFix, vaultMerge, vaultSeed, type VaultSeedResult } from './forensics/vault-ops.ts';
 export { VALIDATION_CLEAN_FORENSICS, latestKnownErrors } from './forensics/vault.ts';
 export { knownErrorsOverview, knownErrorDetail } from './queries/known-errors.ts';
 export { overviewOf, latestForensics, latestPlaybooks, type ForensicsOverview } from './forensics/store.ts';

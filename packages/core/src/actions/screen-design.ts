@@ -5,6 +5,7 @@
 // `screen_design` proposal that the person accepts and approves.
 
 import { DomainError, behaviorSteps, missingComponents, screenDesignProblems } from '@demiurgo/domain';
+import { sql } from 'kysely';
 import { approvedBasis } from '../context/approved-basis.ts';
 import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
@@ -19,6 +20,27 @@ const BUILDER = 'screen_design@1';
 /** Quality attributes that bear on a screen (ISO/IEC 25010 names: usability, accessibility as part of it, performance efficiency). */
 const UI_QUALITIES = /usab|accessib|a11y|performance|responsive|latenc|load time/i;
 const BUDGET = { feature: 12_000, design_system: 30_000, existing: 20_000, basis: 12_000, knowledge: 4_000 };
+
+/**
+ * The screen designs of this feature the person rejected with a reason (the latest five, newest first): the next
+ * design addresses every reason instead of proposing them again.
+ */
+async function declinedScreenDesigns(db: Db, projectId: string, recordId: string) {
+  const rows = await sql<{ reason: string; spec: { screens?: { name?: string }[] } | null; resolved_at: Date | null }>`
+    select p.resolution->>'reason' as reason, p.payload->'spec' as spec, p.resolved_at
+    from proposals p
+    join proposal_batches b on b.id = p.batch_id
+    join ai_runs r on r.id = b.run_id
+    join record_versions fv on fv.id::text = r.scope->>'id'
+    where p.project_id = ${projectId}::uuid and p.state = 'rejected' and p.type = 'screen_design'
+      and r.action = 'screen_design' and fv.record_id = ${recordId}::uuid
+      and coalesce(p.resolution->>'reason', '') <> ''
+    order by p.resolved_at desc nulls last limit 5`.execute(db);
+  return rows.rows.map((r) => ({ reason: r.reason, spec: r.spec }));
+}
+
+/** A spec compared without its free-text change note: the same screens, flow and states. */
+const specKey = (spec: unknown) => JSON.stringify({ ...(spec as Record<string, unknown>), change_note: undefined });
 
 /** What the agent needs of a design system: its parts without the specimens (the agent draws from names, states and tokens). */
 export type DsyForScreens = {
@@ -169,6 +191,10 @@ registerBuilder('screen_design', async ({ trx, projectId, scope, graphVersion })
     ? { code: existing.code, version: existing.n, state: existing.state, feature_version: existing.featureVersion, spec: existing.spec }
     : null;
   if (existing) manifest.entered({ section: 'existing', source: { type: 'record', id: existing.recordId, version: existing.n, eventSeq: null }, text: JSON.stringify(existing.spec), reason: 'current' });
+  const declined_screen_designs = (await declinedScreenDesigns(trx, projectId, v.recordId)).map((d) => ({
+    reason: d.reason,
+    screens: (d.spec?.screens ?? []).map((s) => s.name ?? ''),
+  }));
   // The quality requirements that shape an interface (usability, accessibility, performance), in full.
   const basis = await approvedBasis(trx, projectId, {
     kinds: ['quality_requirement'],
@@ -196,6 +222,7 @@ registerBuilder('screen_design', async ({ trx, projectId, scope, graphVersion })
         approved_quality_requirements: basis.records.map(({ type: _t, ...r }) => r),
         ...(basis.omitted.length > 0 ? { omitted_for_budget: basis.omitted } : {}),
         existing_screen_design,
+        ...(declined_screen_designs.length > 0 ? { declined_screen_designs } : {}),
         knowledge: knowledge.nodes,
       },
     },
@@ -219,6 +246,10 @@ registerChecker('screen_design', async ({ db, run, output }) => {
     notes.push(`\`spec.feature\` must be ${pack.feature.code} v${pack.feature.version}, the feature in the context.`);
   for (const [title, content] of Object.entries(sections))
     if (content.trim() === '') notes.push(`The section "${title}" is empty: write it.`);
+  const record = await db.selectFrom('records').select('id').where('project_id', '=', run.project_id).where('code', '=', pack.feature.code).executeTakeFirst();
+  for (const d of record ? await declinedScreenDesigns(db, run.project_id, record.id) : [])
+    if (d.spec && specKey(d.spec) === specKey(spec))
+      notes.push(`This is the same design the person already rejected, with this reason: "${d.reason}". Change the design so that it addresses that reason.`);
   const dsy = (await approvedDesignSystem(db, run.project_id)) ?? pack.design_system;
   const missing = missingComponents(spec, dsy.components.map((c) => c.name));
   if (missing.length > 0)

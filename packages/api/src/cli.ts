@@ -187,7 +187,7 @@ const commands: Record<string, () => Promise<void>> = {
   async 'create-project'() {
     const name = args[0];
     if (!name) throw new Error('Usage: create-project <name>');
-    const core = await startCore(config, cliLogger);
+    const core = await startCore(config, cliLogger, { sidecar: true });
     try {
       const actor = system('cli');
       const r = await interaction(core.services.observer, actor, null, () =>
@@ -273,7 +273,7 @@ const commands: Record<string, () => Promise<void>> = {
   async 'propose-principles'() {
     const [projectId, stageKey] = args;
     if (!projectId || !stageKey) throw new Error('Usage: propose-principles <projectId> <stage>');
-    const core = await startCore(config, cliLogger);
+    const core = await startCore(config, cliLogger, { sidecar: true });
     try {
       const { db } = core.services;
       const stage = await db
@@ -341,7 +341,7 @@ const commands: Record<string, () => Promise<void>> = {
   async 'supersede-batch'() {
     const [projectId, batchId, ...reason] = args;
     if (!projectId || !batchId || reason.length === 0) throw new Error('Usage: supersede-batch <projectId> <batchId> <reason>');
-    const core = await startCore(config, cliLogger);
+    const core = await startCore(config, cliLogger, { sidecar: true });
     try {
       await executeCommand(core.services, {
         command: 'batch.supersede',
@@ -359,7 +359,7 @@ const commands: Record<string, () => Promise<void>> = {
   async 'classify-messages'() {
     const [projectId] = args;
     if (!projectId) throw new Error('Usage: classify-messages <projectId>');
-    const core = await startCore(config, cliLogger);
+    const core = await startCore(config, cliLogger, { sidecar: true });
     try {
       const { db } = core.services;
       const messages = await db
@@ -389,7 +389,7 @@ const commands: Record<string, () => Promise<void>> = {
   async 'real-run'() {
     const [projectId, action, scope, input] = args;
     if (!projectId || !action || !scope) throw new Error('Usage: real-run <projectId> <action> <json-scope> [json-input]');
-    const core = await startCore(config, cliLogger);
+    const core = await startCore(config, cliLogger, { sidecar: true });
     try {
       const actor = system('cli');
       const r = await interaction(core.services.observer, actor, projectId, () =>
@@ -468,7 +468,7 @@ commands['evaluate-classifier'] = async () => {
 commands['import-design'] = async () => {
   const [projectId, dir = 'design'] = args;
   if (!projectId) throw new Error('Usage: import-design <projectId> [dir]');
-  const core = await startCore(config, cliLogger);
+  const core = await startCore(config, cliLogger, { sidecar: true });
   try {
     const tree = await readTree(dir);
     const r = await interaction(core.services.observer, IMPORTER, projectId, () =>
@@ -685,7 +685,7 @@ commands.forensics = async () => {
   const task = flag('--task');
   if (sub === 'run' && !task && !args.includes('--all')) throw new Error(usage);
   // The real engine: each run waits for its provider, one at a time. Progress goes to stderr; the summary is JSON on stdout.
-  const core = await startCore(config, cliLogger);
+  const core = await startCore(config, cliLogger, { sidecar: true });
   const progress = (line: string) => console.error(line);
   try {
     const actor = system('cli');
@@ -745,7 +745,7 @@ commands.vault = async () => {
   if (sub === 'seed') {
     const projectId = flag('--project');
     if (!projectId) throw new Error(usage);
-    const core = await startCore(config, cliLogger);
+    const core = await startCore(config, cliLogger, { sidecar: true });
     try {
       const actor = system('cli');
       await interaction(core.services.observer, actor, projectId, async () => {

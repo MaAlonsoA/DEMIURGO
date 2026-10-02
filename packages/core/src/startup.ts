@@ -32,7 +32,8 @@ export function createProviders(config: Config): ProviderRegistry {
 
 export type Core = StartedEngine & { connection: Connection };
 
-export async function startCore(config: Config, logger: Logger = consoleLogger): Promise<Core> {
+/** `sidecar`: a process beside the API, such as the CLI (see EngineOptions.sidecar). */
+export async function startCore(config: Config, logger: Logger = consoleLogger, options: { sidecar?: boolean } = {}): Promise<Core> {
   const connection = connect(config.databaseUrl);
   const applied = await migrate(connection.pool);
   if (applied.length) logger.info('Migrations applied', { applied });
@@ -57,6 +58,7 @@ export async function startCore(config: Config, logger: Logger = consoleLogger):
       observer,
     },
     config.databaseUrl,
+    { sidecar: options.sidecar ?? false },
   );
   void refreshCatalogs({ db: connection.db, providers }, system('providers'))
     .then((catalogs) =>

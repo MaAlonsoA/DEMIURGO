@@ -985,6 +985,12 @@ export type EngineOptions = {
   onStepComplete?: (step: string, id: string) => void | Promise<void>;
   /** Only for tests: how long an answer waits for knowledge before it is abandoned. */
   responsePatienceMs?: number;
+  /**
+   * A process beside the API (the CLI): its own DBOS executor, so launching it never recovers the API's pending
+   * workflows; no queues, so it never takes the API's work; and none of the API's reconciliation (orphan calls,
+   * runs, answers), which would act on runs the API is still executing. It only executes what it starts itself.
+   */
+  sidecar?: boolean;
 };
 
 export type StartedEngine = { services: Services; stop(): Promise<void> };
@@ -1075,18 +1081,21 @@ export async function startEngine(
     systemDatabaseUrl: baseUrl,
     systemDatabaseSchemaName: 'dbos',
     applicationVersion: WORKFLOWS_VERSION,
-    executorID: 'local',
+    executorID: options.sidecar ? `sidecar-${randomUUID()}` : 'local',
+    ...(options.sidecar ? { listenQueues: [] } : {}),
     logLevel: 'warn',
   });
   // Before DBOS resumes anything: a call still "running" now was left so by a crash.
-  await closeOrphanCalls(s.db);
+  if (!options.sidecar) await closeOrphanCalls(s.db);
   await DBOS.launch();
   dispatcher = setInterval(() => {
     void dispatchDeferred();
   }, 50);
-  await reconcileRuns(s);
-  await reconcileResponses(s);
-  for (const c of reconcilers) await systemInteraction(s, c.name, () => c.run(s));
+  if (!options.sidecar) {
+    await reconcileRuns(s);
+    await reconcileResponses(s);
+    for (const c of reconcilers) await systemInteraction(s, c.name, () => c.run(s));
+  }
   return {
     services: s,
     async stop() {
